@@ -80,7 +80,7 @@ fi
 #      cargo test, clippy, cargo install). Runs before any state changes, so a red
 #      build leaves no bump commit, no cache and no record behind. -------------------
 source "$REPO_ROOT/scripts/lib-plugin-build.sh"
-run_plugin_build "$REPO_ROOT" "$PLUGIN" || exit 1
+run_plugin_build "$REPO_ROOT" "$PLUGIN" "$VERSION" || exit 1
 
 # 1. bump version sources ------------------------------------------------------
 tmp="$(mktemp)"; jq --arg v "$VERSION" '.version = $v' "$PLUGIN_JSON" > "$tmp" && mv "$tmp" "$PLUGIN_JSON"
@@ -96,6 +96,10 @@ sed -i -E "s#(\*\*\[$PLUGIN\]\(\./$PLUGIN/\)\*\* [|] )[^ |]+( [|])#\1$VERSION\2#
 # 3. commit the bump -----------------------------------------------------------
 git add "$PLUGIN_JSON" README.md
 [ -f "$PACKAGE_JSON" ] && git add "$PACKAGE_JSON"
+# A plugin crate's Cargo.toml/Cargo.lock were bumped by the build step (step 0.5).
+for f in "$PLUGIN/mcp-server/Cargo.toml" "$PLUGIN/mcp-server/Cargo.lock"; do
+  [ -f "$f" ] && git add "$f"
+done
 git commit -m "chore: bump $PLUGIN to $VERSION" \
            -m "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 

@@ -29,6 +29,19 @@ for plugin_json in "$REPO_ROOT"/*/.claude-plugin/plugin.json; do
   else
     echo "OK: ${plugin_name} ${plugin_version}"
   fi
+
+  # A plugin that ships a Rust crate (<plugin>/mcp-server) prints the crate version from its
+  # binary, so Cargo.toml must equal plugin.json. release.sh writes it before the build.
+  cargo_toml="$plugin_dir/mcp-server/Cargo.toml"
+  if [ -f "$cargo_toml" ]; then
+    crate_version="$(awk -F'"' '/^version *= *"/{print $2; exit}' "$cargo_toml")"
+    if [ "$crate_version" != "$plugin_version" ]; then
+      echo "MISMATCH: ${plugin_name} crate Cargo.toml=${crate_version}, plugin.json=${plugin_version}"
+      errors=$((errors + 1))
+    else
+      echo "OK: ${plugin_name} crate Cargo.toml ${crate_version}"
+    fi
+  fi
 done
 
 # Pi loads codescout-companion as an npm-style package, so its manifest must

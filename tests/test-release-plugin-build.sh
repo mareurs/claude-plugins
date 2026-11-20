@@ -58,7 +58,7 @@ fi
 # ── Test 5: release.sh calls the gate, after the pre-flight tests and before the bump ──
 REL="$HERE/../scripts/release.sh"
 L_PYTEST=$(grep -n '^  run_buddy_pytest buddy' "$REL" | head -1 | cut -d: -f1)
-L_BUILD=$(grep -n '^run_plugin_build "\$REPO_ROOT" "\$PLUGIN" || exit 1' "$REL" | head -1 | cut -d: -f1)
+L_BUILD=$(grep -n '^run_plugin_build "\$REPO_ROOT" "\$PLUGIN" "\$VERSION" || exit 1' "$REL" | head -1 | cut -d: -f1)
 L_BUMP=$(grep -n '^# 1\. bump version sources' "$REL" | head -1 | cut -d: -f1)
 if [ -n "$L_PYTEST" ] && [ -n "$L_BUILD" ] && [ -n "$L_BUMP" ] && [ "$L_PYTEST" -lt "$L_BUILD" ] && [ "$L_BUILD" -lt "$L_BUMP" ]; then
   pass "release.sh runs run_plugin_build after pre-flight and before the version bump"
