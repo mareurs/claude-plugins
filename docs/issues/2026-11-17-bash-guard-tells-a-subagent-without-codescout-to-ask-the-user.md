@@ -48,3 +48,9 @@ Option chosen (the first of two):
 
 - Whether a refused codescout call (no PostToolUse) leaves the strike count rising as expected. This covers the case in Albert's report, where Bash was blocked and `run_command` was refused.
 - A main-agent session without the server (the footer's advice fits that case).
+
+
+## Fix provenance
+
+- **SHA:** `6646ec5` (`main`)
+- **patch-id:** `3afc804e5b4e5c6d17370ff63bc702e59c000354`
