@@ -83,7 +83,7 @@ if (count > 1) {
 }
 
 // 4. Drill into the one goal's augmentation params.
-const goalId = (findOut.items && findOut.items[0] && findOut.items[0].id) || '';
+const goalId = (findOut.items && findOut.items[0] && (findOut.items[0].id || findOut.items[0].key)) || '';
 if (!goalId) {
   log('goal id missing from find envelope');
   emit({ continue: true, reason: 'goal id missing — fail-open' });

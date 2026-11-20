@@ -135,6 +135,24 @@ install_find_get_stub \
     "{\"id\":\"$GOAL_ID\",\"title\":\"G\",\"augmentation\":{\"params\":{\"status\":\"active\",\"criterion\":\"do X\",\"acceptance_signals\":[{\"description\":\"step one\",\"met\":true},{\"description\":\"step two\",\"met\":false}]}}}"
 assert_hook "active-with-next" "true" "step two"
 
+# --- Branch 6b: a `find` item with a key and no id (E4c-2: the binary names a
+# document by key where the key can address it). The hook must pass the key on:
+# the stub answers `doc get` only for the key, so a hook that sent '' or the
+# item's title would reach "get failed", not "step two".
+install_stub_body '
+sub="$1"; verb="$2"; obj="${3:-}"
+case "$sub $verb" in
+    "doc find") echo "{\"count\":1,\"items\":[{\"key\":\"goal-g\",\"title\":\"G\"}]}" ;;
+    "doc get")
+        if [ "$obj" = "goal-g" ]; then
+            echo "{\"key\":\"goal-g\",\"title\":\"G\",\"augmentation\":{\"params\":{\"status\":\"active\",\"criterion\":\"do X\",\"acceptance_signals\":[{\"description\":\"step one\",\"met\":true},{\"description\":\"step two\",\"met\":false}]}}}"
+        else
+            echo "error: unknown document $obj" >&2; exit 2
+        fi ;;
+    *) echo "error: unrecognized subcommand $sub $verb" >&2; exit 2 ;;
+esac'
+assert_hook "active-with-next-key-only-item" "true" "step two"
+
 # --- Branch 7: codescout binary missing (stub removed) ---
 rm -f "$WORK/bin/codescout"
 assert_hook "binary-missing" "true" "fail-open"
@@ -164,4 +182,4 @@ if [[ "$fallback_out" == *"auto-close gate passed"* ]]; then
 fi
 echo "PASS [done-no-gate-no-leak]"
 
-echo "All 9 branches passed."
+echo "All 10 branches passed."

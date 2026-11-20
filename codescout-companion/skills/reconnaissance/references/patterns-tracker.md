@@ -31,7 +31,7 @@ created = doc(action="create", kind="tracker", status="active",
               extra={"entry_prefix": prefix,
                      "snapshot_anchor": "| ID | Date | Verdict | Pattern | Evidence (session-log) |"},
               body=template_body)
-tracker_id = created["id"]
+tracker_id = created.get("id") or created["key"]
 ```
 
 This registers the ledger with explicit metadata and reserves its prefix in the
