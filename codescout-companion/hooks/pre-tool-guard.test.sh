@@ -350,6 +350,35 @@ case "$OUT" in
     *)                            check "escape-footer-avoids-unreachable-config" "yes" "yes" ;;
 esac
 
+# A subagent cannot ask the user, so the footer's "ask the user to run /mcp" is a dead end for it, and the
+# only sentence that says a retry releases the guard sat at strike 3 (found 2026-11-17, Claude Code 2.1.326,
+# docs/issues/2026-11-17-bash-guard-tells-a-subagent-without-codescout-to-ask-the-user.md). Pinned: from the
+# FIRST strike, a call that carries agent_id is told to retry, and is not told to ask the user. The main agent
+# keeps the old advice, because it can ask.
+fire_sub() {  # <session_id> <cmd>  -> raw hook stdout, as a subagent
+    clean_window
+    jq -n --arg s "$1" --arg c "$2" --arg cwd "$ACTIVE_CWD" \
+        '{tool_name:"Bash", session_id:$s, cwd:$cwd, agent_id:"a1b2c3d4e5f6a7b8c", agent_type:"general-purpose", tool_input:{command:$c}}' | node "$HOOK"
+}
+clean
+SUB_OUT=$(fire_sub "sub-footer-$$" "echo sub")
+check "subagent-first-strike-denies" "$(verdict "$SUB_OUT")" "deny"
+case "$SUB_OUT" in
+    *"retry the call"*) check "subagent-footer-says-retry-releases-guard" "yes" "yes" ;;
+    *)                  check "subagent-footer-says-retry-releases-guard" "no"  "yes" ;;
+esac
+case "$SUB_OUT" in
+    *"ask the user"*) check "subagent-footer-does-not-say-ask-the-user" "no"  "yes" ;;
+    *)                check "subagent-footer-does-not-say-ask-the-user" "yes" "yes" ;;
+esac
+clean
+MAIN_OUT=$(fire "main-footer-$$" "echo main")
+case "$MAIN_OUT" in
+    *"ask the user"*) check "main-footer-still-says-ask-the-user" "yes" "yes" ;;
+    *)                check "main-footer-still-says-ask-the-user" "no"  "yes" ;;
+esac
+clean
+
 # --- Project-config resolution: the escape hatch must not disable it globally ---
 # Uses a temp cwd rather than a real repo, so these cases are independent of any
 # developer's own opt-out — the defect this block exists to catch.

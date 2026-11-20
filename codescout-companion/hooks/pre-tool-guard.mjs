@@ -83,15 +83,27 @@ const BREAKER_THRESHOLD = 3;
 // acknowledge_risk reaches the file in the second state; the user's "! <command>"
 // covers the first.
 // docs/issues/2026-09-07-the-source-redirect-names-tools-a-partial-tool-set-does-not-have.md (codescout)
-const ESCAPE_FOOTER =
+const ESCAPE_FOOTER_COMMON =
   '\n\nIf a tool named above is not in your tool list, do not assume the MCP ' +
   'server is down: this session may expose only a subset of codescout\'s tools. ' +
   'Call one that IS present to find out — if `run_command` answers, it reaches ' +
   'the same file with `acknowledge_risk: true`, but only for a tool that is missing. ' +
   'If the tool named above IS in your tool list, call it: do not reach the file ' +
-  'through `run_command` with `acknowledge_risk` instead. If no codescout tool is present ' +
+  'through `run_command` with `acknowledge_risk` instead. ';
+// The last sentence depends on who is reading. The main agent can ask the user. A subagent cannot, and the
+// only way out it has is the breaker, so it is told on every strike (not only at strike 3) that a retry
+// releases the guard. docs/issues/2026-11-17-bash-guard-tells-a-subagent-without-codescout-to-ask-the-user.md
+const ESCAPE_FOOTER_MAIN =
+  ESCAPE_FOOTER_COMMON +
+  'If no codescout tool is present ' +
   'at all, the server has disconnected: ask the user to run /mcp, or to run the ' +
   'command for you by typing "! <command>" at the prompt.';
+const ESCAPE_FOOTER_SUBAGENT =
+  ESCAPE_FOOTER_COMMON +
+  'If no codescout tool is present at all, you cannot reach the user from here: retry the call. ' +
+  `This guard stands down after ${BREAKER_THRESHOLD} unanswered redirects, so retrying releases it.`;
+const ESCAPE_FOOTER = input.agent_id ? ESCAPE_FOOTER_SUBAGENT : ESCAPE_FOOTER_MAIN;
+
 
 // Count one strike. Returns 0 when the breaker is disabled (no session id) or
 // when its state is unreadable — both fail SAFE, i.e. toward the guard staying
