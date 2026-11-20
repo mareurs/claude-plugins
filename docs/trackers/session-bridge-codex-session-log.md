@@ -12,7 +12,7 @@ entry_prefix:
 - F
 - W
 snapshot_anchor: '| ID | Date | Severity | Category | Status | Title |'
-entry_high_water_F: 10
+entry_high_water_F: 12
 entry_high_water_W: 1
 ---
 
@@ -24,6 +24,8 @@ Verified observations for the Codex interoperation work stream. Entries use the 
 
 | ID | Date | Severity | Category | Status | Title |
 |----|------|----------|----------|--------|-------|
+| F-11 | 2026-11-19 | high | native-approval | mitigated | Stock0.170 drops explicit approval metadata before hooks |
+| F-12 | 2026-11-19 | high | trust-state | fixed-verified | Installer trust refresh replaced with unchanged-inventory verification |
 | F-1 | 2026-11-16 | high | architectural | fixed-verified | Claude endpoint keys do not identify Codex threads |
 | W-1 | 2026-11-16 | — | verification | validated | Installed-host smoke and applied mutations validate the bridge boundaries |
 | F-2 | 2026-11-16 | high | host-contract | fixed-verified | Official Claude caller has a host session ID but no legacy IPC socket |
@@ -217,6 +219,41 @@ The real interactive Claude 2.1.325 smoke then succeeded: list_sessions found th
 **Valid:** dated 2026-11-18
 
 **Rests on:** Native hook trust gating and positive/negative controls in the issue15 repair evidence; complete-CLI installation preflight artifacts under codex-daemon-install-0169-20261118.
+
+## F-11 — Stock 0.170 drops explicit native approval metadata before PreToolUse
+
+**Valid:** dated 2026-11-19
+
+**Observed:** Stock CLI0.170 model rollout explicitly supplies sandbox_permissions=require_escalated and justification. The trusted unchanged companion1.22.4 guard receives two command-only Bash inputs, including the omitted-field control; no native approval request occurs and the marker remains absent. Callback preservation passes on private170 and shared patched169.
+
+**Source:** Exact official rust-v0.170.0 commit29eb79e9866b3262a777fdf8195c1b9e63684c91 still builds PreToolUse tool_input from args.cmd only. The approved169 patch applies cleanly; port tests first and observe RED before applying the forwarding code.
+
+**Build precondition:** Tag Cargo.lock has local package records at0.0.0 while workspace manifests declare0.170.0; --locked initially refused. cargo metadata --offline normalized174 local records, with external package records and local package names unchanged. Exclude lock normalization and codescout-generated .gitignore/.codescout state from the repair patch.
+
+**Status:** mitigated — local CLI repair verified and installed; shared daemon170 activation waits for other active turns; upstream stock170 remains affected.
+
+**Severity:** high — explicit native escalation is blocked before the host can ask for approval.
+
+**Rests on:** research/codex-0170-smoke-20261119 and its raw proof, exact source seam, existing Issue15 contract.
+
+
+**Local repair verification — 2026-11-19:** Final native source47f5564, production6d2eb18; source-pinned patch exact apply/reverse verified. Focused RED2/1 then GREEN3/0; broad core3003/0/1ignored and hooks102/0; fmt/Clippy passed. Applied mutations initially6killed/1survived; additional-permissions enum test closed the survivor, then7/0. FullCLI+matchinghelpers built; real unchanged guard decline/accept and callback probes passed. CLI route ~/.local/bin/codex installed, hash12071673d888fdd305fa5cb448776b382f8ee04c0bfda69fde03541e6a31b558. Worker3288740 waits idle-only with4 other active turns at08:57UTC; profile config/hooks/wake unchanged before worker launch. Report: docs/patches/2026-11-19-codex-0.170.0-native-approval.md on fix/codex-0170-native-approval branch. No plugin version bump or upstream issue closure.
+
+## F-12 — Reused installer could refresh hook content trust without a prior content match
+
+**Valid:** dated 2026-11-19
+
+**Observed:** Independent review found the reused169 installer matched declarations/source/enabled but copied the candidate content digest into trust without a prior approved-content match. Its subset check missed disappearing hooks. The170 worker was not launched with that helper.
+
+**Correction:** Removed trust migration from170. Replacement checks complete key sets and unchanged native currentHash/source/enabled/plugin ID/trustStatus, without trust writes. Exact170 discovery.rs append_matcher_groups intentionally reports paired sha256 digests for plugins, single declaration digest for profile-local hooks; these are distinct evidence scopes. Rollback ownership flag now follows the last release-selection check; checks are best effort, not atomic CAS.
+
+**Verification:** Eight pure regression tests passed. Native old169/candidate170 comparison verified34/34 hooks:30 plugin content-digest pairs and4 local declaration digests; trustWrites0. Independent final review approved the replacement and worker;8 tests passed in fresh review copy,3 earlier applied predicate mutations were detected. The rejected migration helper was removed; worker uses the read-only verifier.
+
+**Status:** fixed-verified
+
+**Severity:** high — granting a new digest would exceed preservation of existing trust.
+
+**Rests on:** independent source review; original helper34–48; new verifier/tests in owned170 install root; native verification JSON.
 
 ## Template for new entries
 
