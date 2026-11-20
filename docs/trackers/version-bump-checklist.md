@@ -15,25 +15,25 @@ Release readiness across plugins × profiles. See
 ## State
 ### Current release verification — 2026-11-19
 
-_Measured at 116d53a (the session-bridge rows after release 0.3.2; the other rows were measured at 2e7eb5f). Every element of every install record was read. 27 profile rows._
+_Measured at 798f919 (the codescout-companion and buddy rows after release 1.22.6; the other rows were measured at 2e7eb5f and 116d53a). Every element of every install record was read. 27 profile rows._
 
 **buddy** — canonical `0.12.0` · readme `0.12.0` ✅ · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 0.11.18 ❌ | ✅ | ✅ | `0.11.18` ❌ STALE SIBLING |
+| `~/.claude` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
 | `~/.claude-sdd` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
-| `~/.claude-kat` | 0.11.18 ❌ | ✅ | ✅ | `0.11.18` ❌ STALE SIBLING |
-| `~/.claude-stef` | 0.11.18 ❌ | ✅ | ✅ | `0.11.18` ❌ STALE SIBLING |
+| `~/.claude-kat` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-stef` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
 
-**codescout-companion** — canonical `1.22.5` · readme `1.22.5` ✅ · marketplace clean ✅
+**codescout-companion** — canonical `1.22.6` · readme `1.22.6` ✅ · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 1.22.5 ✅ | ✅ | ✅ | `1.22.5` ✅ |
-| `~/.claude-sdd` | 1.22.5 ✅ | ✅ | ✅ | `1.22.5` ✅ |
-| `~/.claude-kat` | 1.22.5 ✅ | ✅ | ✅ | `1.22.5` ✅ |
-| `~/.claude-stef` | 1.22.5 ✅ | ✅ | ✅ | `1.22.5` ✅ |
+| `~/.claude` | 1.22.6 ✅ | ✅ | ✅ | `1.22.6` ✅ |
+| `~/.claude-sdd` | 1.22.6 ✅ | ✅ | ✅ | `1.22.6` ✅ |
+| `~/.claude-kat` | 1.22.6 ✅ | ✅ | ✅ | `1.22.6` ✅ |
+| `~/.claude-stef` | 1.22.6 ✅ | ✅ | ✅ | `1.22.6` ✅ |
 
 **hint-echo** — canonical `0.1.0` · readme `0.1.0` ✅ · marketplace clean ✅
 
