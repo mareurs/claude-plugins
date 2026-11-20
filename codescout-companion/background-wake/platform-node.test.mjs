@@ -9,6 +9,10 @@ try{api=await import(url);}catch(e){if(e.code!=='ERR_MODULE_NOT_FOUND'||e.url!==
 const subject=()=>{assert.ok(api,'platform operations are not implemented');return api;};
 async function fixture(fn){const root=await mkdtemp(join(tmpdir(),'wake space-γ-'));try{await fn(root);}finally{await rm(root,{recursive:true,force:true});}}
 const platform=(api,root,extra={})=>api.createPlatform({profileRoot:root,stateDir:join(root,'private'),pythonArgv:[process.platform==='win32'?'python':'python3'],...extra});
+// A receipt transaction spawns a Python helper, and a loaded machine can take longer than 5 s to start it, which
+// answers "no send permit" and drops the delivery (engine.test.mjs `unknownLivenessDoesNotMeanDead` failed that way
+// in a full run: `calls[0]` was undefined). The limit must be settable, so a test can give a loaded machine room.
+test('receiptTransactionHonoursTheConfiguredTimeout',async()=>{const api=subject();await fixture(async(root)=>{const result=await platform(api,root,{receiptTimeoutMs:1}).receiptTransaction({op:'inspect',eventId:'e'.repeat(64)});assert.equal(result.ok,false);assert.match(result.reason,/timed out/);});});
 test('permissionErrorIsNotDead',async(t)=>{const api=subject();await fixture(async(root)=>{t.mock.method(process,'kill',()=>{throw Object.assign(new Error('denied'),{code:'EPERM'});});assert.equal(await platform(api,root).processStatus({pid:123}),'unknown');});});
 test('missingPythonDisablesEngine',async()=>{const api=subject();await fixture(async(root)=>{await assert.rejects(platform(api,root,{pythonArgv:[join(root,'missing-python')]}).privateStateRoot(),/python|unavailable/i);});});
 test('spacesAndUnicodeRoundTrip',async()=>{const api=subject();await fixture(async(root)=>{const p=platform(api,root);const child=p.spawnArgv(process.execPath,['-e','process.stdout.write(process.argv[1])','value with space γ']);let output='';child.stdout.on('data',(b)=>{output+=b;});const [code]=await once(child,'exit');assert.equal(code,0);assert.equal(output,'value with space γ');const dir=await p.privateStateRoot();assert.ok(dir);if(process.platform!=='win32')assert.equal((await stat(dir)).mode&0o077,0);});});

@@ -17,7 +17,7 @@ export const nodeVersionSupported=(version)=>{const m=/^(\d+)(?:\.|$)/.exec(Stri
 export function assertSupportedNode(version=process.versions.node){if(!nodeVersionSupported(version))throw new Error(`Node ${MIN_NODE_MAJOR} or newer is required`);}
 
 
-export function createPlatform({profileRoot,stateDir,pythonArgv=[process.platform==='win32'?'python':'python3']}) {
+export function createPlatform({profileRoot,stateDir,pythonArgv=[process.platform==='win32'?'python':'python3'],receiptTimeoutMs=5000}) {
   if(!isAbsolute(profileRoot)||!isAbsolute(stateDir)||!Array.isArray(pythonArgv)||!pythonArgv.length)throw new Error('explicit native profile/state and Python argv are required');
   const sandbox=process.env.CS_TEST_STATE_SANDBOX;
   const root=sandbox?join(resolve(sandbox),'background-wake',createHash('sha256').update(resolve(profileRoot)).digest('hex')):resolve(stateDir);
@@ -26,7 +26,7 @@ export function createPlatform({profileRoot,stateDir,pythonArgv=[process.platfor
     const child=spawnArgv(pythonArgv[0],[...pythonArgv.slice(1),'-X','utf8','-I',helper,'--state-dir',root]);
     let out='',err='',finished=false;
     const finish=(value)=>{if(!finished){finished=true;clearTimeout(timer);done(value);}};
-    const timer=setTimeout(()=>{child.kill();finish({ok:false,receipt:null,reason:'receipt transaction timed out; no send permit'});},5000);
+    const timer=setTimeout(()=>{child.kill();finish({ok:false,receipt:null,reason:'receipt transaction timed out; no send permit'});},receiptTimeoutMs);
     child.on('error',(e)=>finish({ok:false,receipt:null,reason:e.code==='ENOENT'?'Python unavailable':`receipt helper unavailable (${e.code||'spawn'})`}));
     child.stdin.on('error',()=>{});
     child.stdout.on('data',(bytes)=>{out+=bytes;if(out.length>2*1024*1024){child.kill();finish({ok:false,receipt:null,reason:'receipt helper reply exceeds budget'});}});
