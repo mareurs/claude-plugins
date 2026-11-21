@@ -13,6 +13,75 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
+### Current release verification — 2026-11-21 (1.22.8)
+
+_Measured at fe43109 (after release codescout-companion 1.22.8). Every element of every install record was read. 27 profile rows. All rows are green._
+
+Changed since the verification of 7c2ba6f: `codescout-companion` 1.22.7 → 1.22.8 (pushed to `origin/main`).
+
+**codescout-companion** — canonical `1.22.8` · readme `1.22.8` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.22.8 ✅ | ✅ | ✅ | `1.22.8` ✅ |
+| `~/.claude-sdd` | 1.22.8 ✅ | ✅ | ✅ | `1.22.8` ✅ |
+| `~/.claude-kat` | 1.22.8 ✅ | ✅ | ✅ | `1.22.8` ✅ |
+| `~/.claude-stef` | 1.22.8 ✅ | ✅ | ✅ | `1.22.8` ✅ |
+
+**buddy** — canonical `0.12.0` · readme `0.12.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-sdd` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-kat` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-stef` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+
+**legible** — canonical `0.2.1` · readme `0.2.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-sdd` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-kat` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-stef` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+
+**statusline** — canonical `1.2.1` · readme `1.2.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-sdd` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-kat` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+
+**sdd** — canonical `3.0.1` · readme `3.0.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-sdd` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-kat` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+| `~/.claude-stef` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+
+**hint-echo** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-stef` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+
+**session-bridge** — canonical `0.3.2` · readme `0.3.2` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-sdd` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-kat` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-stef` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+
+`cs-hint-codex` is not installed in any profile.
 ### Current release verification — 2026-11-21
 
 _Measured at 7c2ba6f (after release codescout-companion 1.22.7). Every element of every install record was read. 27 profile rows._
@@ -511,6 +580,12 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-11-21 — codescout-companion 1.22.8
+
+codescout-companion `1.22.7` → `1.22.8`, pushed to `origin/main` (`278c2ab..fe43109`). `1.22.7` had been released locally with `NO_PUSH=1` (commit `7c2ba6f`), so `origin/main` still had `1.22.6` until this push. Changes since `1.22.7`: the hook `door-shell-guard` (new, with its entry in `hooks.json`), a fix in `goal-stop-hook`, and the `reconnaissance` skill with its new `references/tool-friction-routing.md`. Skill files load from the versioned cache, so the skill change reaches a session only after a cold restart.
+
+**Delta found by this refresh:** none besides the new version. The refresh measured 8 discovered plugins. The 7 that have install records are green in every profile that has them (`statusline` is in 3 of the 4 profiles). `cs-hint-codex` is installed in no profile. The release ran the pre-flight tests (node suites; buddy pytest, 579 passed) and the parity check for `codescout-companion` in four profiles.
 
 ### 2026-11-19 — session-bridge 0.3.1 and codescout-companion 1.22.5; buddy drift found
 
