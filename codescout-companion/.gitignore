@@ -1,2 +1,5 @@
 .codescout/private-memories/
 .orphaned_at
+.codescout/usage.db
+.codescout/usage.db-wal
+.codescout/usage.db-shm
