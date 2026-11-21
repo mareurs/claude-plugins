@@ -29,3 +29,6 @@ __pycache__/
 
 # Prepared runtime dependencies are installed from the committed lockfile.
 node_modules/
+.codescout/usage.db
+.codescout/usage.db-wal
+.codescout/usage.db-shm
