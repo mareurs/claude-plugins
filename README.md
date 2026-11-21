@@ -40,7 +40,7 @@ opencode service restart                   # the background service caches plugi
 | Plugin | Version | Description |
 |--------|---------|-------------|
 | **[sdd](./sdd/)** | 3.0.1 | Specification-Driven Development: governance, workflow commands, and enforcement hooks |
-| **[codescout-companion](./codescout-companion/)** | 1.22.6 | Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server: injects tool guidance, redirects Read/Grep/Glob/Edit/Write to symbol-aware tools, auto-reindex + drift warnings, worktree shared-asset symlinking |
+| **[codescout-companion](./codescout-companion/)** | 1.22.7 | Companion plugin for [codescout](https://github.com/mareurs/codescout) MCP server: injects tool guidance, redirects Read/Grep/Glob/Edit/Write to symbol-aware tools, auto-reindex + drift warnings, worktree shared-asset symlinking |
 | **[statusline](./statusline/)** | 1.2.1 | Rich, color-coded terminal status line: model, context %, rate limits (incl. per-model weekly), git info, duration. Self-heals orphan `statusLine` settings when sibling plugins are uninstalled. |
 | **[buddy](./buddy/)** | 0.12.0 | Himalayan-aesthetic bodhisattva companion: 12 specialist masters on demand, AI judge, focus tracking, statusline integration |
 | **[Pi harness](./harnesses/pi/)** | 0.1.0 | Companion for [pi](https://github.com/earendil-works/pi-mono): Codescout routing, skill-load tracker, recon badge, MCP status widget, and local read-only session snapshots |
