@@ -16,6 +16,7 @@
 #   7. codescout binary missing → continue, "fail-open" (binary not found)
 #   8. 1 goal, status=unknown  → continue, "malformed" (Hamsa S-2 — fail-open with distinct signal)
 #   9. 1 goal, status=done, NO gate_check event → STOP, legacy form (S-4 fallback)
+#  10. the agent's session id is exported → codescout runs without it
 
 set -uo pipefail
 
@@ -182,4 +183,35 @@ if [[ "$fallback_out" == *"auto-close gate passed"* ]]; then
 fi
 echo "PASS [done-no-gate-no-leak]"
 
-echo "All 10 branches passed."
+# --- Branch 10: the hook runs codescout WITHOUT the agent's session id ---
+# Claude Code exports CLAUDE_CODE_SESSION_ID to hooks. `codescout doc find|get`
+# records a usage row (and claims the first-call guide) under that id, so the
+# hook must strip it: the stub writes the ids it sees to $ENVLOG, and every
+# invocation must have seen both empty although the test exported both.
+export ENVLOG="$WORK/env.log"
+: > "$ENVLOG"
+install_stub_body '
+printf "%s|%s|%s\n" "$1 $2" "${CLAUDE_CODE_SESSION_ID:-}" "${CODESCOUT_SESSION_ID:-}" >> "$ENVLOG"
+case "$1 $2" in
+    "doc find") echo "{\"count\":1,\"items\":[{\"id\":\"abc123\",\"title\":\"G\"}]}" ;;
+    "doc get")  echo "{\"id\":\"abc123\",\"title\":\"G\",\"augmentation\":{\"params\":{\"status\":\"active\",\"criterion\":\"do X\",\"acceptance_signals\":[{\"description\":\"step two\",\"met\":false}]}}}" ;;
+    *) echo "error: unrecognized subcommand $1 $2" >&2; exit 2 ;;
+esac'
+env_out=$(echo "{\"session_id\":\"t\",\"transcript_path\":\"/dev/null\",\"cwd\":\"$WORK/project\",\"last_assistant_message\":\"\"}" | env -u CLAUDE_CONFIG_DIR CLAUDE_CODE_SESSION_ID=agent-session-id CODESCOUT_SESSION_ID=agent-session-id PATH="$WORK/bin:/usr/bin:/bin" HOME="$WORK/home" "$NODE" "$HOOK")
+if [[ "$(jq -r '.reason_to_continue // .reason // ""' <<<"$env_out")" != *"step two"* ]]; then
+    echo "FAIL [no-session-id]: the stub was not reached through find and get: $env_out"
+    exit 1
+fi
+if ! grep -q '^doc find|' "$ENVLOG" || ! grep -q '^doc get|' "$ENVLOG"; then
+    echo "FAIL [no-session-id]: expected a doc find and a doc get call, log:"
+    cat "$ENVLOG"
+    exit 1
+fi
+if grep -Eq '^doc (find|get)\|[^|]+\||^doc (find|get)\|[^|]*\|[^|]+$' "$ENVLOG"; then
+    echo "FAIL [no-session-id]: codescout saw a session id; log (call|CLAUDE_CODE_SESSION_ID|CODESCOUT_SESSION_ID):"
+    cat "$ENVLOG"
+    exit 1
+fi
+echo "PASS [no-session-id]"
+
+echo "All 11 branches passed."

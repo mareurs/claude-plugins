@@ -46,7 +46,10 @@ if (!cs) {
 
 function run(args) {
   try {
-    return execFileSync(cs, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    // The agent's own session id must not reach codescout: `doc find|get` records a
+    // usage row and claims the first-call guide under it (an empty value counts as unset).
+    const env = { ...process.env, CLAUDE_CODE_SESSION_ID: '', CODESCOUT_SESSION_ID: '' };
+    return execFileSync(cs, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], env });
   } catch {
     return '';
   }
