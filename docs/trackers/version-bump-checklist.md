@@ -13,9 +13,78 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
+### Current release verification — 2026-11-21
+
+_Measured at 7c2ba6f (after release codescout-companion 1.22.7). Every element of every install record was read. 27 profile rows._
+
+Changed since 2026-11-19: `codescout-companion` 1.22.6 → 1.22.7 (released locally with `NO_PUSH=1`; not pushed). Every other row is unchanged.
+
+**buddy** — canonical `0.12.0` · readme `0.12.0` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-sdd` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-kat` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-stef` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+
+**codescout-companion** — canonical `1.22.7` · readme `1.22.7` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.22.7 ✅ | ✅ | ✅ | `1.22.7` ✅ |
+| `~/.claude-sdd` | 1.22.7 ✅ | ✅ | ✅ | `1.22.7` ✅ |
+| `~/.claude-kat` | 1.22.7 ✅ | ✅ | ✅ | `1.22.7` ✅ |
+| `~/.claude-stef` | 1.22.7 ✅ | ✅ | ✅ | `1.22.7` ✅ |
+
+**hint-echo** — canonical `0.1.0` · readme `0.1.0` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-stef` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+
+**legible** — canonical `0.2.1` · readme `0.2.1` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-sdd` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-kat` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-stef` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+
+**sdd** — canonical `3.0.1` · readme `3.0.1` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-sdd` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-kat` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+| `~/.claude-stef` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+
+**session-bridge** — canonical `0.3.2` · readme `0.3.2` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-sdd` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-kat` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-stef` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+
+**statusline** — canonical `1.2.1` · readme `1.2.1` ✅ · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-sdd` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-kat` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+
+**cs-hint-codex** — not installed in any profile.
 ### Current release verification — 2026-11-19
 
-_Measured at 798f919 (the codescout-companion and buddy rows after release 1.22.6; the other rows were measured at 2e7eb5f and 116d53a). Every element of every install record was read. 27 profile rows._
+_Superseded on 2026-11-21 by the section above; kept as the previous verification. Measured at 798f919 (the codescout-companion and buddy rows after release 1.22.6; the other rows were measured at 2e7eb5f and 116d53a). Every element of every install record was read. 27 profile rows._
 
 **buddy** — canonical `0.12.0` · readme `0.12.0` ✅ · marketplace clean ✅
 
