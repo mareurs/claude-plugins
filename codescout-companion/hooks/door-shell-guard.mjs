@@ -8,22 +8,53 @@
 // and expands the `$` before codescout reads a byte, with no report.
 //
 // Checked, only when the command (heredoc bodies stripped) runs `codescout call` or
-// `codescout box`, with or without a path prefix:
+// `codescout box` at an unquoted position, with or without a path prefix:
 //   - an unquoted `<<` / `<<-` whose delimiter is bare;
 //   - a double-quoted word that starts with `{` and holds an unescaped backtick or `$`.
 // Not checked: any other argument (`--project "$PWD"` may expand on purpose), and anything
 // inside single quotes. `<<'EOF'`, `<<"EOF"` and `<<\EOF` are safe; `<<<` takes no body.
 //
 // The detection is a port, line for line, of the Rust: the two repositories cannot share a
-// file, so the 14-row table of the Rust unit test is repeated in door-shell-guard.test.sh.
-import { readInput, denyPreToolUse, normalizedToolName } from './lib.mjs';
+// file, so the 17-row table of the Rust unit test is repeated in door-shell-guard.test.sh.
+import { readInput, denyPreToolUse } from './lib.mjs';
 
 // The one heredoc opener pattern: group 1 and 2 are a quoted delimiter, group 3 a bare one.
 const HEREDOC_OPEN = /<<-?\s*(?:'([A-Za-z_][A-Za-z0-9_]*)'|"([A-Za-z_][A-Za-z0-9_]*)"|([A-Za-z_][A-Za-z0-9_]*))/;
 // The same pattern, anchored at `lastIndex`, for the quote-aware scan.
 const HEREDOC_OPEN_AT = new RegExp(HEREDOC_OPEN.source, 'y');
 
-const DOOR_INVOCATION = /(?:^|[\s;&|(])(?:\S*\/)?codescout\s+(?:call|box)\b/;
+// Group 1 is the `codescout` word: an invocation counts only where that word sits unquoted.
+// The `d` flag gives the word's index.
+const DOOR_INVOCATION = /(?:^|[\s;&|(])((?:\S*\/)?codescout)\s+(?:call|box)\b/dg;
+
+// Whether index `pos` of `s` sits inside a quoted span, by the quote rules of the scan below:
+// single quotes take every character literally, double quotes open and close outside single
+// quotes, and a backslash outside single quotes escapes the next character.
+function isQuotedAt(s, pos) {
+  let inSingle = false;
+  let inDouble = false;
+  let i = 0;
+  while (i < pos && i < s.length) {
+    const c = String.fromCodePoint(s.codePointAt(i));
+    i += c.length;
+    if (c === '\\' && !inSingle) {
+      if (i < s.length) i += String.fromCodePoint(s.codePointAt(i)).length;
+    } else if (c === "'" && !inDouble) {
+      inSingle = !inSingle;
+    } else if (c === '"' && !inSingle) {
+      inDouble = !inDouble;
+    }
+  }
+  return inSingle || inDouble;
+}
+
+// Whether `s` runs `codescout call` / `codescout box` with the `codescout` word unquoted.
+function runsDoorUnquoted(s) {
+  for (const m of s.matchAll(DOOR_INVOCATION)) {
+    if (!isQuotedAt(s, m.indices[1][0])) return true;
+  }
+  return false;
+}
 
 // Drop each heredoc's body and terminator line; keep the opener line. `<<<` (here-string)
 // takes no body and opens nothing.
@@ -51,7 +82,7 @@ const firstChars = (s, n) => Array.from(s).slice(0, n).join('');
 // `{ kind: 'heredoc', delimiter }`, `{ kind: 'json', excerpt }`, or null.
 function doorShellHazard(command) {
   const s = stripHeredocBodies(command);
-  if (!DOOR_INVOCATION.test(s)) return null;
+  if (!runsDoorUnquoted(s)) return null;
 
   let inSingle = false;
   let inDouble = false;
@@ -96,8 +127,8 @@ function doorShellHazard(command) {
   return null;
 }
 
-// Error and hint text: the run_command step 2.6b text, except the last sentence. A native
-// Bash call has no acknowledge_risk.
+// Error and hint text: the run_command step 2.6b text, except the last sentence, which names
+// run_command's acknowledge_risk (a hard deny here cannot be approved by the user).
 function refusal(hazard) {
   const error =
     hazard.kind === 'heredoc'
@@ -107,18 +138,20 @@ function refusal(hazard) {
         `in it before codescout reads it: ${hazard.excerpt}`;
   const hint =
     'Put the body after the command with a quoted delimiter, and keep the JSON in single quotes:\n' +
-    '  codescout call doc \'{"action":"create","kind":"…","title":"…"}\' --text body - <<\'EOF\'\n' +
+    '  codescout call doc \'{"action":"create","kind":"…","title":"…","rel_path":"docs/…"}\' --text body - <<\'EOF\'\n' +
     '  <markdown>\n' +
     '  EOF\n' +
     'An update that overwrites a whole body:\n' +
     '  codescout call doc \'{"action":"update","id":"…","patch":{}}\' --text /patch/body - <<\'EOF\'\n' +
-    'To run it as written anyway, ask the user to approve the command.';
+    'To run it as written anyway, use run_command with acknowledge_risk=true.';
   return `${error}\n\n${hint}`;
 }
 
 const input = readInput();
 if (!input) process.exit(0);
-if (normalizedToolName(input) !== 'Bash') process.exit(0);
+// The raw name, not normalizedToolName: that maps run_command/terminal/shell to Bash too, and
+// codescout's own run_command already runs this gate (a hard deny there is wrong).
+if (input.tool_name !== 'Bash') process.exit(0);
 const cmd = (input.tool_input && input.tool_input.command) || '';
 if (!cmd) process.exit(0);
 

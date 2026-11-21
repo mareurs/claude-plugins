@@ -6,7 +6,7 @@
 # src/tools/run_command/inner.rs): refuse a `codescout call` / `codescout box` command
 # line whose text the shell would expand before codescout reads it.
 #
-# The 14 rows below are copied from the Rust unit test `door_shell_hazard_table`. The two
+# The 17 rows below are copied from the Rust unit test `door_shell_hazard_table`. The two
 # repositories cannot share a file, so the table is repeated; the command text is written
 # as the Rust table writes it (the JS string escapes \n \" \\ mean what the Rust ones do).
 
@@ -49,6 +49,12 @@ const rows = [
    "cat <<EOF > notes.md\nx\nEOF", "none"],
   ["backslash-escaped delimiter",
    "codescout call doc <<\\EOF\n{}\nEOF", "none"],
+  ["here-string takes no body",
+   "codescout call doc \x27{}\x27 <<< x", "none"],
+  ["double-quoted delimiter is safe",
+   "codescout call doc - <<\"EOF\"\n{}\nEOF", "none"],
+  ["the words inside a quoted echo are not an invocation",
+   "echo \"see codescout box docs\"; cat <<EOF >f\nx\nEOF", "none"],
 ];
 process.stdout.write(JSON.stringify(rows.map(([name, cmd, want]) => ({ name, cmd, want }))));
 '
@@ -98,11 +104,11 @@ check() {
     esac
 }
 
-# --- The 14-row table -------------------------------------------------------------
+# --- The 17-row table -------------------------------------------------------------
 ROWS=$(rows_json)
 N=$(printf '%s' "$ROWS" | jq 'length')
-if [[ "$N" != "14" ]]; then
-    bad "table has 14 rows" "got $N"
+if [[ "$N" != "17" ]]; then
+    bad "table has 17 rows" "got $N"
 fi
 for ((i = 0; i < N; i++)); do
     name=$(printf '%s' "$ROWS" | jq -r ".[$i].name")
@@ -117,15 +123,15 @@ JSON_CMD='codescout call doc "{\"body\":\"run `ls`\"}"'
 out=$(run_hook Bash "$HEREDOC_CMD" | sed '$d')
 reason=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason // ""')
 want_heredoc_err='the heredoc `<<EOF` is unquoted, so the shell runs backticks and expands `$` in its body before codescout reads it'
-want_create='codescout call doc '\''{"action":"create","kind":"…","title":"…"}'\'' --text body - <<'\''EOF'\'
+want_create='codescout call doc '\''{"action":"create","kind":"…","title":"…","rel_path":"docs/…"}'\'' --text body - <<'\''EOF'\'
 want_update='codescout call doc '\''{"action":"update","id":"…","patch":{}}'\'' --text /patch/body - <<'\''EOF'\'
-want_last='To run it as written anyway, ask the user to approve the command.'
+want_last='To run it as written anyway, use run_command with acknowledge_risk=true.'
 for needle in "$want_heredoc_err" "$want_create" "$want_update" "$want_last" \
     'Put the body after the command with a quoted delimiter, and keep the JSON in single quotes:' \
     'An update that overwrites a whole body:'; do
     if [[ "$reason" == *"$needle"* ]]; then ok "heredoc refusal contains: ${needle:0:50}"; else bad "heredoc refusal contains: ${needle:0:50}" "$reason"; fi
 done
-if [[ "$reason" == *"acknowledge_risk"* ]]; then bad "refusal does not mention acknowledge_risk" "$reason"; else ok "refusal does not mention acknowledge_risk"; fi
+if [[ "$reason" == *"ask the user to approve"* ]]; then bad "refusal does not ask for an approval a hard deny cannot give" "$reason"; else ok "refusal does not ask for an approval a hard deny cannot give"; fi
 
 out=$(run_hook Bash "$JSON_CMD" | sed '$d')
 reason=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason // ""')
@@ -134,6 +140,7 @@ if [[ "$reason" == *"$want_json_err"* ]]; then ok "json refusal names the argume
 
 # --- Not a Bash call, or nothing to judge: the hook stays silent -------------------
 check "non-Bash tool is ignored" Read "$HEREDOC_CMD" none
+check "codescout's own run_command is ignored (its gate refuses there)" run_command "$HEREDOC_CMD" none
 check "empty command is ignored" Bash "" none
 out=$(printf 'not json' | node "$HOOK" 2>/dev/null; echo "EXIT:$?")
 if [[ "$out" == "EXIT:0" ]]; then ok "unparseable stdin exits 0 silently"; else bad "unparseable stdin exits 0 silently" "$out"; fi
