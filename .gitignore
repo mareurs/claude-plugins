@@ -32,3 +32,5 @@ node_modules/
 .codescout/usage.db
 .codescout/usage.db-wal
 .codescout/usage.db-shm
+.codescout/write.lock
+.codescout/write.lock.holder
