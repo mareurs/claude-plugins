@@ -55,12 +55,16 @@ those are the half that travels.
 ```
 librarian(action="doctor")     → summary.by_check.augmentation_declared_but_absent
 index(action="verify")         → git_sync.behind_commits, memories.missing_count
-librarian(action="link_scan")  → counts.edges_missing   (report mode)
+librarian(action="link_scan")  → counts.edges_missing   (report mode; absent on a derived-index checkout)
 ```
 
 Any of `augmentation_declared_but_absent > 0`, `memories.missing_count > 0`, or an
-`edges_missing` in the hundreds means the catalog is unrepaired. Repair first, then
-start Phase 1.
+`edges_missing` in the hundreds means the catalog is unrepaired. On a derived-index
+checkout (its root `.gitignore` commits `/.codescout/derived.db*`) `link_scan` derives
+its edges from the files and has no `edges_missing`, so read the first two only; read
+doctor's `summary.not_run` as well: a check listed there did not run on the checkout it
+names, so its `by_check` count covers the other checkouts only (`summary.served` gives
+the store each checkout was read from). Repair first, then start Phase 1.
 
 ### Why the sweep is invalid until then
 
@@ -80,7 +84,8 @@ nothing, while 19 genuinely-empty augmentations generate no finding at all.
 never-augmented-here signal, not a staleness one.
 
 **2. The ledger is in git; the catalog is not.** Phase 2 records `link_scan`'s
-`counts.edges_missing` / `counts.dangling` into the sweep entry, and treats a jump
+`counts.edges_missing` / `counts.dangling` (on a derived-index checkout,
+`counts.dangling` alone) into the sweep entry, and treats a jump
 versus the previous sweep as worth an HY-N note. On the unrepaired laptop those read
 **697 missing and 597 dangling** — numbers that describe a machine with no catalog,
 not a corpus that decayed. Writing them into `tracker-hygiene-log.md` commits a
@@ -102,7 +107,8 @@ Ordered, because later steps read what earlier ones write:
 3. `index(action="build")` — background; poll `index(action="status")`.
 4. `librarian(action="link_scan", write=true)`, then **run it once more**. A second
    scan reaching `edges_missing[0]` / `edges_stale[0]` is the proof it landed — the
-   write reporting success is not.
+   write reporting success is not. On a derived-index checkout skip this step:
+   `write=true` is refused there, because the index derives every edge from the files.
 5. Restore augmentations. No automated path exists: augmentation is the one artifact
    state with no on-disk form, so `expects_augmentation: true` records *that* one
    should exist and nothing records *what*.
@@ -174,7 +180,7 @@ Build both states. All shell via `run_command`; never pipe unbounded output.
 - **Observed placement:** which files sit in the live dir vs the archive dir.
 - **Observed catalog:** `doc(action="find", kind="tracker", include_archived=true)` — note rows whose `status` or `rel_path` disagree with disk. This query is project-wide: it returns trackers **anywhere** in the project, including outside `docs/trackers/` (e.g. a subproject's `*/docs/*_TRACKER.md`). The file inventory above only sees `docs/trackers/` — so the two halves disagree on scope. Treat `docs/trackers/` as the sweep's authoritative scope; a catalog tracker living elsewhere is a *separate observation*, not a D1 index-drift finding. (If you reach for `librarian(action="doctor")` to find orphans, note it scans the **whole catalog across all projects** — filter its `missing_file` violations to this project's path.) `kind=tracker` can also return mis-classified `docs/issues/` bug files (a bug file carrying `kind: tracker`) — exclude `docs/issues/` from the cross-check; bug-file lifecycle is D8/v2.
 - **Observed augmentation freshness:** `doc(action="list_stale", threshold_hours=168)`.
-- **Observed citation-graph drift:** `librarian(action="link_scan")` (report mode) — record `counts.edges_missing` and `counts.dangling` in the sweep entry; a jump vs the previous sweep is an observation worth an HY-N note (materializing with `write=true` is a Phase-5 fix, gated like any other).
+- **Observed citation-graph drift:** `librarian(action="link_scan")` (report mode) — record `counts.edges_missing` and `counts.dangling` in the sweep entry; a jump vs the previous sweep is an observation worth an HY-N note (materializing with `write=true` is a Phase-5 fix, gated like any other). On a derived-index checkout record `counts.dangling` alone: `counts.edges_missing` is absent and `write=true` is refused. Its population differs from the catalog scanner's: both count a 16-hex id that a non-empty old catalog does not hold (`counts.dangling_dead_ids` gives the derived share; on codescout 2026-11-21, 439 of 457), but the catalog scanner also counts a bare token whose prefix is known and that no document defines, and, with an empty catalog, every 16-hex id, while the derived report counts neither. So **do not compare the count across a sweep taken before the repository opted in and one taken after**; note in each sweep entry which side of the opt-in it was taken on.
 - **Declared:** parse the index file's rows (file links + claimed status); read each tracker's frontmatter `status:` via `read_file`.
 
 ### Phase 3 — Diff (the detectors)
@@ -251,7 +257,11 @@ sequence — each mutation is its own Phase-4 gate:
    top: the Index / Wins Index tables (statuses updated), one paragraph per
    promoted/rehomed entry naming its destination, and unfired Promote-when
    criteria. Verify with `link_scan`: no new dangling citation for the stem's
-   tokens. (`get_guide("tracker-conventions")` § Compaction and archival.)
+   tokens. That covers bare tokens on a repository that has not opted in only. On a
+   derived-index checkout the dangling check covers `[[<key>:TOKEN]]` and `[[<key>]]`
+   only: a bare token there cites only an entry of its own document and is never
+   dangling, and a prose `<stem>:TOKEN` is a `legacy_forms` item that never resolves, so
+   grep for both. (`get_guide("tracker-conventions")` § Compaction and archival.)
 5. **Archive through the catalog, in three steps — not two.** Use
    `archive-cadence-policy` § 3 (amended, ratified 2026-08-17), with the
    stem-citation exception below to its whole-file timestamp rule:
@@ -265,6 +275,8 @@ sequence — each mutation is its own Phase-4 gate:
         `doc(update, patch={extra:{archived_on:"<YYYY-MM-DD>"}})`.
         A timestamp rename breaks those citations; `link_scan` reports them as
         `CrossRepoToken`, not `dangling`, so a zero dangling count misses the break.
+        On a derived-index checkout they are `legacy_forms` items with
+        `form: "stem_token"`, renamed or not: look for the stem in their `raw`.
       - **Uncited log:** `docs/trackers/archive/<name>-<YYYY-MM-DD>.md`, the date
         being the day the stream was declared wrapped in step 3. The timestamp
         records when it wrapped and separates repeated wraps on different dates.
@@ -281,11 +293,14 @@ sequence — each mutation is its own Phase-4 gate:
    c. **Repoint citations of the old path AND the old 16-hex id — and, if the name
       changed, the old file stem (`<old-stem>:TOKEN`) — in the same commit**.
       Verify with a scoped `audit_doc_refs` (0 high findings as the gate), plus a
-      `link_scan` report with no `CrossRepoToken` whose qualifier is the old stem.
+      `link_scan` report with no `CrossRepoToken` whose qualifier is the old stem (on a
+      derived-index checkout, no `legacy_forms` item with `form: "stem_token"` whose
+      `raw` starts with the old stem).
       Read all relevant findings if the report is truncated; a cut list cannot
       establish absence.
       `link_scan(write=true)` does not do this — markdown citations are not catalog
-      edges. HY-5 § 1 measured the cost of skipping it: 24 moves broke 8 path
+      edges, and a derived-index checkout refuses it. HY-5 § 1 measured the cost of
+      skipping it: 24 moves broke 8 path
       references across 7 live surfaces, none caught by `link_scan`, one failing CI on
       a release tip. Leave `docs/trackers/archive/**` and superseded session-log
       rounds alone — those are historical snapshots, and `archive_drop` exists so a
@@ -390,7 +405,9 @@ Nothing is edited before its verdict.
   write=true)` once — a move churns the `id` and the reindex cascade-drops the
   artifact's `cites` edges; `link_scan` heals them (idempotent, scanner-owned,
   never touches manual/`supersedes` rels). Log `edges_added`/`edges_pruned` in
-  the sweep entry. Skip if `link_scan` is unavailable (see Degradation).
+  the sweep entry. Skip if `link_scan` is unavailable (see Degradation). On a
+  derived-index checkout skip it too: `write=true` is refused there, and the index
+  reads every edge from the files, so a move leaves no edge to heal.
 - Append the sweep entry (`## Sweep YYYY-MM-DD`) and bump `next-sweep-due`
   in one call. A sweep entry has no monotonic id — it's dated, not `HY-N` —
   so this goes through a plain body edit, not `append_entry`:

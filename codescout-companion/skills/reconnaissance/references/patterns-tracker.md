@@ -67,14 +67,21 @@ renumbering a shipping document.
 **Take a baseline before creating the ledger.** Ensure the relevant Markdown is
 indexed (`librarian(action="reindex")` when needed), then save a read-only
 `librarian(action="link_scan", write=False)` result. Use the same scope and artifact
-limit for the post-bootstrap scan; a nested workspace may require `scope="repo"`.
-Check `counts.scan_truncated`, `counts.unreadable` and `counts.truncated`, and page
-findings before treating a comparison as complete.
+limit for the post-bootstrap scan; a nested workspace may require `scope="repo"` (a
+derived-index checkout, whose root `.gitignore` commits `/.codescout/derived.db*`, takes
+`scope="project"` only and has no artifact limit).
+Check `counts.scan_truncated` (absent on a derived-index checkout), `counts.unreadable`
+and `counts.truncated`, and page findings before treating a comparison as complete.
 
-A prefix becomes known to `link_scan` through a defining heading **or an
-`entry_prefix` declaration**, including an empty ledger. Rows alone do not define
-entries. A wholly unknown prefix is suppressed as prose noise; once known, its
-unresolved tokens become dangling, and matching tokens may bind to a definer.
+On a repository that has not opted in to a derived index, a prefix becomes known to
+`link_scan` through a defining heading **or an `entry_prefix` declaration**, including an
+empty ledger. Rows alone do not define entries. A wholly unknown prefix is suppressed as
+prose noise; once known, its unresolved tokens become dangling, and matching tokens may
+bind to a definer. On a derived-index checkout no prefix gate applies: a bare token cites
+only an entry of its own document, so it never dangles and never binds to another
+definer; `[[<key>:TOKEN]]` resolves to the one document that defines the token, `<key>`
+itself or one `<key>` owns as a folder index, and is `undefined_token` (dangling) when none
+does or `ambiguous_token` when several do.
 Declaring ownership prevents a second declaration, but cannot establish that
 existing prose belongs to that owner. Undeclared headings and row-only ledgers
 still need inspection.
@@ -85,6 +92,13 @@ as well as ambiguous and dangling findings. A drop in dangling can be a legitima
 repair or a citation captured by an unrelated new definer; the count alone cannot
 tell which. Read the citing text and intended destination. Only after confirming
 those bindings, materialize/prune them with `librarian(action="link_scan", write=True)`.
+On a derived-index checkout the report has no `edges_missing` or `edges_stale` and
+`write=True` is refused: the index derives every edge from the files, so a capture is live
+once the files say so. There a new ledger can change only a `[[<key>]]` or
+`[[<key>:TOKEN]]` whose `<key>` is the ledger's own or that of a folder index owning it:
+compare the `dangling` and `ambiguous` findings (each
+names its citing document, line and citation) with the baseline, and correct a wrong
+capture in the files.
 If a conflict appears, correct the prefix and every related append call and rerun
 the scans; the `doc` tool's `rekey_prefix` action supports a dry run for an existing ledger.
 
