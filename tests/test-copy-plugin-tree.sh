@@ -17,6 +17,15 @@
 #     with `--delete-excluded`, which also aligns the rsync branch with the
 #     fallback branch; the two had silently disagreed.
 #
+#  3. `.codescout/` is the third instance (found 2026-11-23). A codescout MCP
+#     session writes `.codescout/` (usage.db, logs, embeddings) into the
+#     directory it activates, and plugin dirs hold some
+#     (`codescout-companion/.codescout`, `codescout-companion/hooks/.codescout`).
+#     Every seed copied that machine-local state, usage.db included, into all four
+#     profiles' caches. The root .gitignore keeps it out of git; only the
+#     exclude list keeps it out of a cache. No tracked file lives under a
+#     `.codescout/` inside a plugin dir, so excluding the name is safe.
+#
 # Both branches are exercised: the rsync path when rsync is present, and the
 # cp+find fallback by shadowing `command` so its `command -v rsync` probe fails.
 
@@ -42,7 +51,10 @@ trap 'rm -rf "$SANDBOX"' EXIT
 
 build_src() {  # <src>
   local s="$1"
-  mkdir -p "$s/hooks" "$s/.buddy" "$s/__pycache__" "$s/skills"
+  mkdir -p "$s/hooks" "$s/.buddy" "$s/__pycache__" "$s/skills" \
+           "$s/.codescout" "$s/hooks/.codescout"
+  echo 'usage rows'        > "$s/.codescout/usage.db"
+  echo 'nested usage rows' > "$s/hooks/.codescout/usage.db"
   echo 'real content'      > "$s/hooks/real.mjs"
   echo 'skill'             > "$s/skills/SKILL.md"
   echo 'trace from a live session' > "$s/.buddy/.session-start-trace.log"
@@ -55,7 +67,8 @@ build_src() {  # <src>
 # protected from deletion, so re-seeding never cleaned them up.
 pollute_dest() {  # <dest>
   local d="$1"
-  mkdir -p "$d/.buddy" "$d/__pycache__"
+  mkdir -p "$d/.buddy" "$d/__pycache__" "$d/.codescout"
+  echo 'STALE usage rows' > "$d/.codescout/usage.db"
   echo 'STALE trace from another session' > "$d/.buddy/.session-start-trace.log"
   echo 'STALE'  > "$d/.orphaned_at"
   echo 'STALE'  > "$d/__pycache__/old.pyc"
@@ -89,6 +102,8 @@ run_case() {  # <branch-label> <use_fallback:yes|no>
   present "$label: nested content copied"        "$dest/skills/SKILL.md"
   absent  "$label: .buddy/ not copied"           "$dest/.buddy"
   absent  "$label: .orphaned_at not copied"      "$dest/.orphaned_at"
+  absent  "$label: .codescout/ not copied"       "$dest/.codescout"
+  absent  "$label: nested .codescout/ not copied" "$dest/hooks/.codescout"
   absent  "$label: __pycache__ not copied"       "$dest/__pycache__"
   absent  "$label: stale plain file deleted"     "$dest/removed-since.mjs"
   absent  "$label: stale DOTfile deleted"        "$dest/.stale-dotfile"

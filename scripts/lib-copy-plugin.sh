@@ -24,6 +24,11 @@
 # sitting inside the cache is a trap for that diagnostic, so this exclusion is
 # not merely tidiness.
 #
+# .codescout/ is the third (2026-11-23): a codescout MCP session writes its
+# machine-local state (usage.db, logs, embeddings) into the directory it
+# activates, and plugin dirs hold some. Every seed copied usage.db into all
+# four profiles' caches. No tracked file lives under a plugin's .codescout/.
+#
 # Prefers rsync (delta-copy, real excludes) when available; falls back to a
 # plain cp + find-prune mirror (Git-for-Windows bash ships no rsync).
 
@@ -42,7 +47,7 @@ copy_plugin_tree() {
     rsync -a --delete --delete-excluded \
       --exclude='__pycache__' --exclude='.pytest_cache' \
       --exclude='*.pyc' --exclude='.mypy_cache' --exclude='.venv' \
-      --exclude='.orphaned_at' --exclude='.buddy' \
+      --exclude='.orphaned_at' --exclude='.buddy' --exclude='.codescout' \
       --exclude='target/debug' --exclude='target/deps' \
       --exclude='target/.fingerprint' --exclude='target/.rustc_info.json' \
       --exclude='target/build' --exclude='target/incremental' \
@@ -66,7 +71,7 @@ copy_plugin_tree() {
     find "$dest" -depth \( \
       -name '__pycache__' -o -name '.pytest_cache' -o -name '*.pyc' \
       -o -name '.mypy_cache' -o -name '.venv' -o -name '.orphaned_at' \
-      -o -name '.buddy' \
+      -o -name '.buddy' -o -name '.codescout' \
       -o -path '*/target/debug' -o -path '*/target/deps' \
       -o -path '*/target/.fingerprint' -o -path '*/target/.rustc_info.json' \
       -o -path '*/target/build' -o -path '*/target/incremental' \
