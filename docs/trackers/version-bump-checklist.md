@@ -13,6 +13,76 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
+### Current release verification — 2026-11-23 (1.23.1)
+
+_Measured at 14af68a (after release codescout-companion 1.23.1, committed locally with `NO_PUSH=1`). Every element of every install record was read. 27 profile rows. All rows are green._
+
+Changed since the verification of 379f38c: `codescout-companion` 1.23.0 → 1.23.1. **Not pushed:** `origin/main` is at `80c7b18` and `main` is 5 commits ahead. Step 6.5 of the release reported no marketplace skew, so it synced no marketplace clone.
+
+**codescout-companion** — canonical `1.23.1` · readme `1.23.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.23.1 ✅ | ✅ | ✅ | `1.23.1` ✅ |
+| `~/.claude-sdd` | 1.23.1 ✅ | ✅ | ✅ | `1.23.1` ✅ |
+| `~/.claude-kat` | 1.23.1 ✅ | ✅ | ✅ | `1.23.1` ✅ |
+| `~/.claude-stef` | 1.23.1 ✅ | ✅ | ✅ | `1.23.1` ✅ |
+
+**buddy** — canonical `0.12.0` · readme `0.12.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-sdd` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-kat` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-stef` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+
+**legible** — canonical `0.2.1` · readme `0.2.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-sdd` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-kat` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-stef` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+
+**statusline** — canonical `1.2.1` · readme `1.2.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-sdd` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-kat` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+
+**sdd** — canonical `3.0.1` · readme `3.0.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-sdd` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-kat` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+| `~/.claude-stef` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+
+**hint-echo** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-stef` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+
+**session-bridge** — canonical `0.3.2` · readme `0.3.2` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-sdd` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-kat` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-stef` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+
+`cs-hint-codex` is not installed in any profile.
+
 ### Current release verification — 2026-11-23 (1.23.0)
 
 _Measured at 379f38c (after release codescout-companion 1.23.0). Every element of every install record was read. 27 profile rows. All rows are green._
@@ -581,6 +651,12 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-11-23 — codescout-companion 1.23.1
+
+codescout-companion `1.23.0` → `1.23.1`, released locally with `NO_PUSH=1` (bump commit `14af68a`) and **not pushed**: `origin/main` is at `80c7b18` and `main` is 5 commits ahead. Changes since `1.23.0`: the `SubagentStart` hook (`subagent-guidance.mjs`) sends a pointer of about 3.4 KB instead of the system prompt and every memory name, because Claude Code cut 536 of 1,959 payloads (27%) over 10 days to a 2 KB preview; the deny reasons of `pre-tool-guard.mjs` and its repeat pointer name the `ToolSearch` call that loads a deferred codescout tool; `pre-task-hint.mjs` tells the dispatcher to name codescout tools in every brief. Tests: the output-budget cap in `tests/test-subagent-guidance.sh` fell from 12000 B to 5000 B, and the `migrating-trackers` test derives its names-file count from the apply JSON.
+
+**Delta found by this refresh:** none besides the new version. The refresh measured 8 discovered plugins. The 7 that have install records are green in every profile that has them (`statusline` is in 3 of the 4 profiles). `cs-hint-codex` is installed in no profile. The release's pre-flight (`./tests/run-all.sh` and the buddy pytest, 579 passed) was green, and step 6.5 reported parity across 4 profiles and no marketplace skew.
 
 ### 2026-11-23 — codescout-companion 1.23.0
 
