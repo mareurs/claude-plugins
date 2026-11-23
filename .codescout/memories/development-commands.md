@@ -39,15 +39,11 @@ drive the hook by hand from a repo that carries an opt-out. See `guard-hardening
 
 ```
 /plugin marketplace add mareurs/claude-plugins
-/plugin install codescout-companion@claude-plugins
-/plugin install sdd@claude-plugins
+/plugin install codescout-companion@sdd-misc-plugins
+/plugin install sdd@sdd-misc-plugins
 ```
 
-**On this machine the marketplace key is `sdd-misc-plugins`, not `claude-plugins`** — that
-is what `.claude-plugin/marketplace.json`, every install record and `release.sh` use. The
-`claude-plugins` name above is the public install path for a fresh user. It is also a
-`source: directory` marketplace here, whose `installLocation` is the repo itself, so plugin
-content is served from the working tree.
+**The marketplace key is `sdd-misc-plugins`** (the `name` in `.claude-plugin/marketplace.json`). It is what every install record and `release.sh` use, and `/plugin install …@claude-plugins` fails with "not found in marketplace" (verified 2026-11-09 on a clean profile). On this machine it is also a `source: directory` marketplace whose `installLocation` is the repo itself. **Hooks load from the working tree there; skills and commands load from the versioned cache** (see the repo `CLAUDE.md`, § Plugin Install Path).
 
 ## Version Bump (after tests pass)
 
@@ -60,8 +56,10 @@ content is served from the working tree.
 Gated, aborting on first failure: pre-flight (clean tree + `./tests/run-all.sh` + buddy
 pytest) → bump `plugin.json` + the README table → `check-versions.sh` → commit → seed the
 versioned cache in every profile that has the plugin (four here) → repoint `version` +
-`installPath` in each install record → `check-profile-parity.sh` → sanity loop → push. `NO_PUSH=1` dry-runs it;
+`installPath` in each install record → sanity loop → `check-profile-parity.sh` (step 6.5) → push. `NO_PUSH=1` dry-runs it;
 `SKIP_TESTS=1` skips the suites. **The script header is authoritative.**
+
+If step 6.5 reports `MARKETPLACE SKEW`, the release has already committed and seeded the caches but did not push. Refresh the stale marketplace clone from the profile with the newest HEAD (`rsync -a --delete`, after checking for symlinks), re-run `./scripts/check-profile-parity.sh`, then `git push`. Measured 2026-11-23: `superpowers-marketplace` sat at 5c90728 in `~/.claude-sdd` and `~/.claude-kat` and at 808dc47 in the other two.
 
 Two steps it cannot do, both required afterwards:
 
