@@ -13,20 +13,20 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
-### Current release verification — 2026-11-23 (1.23.1)
+### Current release verification — 2026-11-24 (1.23.2)
 
-_Measured at 14af68a (after release codescout-companion 1.23.1, committed locally with `NO_PUSH=1`). Every element of every install record was read. 27 profile rows. All rows are green._
+_Measured at 23df283 (after release codescout-companion 1.23.2, committed locally with `NO_PUSH=1`). Every element of every install record was read. 27 profile rows. All rows are green._
 
-Changed since the verification of 379f38c: `codescout-companion` 1.23.0 → 1.23.1. **Not pushed:** `origin/main` is at `80c7b18` and `main` is 5 commits ahead. Step 6.5 of the release reported no marketplace skew, so it synced no marketplace clone.
+Changed since the verification of 14af68a: `codescout-companion` 1.23.1 → 1.23.2. **Not pushed:** `origin/main` is at `80c7b18` and `main` is 13 commits ahead. Step 6.5 of the release reported no marketplace skew, so it synced no marketplace clone.
 
-**codescout-companion** — canonical `1.23.1` · readme `1.23.1` · marketplace clean ✅
+**codescout-companion** — canonical `1.23.2` · readme `1.23.2` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 1.23.1 ✅ | ✅ | ✅ | `1.23.1` ✅ |
-| `~/.claude-sdd` | 1.23.1 ✅ | ✅ | ✅ | `1.23.1` ✅ |
-| `~/.claude-kat` | 1.23.1 ✅ | ✅ | ✅ | `1.23.1` ✅ |
-| `~/.claude-stef` | 1.23.1 ✅ | ✅ | ✅ | `1.23.1` ✅ |
+| `~/.claude` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
+| `~/.claude-sdd` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
+| `~/.claude-kat` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
+| `~/.claude-stef` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
 
 **buddy** — canonical `0.12.0` · readme `0.12.0` · marketplace clean ✅
 
@@ -651,6 +651,12 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-11-24 — codescout-companion 1.23.2
+
+codescout-companion `1.23.1` → `1.23.2`, released locally with `NO_PUSH=1` (bump commit `23df283`) and **not pushed**: `origin/main` is at `80c7b18` and `main` is 13 commits ahead. Changes since `1.23.1`, all in skills (a skill is served from the versioned cache, so none of it was live before this release): `tracker-hygiene` no longer cites sections of the `tracker-conventions` guide that codescout cut, and its archive step verifies a moved citation with `git grep -F` on the old and new path; the `reconnaissance` skill files frictions and wins in one `recon` box per repository, and `references/append-entry-anchoring.md` is gone (the other session's commits `6479434` and `92f06d2`; its evals were not run). The release's pre-flight (`./tests/run-all.sh` and the buddy pytest, 579 passed) was green, and step 6.5 reported parity across 4 profiles and no marketplace skew.
+
+**Delta found by this refresh:** none in the version checks. One content drift sits outside them: `buddy/skills/codescout-pika/SKILL.md` changed by one cosmetic line in `92f06d2` (it no longer names the retired reconnaissance session-log as an example), and `buddy` stays at `0.12.0`, so all four profile caches hold the old line until the next `buddy` bump. The checklist compares versions and never file content, so it cannot show this.
 
 ### 2026-11-23 — codescout-companion 1.23.1
 
