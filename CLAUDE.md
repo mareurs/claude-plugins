@@ -2,6 +2,25 @@
 
 Claude Code plugin marketplace. Primary active plugin: `codescout-companion`.
 
+## IRON LAW — build for the agent
+
+Agents are the main users of every surface this repository ships: MCP tool schemas and descriptions, hook text, deny messages, skill text and scripts. When you design, change or review one, these outrank completeness and cleverness:
+
+1. **Simplicity.** One model and one method per job. Replace an old way; never add a second.
+2. **Natural for an agent.** The right call is the one an agent would guess.
+3. **Known patterns.** Prefer what git, the shell, markdown and common CLIs already teach over an invention of ours.
+4. **Token economy.** Every byte an agent reads costs: tool descriptions, hook payloads, deny text, skills. Claude Code cuts a hook payload of about 10 KB or more to a 2 KB preview (§ codescout-companion, SubagentStart).
+5. **Few turns.** One call that answers beats a call and a follow-up. A refusal names the fix.
+6. **Lenient.** Do what the agent meant, and say in one line what you understood. Refuse only what you cannot read or undo. Teach a limit up front, in the schema and the description, and keep the refusal as a net: `post_notice` advises 120 and 4000 characters, accepts a fifth more, and refuses beyond that with the count to cut.
+
+A design that adds a surface, a mode, a format or a skill names which of these it costs, and why the cost is worth it.
+
+Agent-facing text (hook output, deny messages, skill and tool descriptions) states the current situation only, with no history ("was removed", "formerly"). History belongs in commit messages, trackers and issues.
+
+## What belongs in this file
+
+A line earns residency here only if a session that never opens another doc would act wrongly without it. Put new measurements and incident history in `docs/` or a tracker, and leave a one-line pointer under the same heading, because scripts and other docs cite this file's sections by name.
+
 ## Structure
 
 ```
@@ -315,6 +334,12 @@ env vars must remove them before the next test runs — otherwise subsequent tes
 corrupted environment and produce false results. The pattern is: write config → test →
 remove config. If test N establishes this pattern, make sure test N+1 doesn't silently
 inherit leftover state.
+
+## Git Workflow
+
+Commit your own finished work at once; do not ask. Several sessions share this checkout, so staged or uncommitted work is swept into a peer's commit: `git add` explicit paths, never `-A`. Push only when asked. `release.sh` pushes at its last step, so run it with `NO_PUSH=1` unless the operator asked for the push.
+
+Write trackers, issues, memories, prompts and every other text of this repository in English, whatever language the conversation uses.
 
 ## Skill layout — core in `SKILL.md`, harness specifics in `references/`
 
