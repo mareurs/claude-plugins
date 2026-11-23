@@ -13,7 +13,7 @@ fix.
 
 | State | What it is | Where it lives |
 |---|---|---|
-| **Convention** | The local dialect: status vocabularies, archive dir, index format | `CONVENTIONS.md`, `TAXONOMY.md`, archive policy docs, `get_guide("tracker-conventions")` defaults |
+| **Convention** | The local dialect: status vocabularies, archive dir, index format | `CONVENTIONS.md`, `TAXONOMY.md`, archive policy docs, the box readmes (`codescout box <key>` prints a box's statuses, fields and rules) |
 | **Declared** | What the project *says* is true | index/README cluster maps, frontmatter `status:` |
 | **Observed** | What *is* true | `git log -1` per file, actual directory, librarian catalog, `doc(action="list_stale")` |
 
@@ -231,7 +231,6 @@ leaves the graph and event log wrong.
 > notice is to read that field. Measured live that day on two codescout bug
 > records, following this page verbatim. No successor → a plain `status: archived`
 patch. Genuinely forked with no clear canonical → a D5 judgment, not an archive.
-(`get_guide("tracker-conventions")` § Cross-linking.)
 
 **D10 distill-then-archive — the session-log decay policy.** A session log's value
 inverts once its work stream wraps: unpromoted content is index noise, and its
@@ -261,7 +260,7 @@ sequence — each mutation is its own Phase-4 gate:
    derived-index checkout the dangling check covers `[[<key>:TOKEN]]` and `[[<key>]]`
    only: a bare token there cites only an entry of its own document and is never
    dangling, and a prose `<stem>:TOKEN` is a `legacy_forms` item that never resolves, so
-   grep for both. (`get_guide("tracker-conventions")` § Compaction and archival.)
+   grep for both.
 5. **Archive through the catalog, in three steps — not two.** Use
    `archive-cadence-policy` § 3 (amended, ratified 2026-08-17), with the
    stem-citation exception below to its whole-file timestamp rule:
@@ -292,7 +291,10 @@ sequence — each mutation is its own Phase-4 gate:
       forks into ambiguous tokens.)
    c. **Repoint citations of the old path AND the old 16-hex id — and, if the name
       changed, the old file stem (`<old-stem>:TOKEN`) — in the same commit**.
-      Verify with a scoped `audit_doc_refs` (0 high findings as the gate), plus a
+      Verify with `git grep -F '<old path>'` (no hit outside `docs/trackers/archive/**`)
+      beside the control `git grep -F '<new path>'` (must hit): `audit_doc_refs` reports a
+      moved path cited under `docs/trackers/**` at `Med`, so `--fail-on high` passes with
+      the citation still stale. Also run a
       `link_scan` report with no `CrossRepoToken` whose qualifier is the old stem (on a
       derived-index checkout, no `legacy_forms` item with `form: "stem_token"` whose
       `raw` starts with the old stem).
@@ -317,8 +319,8 @@ D10 this runs **every sweep**: D10 fires at ≥21 days idle, which is archive ti
 lesson that failed to land is needed long before then.
 
 **Scope to ACTIVE entries.** A stale pointer inside `docs/trackers/archive/**` is the
-historical record, not drift — the same rule `audit_doc_refs`' `archive_drop` and
-`get_guide("tracker-conventions")` already apply. Rewriting one falsifies the record to
+historical record, not drift — the same rule `audit_doc_refs`' `archive_drop` already
+applies. Rewriting one falsifies the record to
 satisfy a linter meant to ignore it.
 
 **Three verdicts, because "fix the link" gets two of them wrong.**

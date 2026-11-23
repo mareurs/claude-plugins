@@ -206,8 +206,9 @@ assert "rev-parse-all-enumerates"    "$(mkinput 'git rev-parse --all | head -20'
 assert "config-get-is-one-value"     "$(mkinput 'git config --get user.email | head -1')"  "allow"
 assert "config-list-dumps-the-file"  "$(mkinput 'git config --list | grep user')"          "deny"
 
-# The reported workflow, end to end: get_guide("tracker-conventions") mandates
-# recording a patch-id beside a fix SHA, and every spelling of it was refused.
+# The reported workflow, end to end: a bug file's `## Fix provenance` section (codescout
+# docs/issues/_TEMPLATE.md) mandates recording a patch-id beside a fix SHA, and every
+# spelling of it was refused.
 assert "patch-id-workflow-1"         "$(mkinput 'git show abc123 | git patch-id --stable')" "allow"
 assert "patch-id-workflow-2"         "$(mkinput "git show abc123 | git patch-id --stable | cut -d' ' -f1")" "allow"
 assert "patch-id-workflow-3"         "$(mkinput "git show abc123 | cut -d' ' -f1 | wc -l")" "allow"

@@ -91,11 +91,11 @@ YAML frontmatter (`kind: tracker`, `status:`, `title:`) and is queryable via
 `doc(action="find", kind="tracker")` rather than only through this table.
 
 - Every tracker's frontmatter carries `kind: tracker`, `status:` (`active` |
-  `draft` | `archived` | `superseded` — see `get_guide("tracker-conventions")`),
-  and `title:`.
+  `draft` | `archived` | `superseded`), and `title:`.
 - A ledger (one that allocates `F-N`/`W-N`/`T-N` ids) additionally declares
-  `entry_prefix:` — this is what guards it against direct hand-edits; see
-  `get_guide("tracker-conventions")` § Entry ids.
+  `entry_prefix:` — this is what guards it against direct hand-edits; see the codescout
+  manual page `docs/manual/src/concepts/entry-citations.md` § Ledgers, and entries that
+  live in prose.
 - Each tracker still has a **Done-condition** section stating when it closes,
   and a **History** section with dated entries (most-recent first, prepended) —
   those conventions are unchanged by the frontmatter migration.
@@ -103,7 +103,7 @@ YAML frontmatter (`kind: tracker`, `status:`, `title:`) and is queryable via
   catalog (`doc(action="update", id=..., patch={status:"archived"})`), never a
   raw frontmatter edit — link forward to whatever supersedes or references it.
 - Cross-tracker references use relative markdown links, or an entry id
-  (`F-3`, `T-12`) per `get_guide("tracker-conventions")` § Citing an entry.
+  (`F-3`, `T-12`) as `[[<file-stem>:F-3]]` per `get_guide("tracker-conventions")` § Citing.
 - This table is now a curated map, not the source of truth for status — a
   tracker's frontmatter is authoritative; keep this table's Status column in
   sync by convention, not by construction.
