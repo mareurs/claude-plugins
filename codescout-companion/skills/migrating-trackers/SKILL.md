@@ -18,7 +18,6 @@ One tracker per run of the loop.
 
    | Tracker | Writer |
    |---|---|
-   | every `*-session-log` (for example `foo-session-log.md`) | the `reconnaissance` skill copies its template to `docs/trackers/<topic>-session-log.md` and appends to it |
    | `reconnaissance-patterns` | the `reconnaissance` skill appends to it |
    | `tracker-hygiene-log` | the `tracker-hygiene` skill and the session-start banner |
 
