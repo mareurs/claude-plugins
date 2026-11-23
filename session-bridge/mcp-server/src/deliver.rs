@@ -100,7 +100,7 @@ fn author_name<'a>(live: &'a [Endpoint], n: &Notice) -> Option<&'a str> {
         .and_then(|e| e.name.as_deref())
 }
 
-/// The text for an addressed notice. The body is not cut: it is at most `MAX_BODY` characters,
+/// The text for an addressed notice. The body is not cut: it is at most `HARD_BODY` characters,
 /// and the sender chose to write it for this one session. It stays untrusted, so every field goes
 /// through `clean` and the text ends with `AUTHORITY`. The reply hint names the author's session.
 pub fn render_direct(n: &Notice, name: Option<&str>) -> String {

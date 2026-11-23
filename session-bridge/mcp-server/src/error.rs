@@ -30,11 +30,10 @@ pub enum BridgeError {
     Io(#[from] std::io::Error),
     #[error("serde: {0}")]
     Serde(#[from] serde_json::Error),
-    #[error("{field} over the limit: {actual} exceeds {limit}")]
+    #[error("{message}")]
     OverLimit {
         field: &'static str,
-        limit: usize,
-        actual: usize,
+        message: String,
     },
     #[error("notice store: {0}")]
     Store(#[from] rusqlite::Error),

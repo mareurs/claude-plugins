@@ -141,3 +141,12 @@ fn a_full_length_body_is_not_cut() {
     let got = f.take(&["s1"]).expect("delivered");
     assert!(got.contains(&body), "the whole body is present");
 }
+
+#[test]
+fn a_body_a_fifth_over_the_advised_limit_is_not_cut() {
+    let f = fx();
+    let body = format!("{}END", "x".repeat(4797)); // 4800 characters, the most the store accepts
+    f.post_to(Some("s1"), "long", &body);
+    let got = f.take(&["s1"]).expect("delivered");
+    assert!(got.contains(&body), "the whole body is present");
+}

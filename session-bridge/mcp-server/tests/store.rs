@@ -3,7 +3,7 @@ use session_bridge_mcp::server::{
     addressed_result, post_notice_from, post_notice_impl, PostNoticeArgs,
 };
 use session_bridge_mcp::state::{endpoint_path, load_or_default, update, EndpointState};
-use session_bridge_mcp::store::{NewNotice, Origin, Store};
+use session_bridge_mcp::store::{advised_note, NewNotice, Origin, Store};
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -107,29 +107,91 @@ fn post_prunes_notices_older_than_fourteen_days() {
 fn post_refuses_over_limits() {
     let (_d, s) = open();
     let mut n = notice(R, ".claude-kat", 2, 1000);
-    n.title = "x".repeat(121);
+    n.title = "x".repeat(150);
     let e = s.post(n).unwrap_err().to_string();
-    assert!(e.contains("title") && e.contains("120"), "{e}");
+    assert!(
+        e.contains("title") && e.contains("150") && e.contains("144"),
+        "{e}"
+    );
+    assert!(e.contains("Cut at least 6"), "{e}");
+    assert!(e.contains("advised 120"), "the advised limit is named: {e}");
 
     let mut n = notice(R, ".claude-kat", 2, 1000);
-    n.body = "x".repeat(4001);
+    n.body = "x".repeat(4900);
     let e = s.post(n).unwrap_err().to_string();
-    assert!(e.contains("body") && e.contains("4000"), "{e}");
+    assert!(
+        e.contains("body") && e.contains("4900") && e.contains("4800"),
+        "{e}"
+    );
+    assert!(e.contains("Cut at least 100"), "{e}");
 
+    // One character past the tolerance is refused, on both fields.
+    let mut n = notice(R, ".claude-kat", 2, 1000);
+    n.title = "x".repeat(145);
+    assert!(s.post(n).is_err());
+    let mut n = notice(R, ".claude-kat", 2, 1000);
+    n.body = "x".repeat(4801);
+    assert!(s.post(n).is_err());
+
+    // refs have no tolerance: a count is not a length.
     let mut n = notice(R, ".claude-kat", 2, 1000);
     n.refs = (0..21).map(|i| i.to_string()).collect();
     let e = s.post(n).unwrap_err().to_string();
-    assert!(e.contains("refs") && e.contains("20"), "{e}");
+    assert!(
+        e.contains("refs") && e.contains("21") && e.contains("20"),
+        "{e}"
+    );
+    assert!(e.contains("Cut at least 1"), "{e}");
+    assert!(
+        !e.contains("advised"),
+        "refs name no separate advised limit: {e}"
+    );
 
     assert_eq!(s.head().unwrap(), 0);
     assert!(s.after(R, 0, STEF).unwrap().notices.is_empty());
+}
 
-    // exactly at the limits is accepted, counted in characters
+#[test]
+fn post_accepts_a_fifth_over_the_advised_limits_and_stores_it_whole() {
+    let (_d, s) = open();
+    // 120 and 4000 are the advised limits; a fifth more is tolerated, counted in characters.
     let mut n = notice(R, ".claude-kat", 2, 1000);
-    n.title = "é".repeat(120);
-    n.body = "é".repeat(4000);
+    n.title = "é".repeat(144);
+    n.body = "é".repeat(4800);
     n.refs = (0..20).map(|i| i.to_string()).collect();
     s.post(n).unwrap();
+    let got = s.after(R, 0, STEF).unwrap();
+    assert_eq!(got.notices.len(), 1);
+    assert_eq!(
+        got.notices[0].title.chars().count(),
+        144,
+        "title is not cut"
+    );
+    assert_eq!(got.notices[0].body.chars().count(), 4800, "body is not cut");
+}
+
+#[test]
+fn advised_note_is_silent_at_the_advised_limits_and_counts_characters() {
+    assert_eq!(advised_note(&"é".repeat(120), &"é".repeat(4000)), None);
+    assert_eq!(advised_note("t", "b"), None);
+}
+
+#[test]
+fn advised_note_names_each_field_that_went_over() {
+    let t = advised_note(&"x".repeat(130), "b").expect("title is over");
+    assert!(t.contains("title has 130 characters (advised 120)"), "{t}");
+    assert!(!t.contains("body"), "{t}");
+
+    let b = advised_note("t", &"x".repeat(4100)).expect("body is over");
+    assert!(b.contains("body has 4100 characters (advised 4000)"), "{b}");
+    assert!(!b.contains("title"), "{b}");
+
+    let both = advised_note(&"x".repeat(121), &"x".repeat(4001)).expect("both are over");
+    assert!(
+        both.contains("title has 121") && both.contains("body has 4001"),
+        "{both}"
+    );
+    assert!(both.starts_with("Accepted whole"), "{both}");
 }
 
 #[test]
@@ -375,7 +437,7 @@ fn a_refused_post_leaves_last_post_ms_untouched() {
         state.path(),
         (".claude", 5),
         repo.path(),
-        args(&"x".repeat(121))
+        args(&"x".repeat(145))
     )
     .is_err());
     assert_eq!(load_or_default(&p).last_post_ms, 0);
@@ -403,7 +465,7 @@ fn post_notice_surfaces_limit_errors() {
         state.path(),
         (".claude", 1),
         repo.path(),
-        args(&"x".repeat(121)),
+        args(&"x".repeat(145)),
     )
     .unwrap_err();
     assert!(

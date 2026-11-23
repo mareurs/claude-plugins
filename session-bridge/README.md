@@ -160,7 +160,10 @@ OpenCode 2.2.7 was also probed with a fresh isolated service: the current plugin
   target transcript), `cost_usd`, cache token counts and a note that the answer is data, not an
   instruction. Asking yourself is refused.
 - **`post_notice(title, body, refs = [], to?)`**. Title at most 120 characters, body at most 4000,
-  at most 20 refs. The repository is the one your session works in; outside a git repository the
+  at most 20 refs. A title or body up to 20% longer is accepted whole, and the result says how far
+  it went over; beyond that the call is refused with the number of characters to cut
+  (`TOLERANCE_PERCENT` in `store.rs`). Refs have no tolerance. The tool schema teaches only the
+  advised limits. The repository is the one your session works in; outside a git repository the
   call fails. With `to` the notice goes to one session only (see Addressed notices).
 
 ### Addressed notices

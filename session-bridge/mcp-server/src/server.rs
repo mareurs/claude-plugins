@@ -233,7 +233,7 @@ impl Bridge {
     }
 
     #[tool(
-        description = "Tell other sessions of this repository about a change they may depend on, or, with `to`, send one message to one live Claude Code or Codex session in any repository or profile. An addressed notice is not filtered, and only that session sees it, at its next prompt or tool call. Claude Code, Codex and OpenCode share the repository channel; author identity and repository come from the exact calling session."
+        description = "Tell other sessions of this repository about a change they may depend on, or, with `to`, send one message to one live Claude Code or Codex session in any repository or profile. An addressed notice is not filtered, and only that session sees it, at its next prompt or tool call. Claude Code, Codex and OpenCode share the repository channel; author identity and repository come from the exact calling session. Keep the title to 120 characters and the body to 4000: put long detail in a tracker or file and cite it in `refs`."
     )]
     async fn post_notice(
         &self,

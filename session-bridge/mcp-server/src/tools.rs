@@ -13,6 +13,7 @@ use crate::send::send_codex;
 use crate::server::{addressed_result, now_ms, post_notice_from};
 use crate::sessions::{resolve_noted, resolve_session, split_by_repo, Session};
 use crate::state::{endpoint_path, load_or_default};
+use crate::store::advised_note;
 use anyhow::{anyhow, Result};
 use rmcp::schemars;
 use serde::Deserialize;
@@ -53,8 +54,10 @@ pub struct SendMessageArgs {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct PostNoticeArgs {
     /// Short title (at most 120 characters).
+    #[schemars(length(max = 120))]
     pub title: String,
     /// Notice body (at most 4000 characters).
+    #[schemars(length(max = 4000))]
     pub body: String,
     /// References such as files, branches or commits (at most 20).
     #[serde(default)]
@@ -234,6 +237,9 @@ pub fn post_notice(
     };
     let to_session = target.map(|t| t.session_id().to_string());
     let me = caller.storage_id();
+    // Read the lengths before `args` moves: a notice over its advised length but inside the
+    // tolerance is stored whole, and the result says so.
+    let note = advised_note(&args.title, &args.body);
     let seq = post_notice_from(
         state,
         (&me.0, me.1),
@@ -242,12 +248,16 @@ pub fn post_notice(
         args,
         to_session,
     )?;
-    Ok(match target {
+    let result = match target {
         None => format!("Posted notice {seq}."),
         Some(t) => {
             let (profile, pid) = t.storage_id();
             let st = load_or_default(&endpoint_path(state, &profile, pid));
             addressed_result(seq, &t.key(), &st, now_ms())
         }
+    };
+    Ok(match note {
+        Some(note) => format!("{result} {note}"),
+        None => result,
     })
 }

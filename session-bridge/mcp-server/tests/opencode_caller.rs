@@ -376,6 +376,28 @@ fn call_post_notice_uses_opencode_author() {
 }
 
 #[test]
+fn call_post_notice_accepts_a_slightly_long_title_and_says_so_then_refuses_a_far_longer_one() {
+    let env = Env::new();
+    let title = "x".repeat(130);
+    let args = format!(r#"{{"title":"{title}","body":"b"}}"#);
+    let (code, out, err) = env.call("post_notice", "ses_kid1", &args);
+    assert_eq!(code, 0, "{err}");
+    assert!(out.starts_with("Posted notice 1."), "{out}");
+    assert!(
+        out.contains("Accepted whole") && out.contains("title has 130 characters (advised 120)"),
+        "{out}"
+    );
+    assert_eq!(env.notices()[0].title.chars().count(), 130, "stored whole");
+
+    let title = "x".repeat(150);
+    let args = format!(r#"{{"title":"{title}","body":"b"}}"#);
+    let (code, _, err) = env.call("post_notice", "ses_kid1", &args);
+    assert_eq!(code, 2);
+    assert!(err.contains("Cut at least 6"), "{err}");
+    assert_eq!(env.notices().len(), 1, "the refused notice posted nothing");
+}
+
+#[test]
 fn call_args_with_shell_metachars_are_literal() {
     let env = Env::new();
     let marker = env.root.join("pwned");

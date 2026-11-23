@@ -6,9 +6,18 @@ use rusqlite::{params, Connection, OptionalExtension, Row};
 use std::path::Path;
 use std::time::Duration;
 
+/// The limits the tool schema teaches. An agent that writes within them is never refused.
 pub const MAX_TITLE: usize = 120;
 pub const MAX_BODY: usize = 4000;
 pub const MAX_REFS: usize = 20;
+/// A notice may exceed an advised length by this many percent before it is refused. The
+/// tolerance is a net, not a promise: a title of 130 characters is not worth a retry, so the
+/// result says what was accepted and the schema still teaches the advised limit.
+pub const TOLERANCE_PERCENT: usize = 20;
+/// The most characters a title may have (the advised limit plus the tolerance).
+pub const HARD_TITLE: usize = MAX_TITLE + MAX_TITLE * TOLERANCE_PERCENT / 100;
+/// The most characters a body may have (the advised limit plus the tolerance).
+pub const HARD_BODY: usize = MAX_BODY + MAX_BODY * TOLERANCE_PERCENT / 100;
 pub const RETENTION_MS: i64 = 14 * 24 * 60 * 60 * 1000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -97,15 +106,52 @@ fn row_to_notice(r: &Row) -> rusqlite::Result<Notice> {
     })
 }
 
-fn check(field: &'static str, limit: usize, actual: usize) -> Result<()> {
-    if actual > limit {
+/// Refuse `actual` above `hard`, and say how much to cut. `advised` is named only when it
+/// differs from `hard`, so a count with no tolerance (refs) does not mention a second limit.
+fn check(
+    field: &'static str,
+    unit: &str,
+    advised: usize,
+    hard: usize,
+    actual: usize,
+) -> Result<()> {
+    if actual > hard {
+        let advice = if advised == hard {
+            String::new()
+        } else {
+            format!(" (advised {advised})")
+        };
         return Err(BridgeError::OverLimit {
             field,
-            limit,
-            actual,
+            message: format!(
+                "{field} has {actual} {unit}; at most {hard} are accepted{advice}. Cut at least {}.",
+                actual - hard
+            ),
         });
     }
     Ok(())
+}
+
+/// One line for the tool result when a title or body went over its advised length but inside
+/// the tolerance, so the sender learns the limit without a refusal. `None` when both fit.
+pub fn advised_note(title: &str, body: &str) -> Option<String> {
+    let mut over: Vec<String> = Vec::new();
+    let t = title.chars().count();
+    if t > MAX_TITLE {
+        over.push(format!("title has {t} characters (advised {MAX_TITLE})"));
+    }
+    let b = body.chars().count();
+    if b > MAX_BODY {
+        over.push(format!("body has {b} characters (advised {MAX_BODY})"));
+    }
+    if over.is_empty() {
+        None
+    } else {
+        Some(format!(
+            "Accepted whole, but the {}.",
+            over.join(" and the ")
+        ))
+    }
 }
 
 impl Store {
@@ -222,9 +268,21 @@ impl Store {
     }
 
     fn validated_refs(n: &NewNotice) -> Result<String> {
-        check("title", MAX_TITLE, n.title.chars().count())?;
-        check("body", MAX_BODY, n.body.chars().count())?;
-        check("refs", MAX_REFS, n.refs.len())?;
+        check(
+            "title",
+            "characters",
+            MAX_TITLE,
+            HARD_TITLE,
+            n.title.chars().count(),
+        )?;
+        check(
+            "body",
+            "characters",
+            MAX_BODY,
+            HARD_BODY,
+            n.body.chars().count(),
+        )?;
+        check("refs", "items", MAX_REFS, MAX_REFS, n.refs.len())?;
         Ok(serde_json::to_string(&n.refs)?)
     }
 
