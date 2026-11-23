@@ -13,7 +13,7 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
-### Current release verification — 2026-11-21 (1.23.0)
+### Current release verification — 2026-11-23 (1.23.0)
 
 _Measured at 379f38c (after release codescout-companion 1.23.0). Every element of every install record was read. 27 profile rows. All rows are green._
 
@@ -82,6 +82,7 @@ Changed since the verification of fe43109: `codescout-companion` 1.22.8 → 1.23
 | `~/.claude-stef` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
 
 `cs-hint-codex` is not installed in any profile.
+
 ### Current release verification — 2026-11-21
 
 _Measured at 7c2ba6f (after release codescout-companion 1.22.7). Every element of every install record was read. 27 profile rows._

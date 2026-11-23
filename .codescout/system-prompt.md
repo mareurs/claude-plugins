@@ -4,7 +4,7 @@
 
 ### root (codescout-companion)
 - `codescout-companion/hooks/hooks.json` — event → script mapping (authoritative wiring; start here for any hook question)
-- `codescout-companion/hooks/lib.mjs` — `detectFor()`, the detection entry point 21 of 23 `.mjs` hooks call (2 call `detect.mjs` directly)
+- `codescout-companion/hooks/lib.mjs` — `detectFor()`, the detection entry point that the hooks needing codescout detection call (`pre-tool-guard.mjs` calls `detect.mjs` directly)
 - `codescout-companion/hooks/session-start.mjs` — SessionStart orchestrator (injection budget, drift warnings, auto-reindex)
 - `codescout-companion/hooks/pre-tool-guard.mjs` — PreToolUse hard-blocker for native Read/Grep/Glob/Edit/Bash on source
 - `codescout-companion/hooks/subagent-guidance.mjs` — SubagentStart: injects system-prompt verbatim + codescout routing
@@ -14,7 +14,7 @@
 ### buddy
 - `buddy/hooks/hooks.json` — event → script mapping
 - `buddy/scripts/hook_helpers.py` — main event dispatch (SessionStart / PostToolUse / CSToolUse)
-- `buddy/scripts/buddha.py` — `derive_mood()`, 12-priority mood chain
+- `buddy/scripts/buddha.py` — `derive_mood()`, the mood chain (priority order in its docstring)
 
 ## Key Abstractions
 
