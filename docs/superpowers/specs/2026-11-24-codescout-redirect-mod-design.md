@@ -57,13 +57,22 @@ Result mapping (measured, see Results):
 ## Not decided here
 
 - **How a user installs a mod from this marketplace.** The probe ran from a dev folder with hot reload. A mod in a marketplace entry, and the "turn on mods" approval, were not tested. `--plugin-dir` works as a fallback.
-- **Where the guard's exemption rules live.** They are now a pure module, `codescout-companion/hooks/guard-rules.mjs` (no `node:` import), that the guard imports. A mod may import a file of its own plugin, so the open question is placement: the mod in `codescout-companion`, or a byte copy with a drift test. Two gates stay outside it and are impure: `HAS_CODESCOUT` and `BLOCK_READS` (`detectFor`). A mod must respect `block_reads: false`, or it would answer calls the user opted out of.
+- **Where the guard's exemption rules live.** They are now a pure module, `codescout-companion/hooks/guard-rules.mjs` (no `node:` import), that the guard imports. A mod may import a file of its own plugin only. Measured 2026-11-24 (Claude Code 2.1.331): one plugin whose `hooks/hooks.json` holds both `hooks` and `modules` passes `claude plugin validate`, and in a headless `claude -p --plugin-dir` run both fired. **That is not a reason to do it**: `codescout-companion/hooks/hooks.json` is read by other harnesses too (Codex, Copilot), and what they do with a `modules` key was not measured. The mod therefore stays a separate, Claude-Code-only plugin, `codescout-redirect`, and carries a byte copy of `guard-rules.mjs`, kept in step by a sync script and a drift test (the `cs-hint-codex` precedent). Two gates stay outside the rules and are impure: `HAS_CODESCOUT` and `BLOCK_READS` (`detectFor`). A mod must respect `block_reads: false`, or it would answer calls the user opted out of.
 - **The `Bash` scope.** The probe answers only one simple read-only command (`ls`, `pwd`, `echo`, `date`, `wc`, `git status|log|diff|branch`) with no chaining, pipes, redirection or substitution. A wider scope runs write commands through `run_command` and needs its own review. Commands outside the scope go to the guard.
 - **The `Edit` diff.** The probe builds one hunk for the first match. How the terminal draws it, compared with the native diff, was not checked.
 - **`Grep` and `Glob` result shapes.** The type file has no result record for them. The engine accepted the probe's shape. Whether it accepts any shape is not known.
 - **A `tree` alias for `pattern`.** Not checked. If `tree(pattern=...)` fails, one `param_aliases` entry in codescout closes it for every agent.
 - **A real line-by-line monitor.** A mod has `$.process.spawn` and `$.session.send`. That is new functionality with its own design.
 - **Settings.** All four profiles denied `Write`, `Edit`, `Bash` and `Monitor` in `settings.json`. A denied tool never reaches the model, so no hook can answer it. Those entries were removed on 2026-11-24 (backups in the session scratchpad). A user who copies this setup must remove them too.
+
+## Other harnesses
+
+This repository serves more than Claude Code: Codex, GitHub Copilot, OpenCode (`harnesses/opencode/`) and Pi (`harnesses/pi/`). The mod is a Claude Code surface. It must not change what any other harness runs.
+
+- **The guard is the common path.** Codex, Copilot and the OpenCode bridge run `pre-tool-guard.mjs` as a process and read its deny. Its stdin and stdout contract is unchanged by the `guard-rules.mjs` extraction (the OpenCode adapter tests pass). The mod answers first on Claude Code only; the guard stays the net everywhere.
+- **No change to a shared file for the mod's sake.** The mod adds nothing to `codescout-companion/hooks/hooks.json` or to any file another harness reads.
+- **Codex trust.** Codex binds hook approval to a hash of the whole plugin root, so the new `guard-rules.mjs` in `codescout-companion` asks Codex users to approve again at the next release, like any release that changes content. The mod's own plugin adds no file to that root.
+- **Not measured:** an equivalent redirect for Codex, OpenCode or Pi. Each has its own interception surface, and each needs its own measurement and spec.
 
 ## Change scenarios absorbed
 
