@@ -30,6 +30,7 @@ fi
 # fails — so this is an assertion, not a comment.
 for h in codescout-companion/hooks/pre-tool-guard.mjs codescout-companion/hooks/cs-liveness.mjs \
          codescout-companion/hooks/lib.mjs codescout-companion/hooks/detect.mjs \
+         codescout-companion/hooks/guard-rules.mjs \
          buddy/hooks/run.mjs buddy/hooks/hook_dispatch.py buddy/scripts/statusline.py; do
   if [ -f "$ROOT/$h" ]; then pass "hook a bridge depends on exists: $h"
   else fail "a bridge calls $h but it is absent"; fi

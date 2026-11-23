@@ -16,15 +16,15 @@ import {
   inputPath,
 } from './lib.mjs';
 import { SOURCE_EXT_PATTERN } from './detect.mjs';
+import { norm, exemptReason, isSandboxEscalation } from './guard-rules.mjs';
 
 const SOURCE_RE = new RegExp(SOURCE_EXT_PATTERN, 'i');
 
 const input = readInput();
 if (!input) process.exit(0);
 
-// Normalize Windows backslash paths to forward slashes so the exemption checks
-// and cwd-relative logic below (all written with `/`) match on Windows too.
-const norm = (p) => (p || '').replace(/\\/g, '/');
+// `norm` (guard-rules.mjs) turns Windows backslash paths into forward slashes so the exemption
+// checks and cwd-relative logic below (all written with `/`) match on Windows too.
 
 const toolName = normalizedToolName(input);
 const cwd = norm(input.cwd || '');
@@ -39,24 +39,13 @@ if (d.HAS_CODESCOUT === 'false') process.exit(0);
 // Every other exemption below (images, skill payloads, tool-results, config dirs) still applies to both.
 if (d.BLOCK_READS === 'false' && !input.agent_id) process.exit(0);
 
-// --- Exemption helpers ---
-const isBinaryImage = (p) => /\.(png|jpg|jpeg|gif|webp|bmp|ico|pdf)$/i.test(p);
-
-function isSkillPayload(p) {
-  if (/\/plugins\/cache\//.test(p)) return true; // installed plugin payloads, any profile
-  if (/\/\.buddy\//.test(p)) return true; // buddy global + project trees
-  return /(^|\/)skills\/[^/]+\/(SKILL\.md|_[^/]+\.md|references\/[^/]+)$/.test(p);
-}
-
-const isHarnessOutput = (p) => /\/tool-results\//.test(p);
-
-function isConfigDir(p) {
-  const home = norm(process.env.HOME || process.env.USERPROFILE || homedir());
-  if (p.startsWith(`${home}/.claude/`) || p.startsWith(`${home}/.claude-`)) return true;
-  const ccd = process.env.CLAUDE_CONFIG_DIR;
-  if (ccd && p.startsWith(`${norm(ccd)}/`)) return true;
-  return false;
-}
+// --- Exemptions ---
+// Which calls the guard lets through is decided by exemptReason() in guard-rules.mjs, a pure module
+// that takes the environment as an argument. The rules read nothing from the process.
+const env = {
+  home: norm(process.env.HOME || process.env.USERPROFILE || homedir()),
+  configDir: process.env.CLAUDE_CONFIG_DIR || '',
+};
 
 // Relative path when under CWD; absolute (cross-repo) otherwise.
 const rel = (p) => (cwd && p.startsWith(`${cwd}/`) ? p.slice(cwd.length + 1) : p);
@@ -252,7 +241,7 @@ function enforce(reason, probes = []) {
 if (toolName === 'Bash') {
   // Codescout cannot express the host's native sandbox approval request. Leave
   // that decision to the host without granting approval or rewriting the input.
-  if (input.tool_input?.sandbox_permissions === 'require_escalated') {
+  if (isSandboxEscalation(input.tool_input)) {
     contextPreToolUse(
       'Native sandbox escalation requested. Continue through the host approval flow; ' +
         'codescout run_command cannot carry this permission request.'
@@ -296,7 +285,7 @@ use run_command(command="git -C /abs/path <subcommand>") from here — no cd nee
 if (toolName === 'Grep') {
   const pathVal = norm((input.tool_input && input.tool_input.path) || '');
   const pattern = (input.tool_input && input.tool_input.pattern) || '';
-  if (isConfigDir(pathVal)) process.exit(0);
+  if (exemptReason('Grep', pathVal, env)) process.exit(0);
 
   let cargoHint = '';
   if (/\.cargo\/registry/.test(pathVal)) {
@@ -323,7 +312,7 @@ codescout uses the index and returns structured, token-efficient results:
 
 if (toolName === 'Glob') {
   const pattern = norm((input.tool_input && input.tool_input.pattern) || '');
-  if (isConfigDir(pattern)) process.exit(0);
+  if (exemptReason('Glob', pattern, env)) process.exit(0);
   const basename = pattern.split('/').pop();
   const stem = basename.replace(/\.[^.]*$/, '');
   enforce(`This call is blocked because codescout has an indexed file lister.
@@ -336,10 +325,7 @@ codescout already knows every file in the project. Use the index directly:
 
 if (toolName === 'Read') {
   const filePath = norm(inputPath(input));
-  if (isBinaryImage(filePath)) process.exit(0);
-  if (isSkillPayload(filePath)) process.exit(0);
-  if (isHarnessOutput(filePath)) process.exit(0);
-  if (isConfigDir(filePath)) process.exit(0);
+  if (exemptReason('Read', filePath, env)) process.exit(0);
 
   const relPath = rel(filePath);
 
@@ -409,7 +395,7 @@ read_file works on absolute cross-repo paths. Exempt from this block: binary ima
 
 if (toolName === 'Edit') {
   const filePath = norm(inputPath(input));
-  if (isBinaryImage(filePath)) process.exit(0);
+  if (exemptReason('Edit', filePath, env)) process.exit(0);
   enforce(`This call is blocked because codescout's edit_code is the safer path for structural source edits.
 
 File: ${filePath}
@@ -428,7 +414,7 @@ Suggested flow: symbols(name=NAME, include_body=true) to inspect the current bod
 
 if (toolName === 'Write') {
   const filePath = norm(inputPath(input));
-  if (isBinaryImage(filePath)) process.exit(0);
+  if (exemptReason('Write', filePath, env)) process.exit(0);
   enforce(`This call is blocked because codescout's create_file is the tracked path for new source files.
 
 File: ${filePath}

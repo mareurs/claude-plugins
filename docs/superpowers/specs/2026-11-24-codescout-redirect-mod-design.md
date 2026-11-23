@@ -24,7 +24,7 @@ codescout-redirect/
 
 Rules for every hook:
 
-- **Answer exactly what the guard would deny.** A call the guard allows goes to `next(e)` unchanged. The mod must not change the behaviour of a read of a `.txt` file or of a `CLAUDE.md`.
+- **Answer exactly what the guard would deny.** The guard denies every call to these tools except the exemptions in `guard-rules.mjs` (`exemptReason`): for `Read` an image, a skill payload, harness `tool-results/` output or a config dir; for `Edit` and `Write` an image; for `Grep` and `Glob` a config-dir path. A source-file extension never exempts a call. A call the guard allows goes to `next(e)` unchanged.
 - **Fail open to the guard.** A codescout error, a `pending_ack`, an unreadable result or a thrown error calls `next(e)`. The guard then refuses as it does today.
 - **Pass native arguments to codescout unchanged.** codescout already accepts `file_path`, `-i`, `-C`, `-A` and `head_limit` (`src/tools/core/param_alias.rs`, `grep.rs`). The mod maps only the result.
 - **The note states the situation only.** One line: which codescout call answered, and what to use next. No history.
@@ -57,7 +57,7 @@ Result mapping (measured, see Results):
 ## Not decided here
 
 - **How a user installs a mod from this marketplace.** The probe ran from a dev folder with hot reload. A mod in a marketplace entry, and the "turn on mods" approval, were not tested. `--plugin-dir` works as a fallback.
-- **Where the guard's "which files" rule lives.** The guard builds its source-file test from `SOURCE_EXT_PATTERN` in `detect.mjs`. The mod cannot import a `.mjs` file. A copy of the pattern can drift. A test that compares the two is the likely answer.
+- **Where the guard's exemption rules live.** They are now a pure module, `codescout-companion/hooks/guard-rules.mjs` (no `node:` import), that the guard imports. A mod may import a file of its own plugin, so the open question is placement: the mod in `codescout-companion`, or a byte copy with a drift test. Two gates stay outside it and are impure: `HAS_CODESCOUT` and `BLOCK_READS` (`detectFor`). A mod must respect `block_reads: false`, or it would answer calls the user opted out of.
 - **The `Bash` scope.** The probe answers only one simple read-only command (`ls`, `pwd`, `echo`, `date`, `wc`, `git status|log|diff|branch`) with no chaining, pipes, redirection or substitution. A wider scope runs write commands through `run_command` and needs its own review. Commands outside the scope go to the guard.
 - **The `Edit` diff.** The probe builds one hunk for the first match. How the terminal draws it, compared with the native diff, was not checked.
 - **`Grep` and `Glob` result shapes.** The type file has no result record for them. The engine accepted the probe's shape. Whether it accepts any shape is not known.
