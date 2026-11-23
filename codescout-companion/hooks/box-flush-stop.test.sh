@@ -147,9 +147,12 @@ reset; mkdir -p "$BATCH"; printf '%s\n' '{"session":"sess-a","pid":null}' >"$BAT
 OUT=$(printf '%s' "$(input sess-a "$REPO")" | PATH="/usr/bin:/bin" HOME="$TMP/nohome" node "$HOOK" 2>/dev/null)
 [ "$OUT" = '{"continue":true}' ] && pass "no codescout binary: continue" || fail "no binary" "out=$OUT"
 
-# 11. the probe: the keys of the input are logged on the first line of a run.
-reset; rm -rf "$REPO/.claude"; run "$(input sess-a "$REPO")"
+# 11. the probe: the keys of the input are logged on the first line of a run, where a batched folder exists.
+reset; rm -rf "$REPO/.claude"; mkdir -p "$BATCH"; run "$(input sess-a "$REPO")"
 [ "$(head -n1 "$(logfile "$REPO")" 2>/dev/null)" = "box-flush-stop: input keys: cwd,hook_event_name,session_id,stop_hook_active" ] && pass "probe: input keys logged" || fail "probe" "$(cat "$(logfile "$REPO")" 2>/dev/null)"
+# 11b. no batched folder: the hook writes no log file at all.
+reset; rm -rf "$REPO/.claude"; run "$(input sess-a "$REPO")"
+[ ! -e "$(logfile "$REPO")" ] && pass "probe: no log file without a batched folder" || fail "probe quiet" "$(cat "$(logfile "$REPO")" 2>/dev/null)"
 
 echo "passed=$PASS failed=$FAIL"
 [ "$FAIL" -eq 0 ]

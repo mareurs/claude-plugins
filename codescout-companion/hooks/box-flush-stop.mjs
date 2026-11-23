@@ -18,7 +18,7 @@
 //
 // Input (Claude Code Stop): `session_id` and `cwd`, as goal-stop-hook.mjs reads `input.cwd`. The
 // first line of every run logs the keys of the input, so a real turn confirms both are there.
-import { appendFileSync, closeSync, mkdirSync, openSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 import { homedir } from 'node:os';
@@ -173,11 +173,11 @@ async function main() {
   const input = readInput() || {};
   const cwd = typeof input.cwd === 'string' && input.cwd ? input.cwd : '';
   if (cwd) logDir = join(cwd, '.claude');
-  log(`input keys: ${Object.keys(input).sort().join(',') || '(none)'}`);
+  const keys = Object.keys(input).sort().join(',') || '(none)';
 
   const sid = typeof input.session_id === 'string' ? input.session_id : '';
   if (!sid || !cwd) {
-    log('session_id or cwd missing: no flush');
+    log(`session_id or cwd missing (input keys: ${keys}): no flush`);
     return null;
   }
   if (sanitizeSessionId(sid) !== sid) {
@@ -190,7 +190,11 @@ async function main() {
     log(`no main checkout found from ${cwd}: no flush`);
     return null;
   }
-  if (!hasSessionRecords(join(root, '.codescout', 'state', 'batched'), sid)) return null;
+  // The probe line is written only where a batched folder exists, so a project that has no
+  // batched box gets no new log file from this hook.
+  const batchDir = join(root, '.codescout', 'state', 'batched');
+  if (existsSync(batchDir)) log(`input keys: ${keys}`);
+  if (!hasSessionRecords(batchDir, sid)) return null;
 
   const cs = resolveCodescoutBinary(root);
   if (!cs) {
