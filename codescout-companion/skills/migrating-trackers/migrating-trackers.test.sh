@@ -223,7 +223,13 @@ else
   printf '%s\n' "$AOUT" > "$GD/tracker-migration/demo-log.apply.json"
   NAMES="$GD/tracker-migration/demo-log.names"; STAGED="$GD/tracker-migration/demo-log.staged"
   jq -r '[.written[], .deleted[], .already_applied[]] | unique | .[]' "$GD/tracker-migration/demo-log.apply.json" > "$NAMES"
-  [ "$(wc -l < "$NAMES")" -eq 6 ] && pass "names file holds the six paths" || fail "names file" "$(cat "$NAMES")"
+  # The count comes from apply's own JSON, not a literal. It was 6 while apply also retired the sidecar by
+  # its derived name; codescout 970827aa6 (2026-11-22) retires only a sidecar the source DECLARES with
+  # expects_augmentation, so the fixture's undeclared one stays and apply reports 5. This check is about the
+  # Step 8 procedure (names file by jq, stage and commit by pathspec), not about which files apply touches:
+  # that is codescout's own contract and its own tests.
+  EXPECTED=$(jq '[.written[], .deleted[], .already_applied[]] | unique | length' "$GD/tracker-migration/demo-log.apply.json")
+  [ "$EXPECTED" -gt 0 ] && [ "$(wc -l < "$NAMES")" -eq "$EXPECTED" ] && pass "names file holds every path apply reported ($EXPECTED)" || fail "names file" "expected $EXPECTED: $(cat "$NAMES")"
   export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.invalid GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.invalid
   git -C "$R1" add --pathspec-from-file="$NAMES" >/dev/null 2>&1 && pass "git add --pathspec-from-file" || fail "git add --pathspec-from-file" "refused"
   git -C "$R1" diff --cached --name-only > "$STAGED"
@@ -231,7 +237,7 @@ else
   [ -z "$cmp_out" ] && pass "staged set equals the names file" || fail "staged set" "$cmp_out"
   git -C "$R1" commit -q -m "test: migrate demo-log" --pathspec-from-file="$NAMES" >/dev/null 2>&1 && pass "git commit --pathspec-from-file" || fail "git commit --pathspec-from-file" "refused"
   committed=$(git -C "$R1" show --name-only --format= HEAD | LC_ALL=C sort)
-  [ "$committed" = "$(LC_ALL=C sort "$NAMES")" ] && pass "the commit holds exactly the six paths" || fail "commit content" "$committed"
+  [ "$committed" = "$(LC_ALL=C sort "$NAMES")" ] && pass "the commit holds exactly the paths apply reported" || fail "commit content" "$committed"
   rest=$(git -C "$R1" status --porcelain --untracked-files=all | grep -v '^?? \.codescout/' || true)
   [ -z "$rest" ] && pass "nothing else is dirty" || fail "dirty after commit" "$rest"
   git -C "$R1" status --porcelain --untracked-files=all | grep -q '^?? \.codescout/' \
