@@ -1,0 +1,15 @@
+{
+  "name": "codescout-redirect",
+  "description": "Claude Code mod: answers a native Read, Grep, Glob, Write, Edit or Bash call from codescout, with a one-line note, instead of denying it.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Marius"
+  },
+  "license": "MIT",
+  "keywords": [
+    "codescout",
+    "mod",
+    "hooks",
+    "redirect"
+  ]
+}

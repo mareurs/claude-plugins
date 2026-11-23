@@ -95,6 +95,17 @@
       "license": "MIT",
       "keywords": ["codex", "hooks", "cs-hint", "codescout"],
       "category": "infrastructure"
+    },
+    {
+      "name": "codescout-redirect",
+      "source": "./codescout-redirect",
+      "description": "Claude Code mod: answers a native Read, Grep, Glob, Write, Edit or Bash call from codescout, with a one-line note, instead of denying it.",
+      "author": {
+        "name": "Marius"
+      },
+      "license": "MIT",
+      "keywords": ["codescout", "mod", "hooks", "redirect"],
+      "category": "infrastructure"
     }
   ]
 }
