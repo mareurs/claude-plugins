@@ -1,17 +1,23 @@
 // Stop hook: flush the batched box writes of this session at the end of a turn.
 //
-// A box with `commit: batched` records each write in the main checkout's
-// `.codescout/state/batched/<session>.jsonl` and commits nothing; `codescout box flush` commits
-// the session's entries in one commit. This hook runs it when the turn ends, and only when the
-// folder holds a record file that belongs to the session, so a turn that wrote no batched entry
-// starts no process.
+// A box with `commit: batched` records each write in the batched folder of the checkout that
+// wrote it, `<checkout>/.codescout/state/batched/<session>.jsonl` (the main checkout or a linked
+// worktree), and commits nothing; `codescout box flush` commits the session's entries of one
+// checkout in one commit on that checkout's branch. This hook runs it when the turn ends, once
+// for each checkout of the repository whose folder holds a record file that belongs to the
+// session, so a turn that wrote no batched entry starts no process.
 //
 // CONTRACT (codescout docs/superpowers/specs/2026-11-22-box-batched-commits-design.md D3, D4):
 //  - Fail open. Every path prints `{"continue":true}` and exits 0; the hook never blocks a stop.
+//  - Every checkout of the repository (`git worktree list`) is looked at, the main one first: the
+//    cwd of the input is where the session started, not where it wrote (a call pinned to a linked
+//    worktree writes its records there).
 //  - NEVER KILL THE FLUSH. It holds the project write lock and runs git; a kill inside its
 //    shared-index step can leave `.git/index.lock`, which stops every session's git. The child is
 //    started detached with its output in a file, the hook waits for it at most WAIT_MS, and then
-//    returns whether or not it ended. A flush still running goes on alone.
+//    returns whether or not it ended. A flush still running goes on alone. The flushes of several
+//    checkouts run one after another under that one wait: a checkout whose turn comes after it
+//    has passed is left for the next turn.
 //  - A flush that ended and failed (`failed`, `stands`, or an error that is not a busy lock) is not
 //    silent: it is logged and sent to the agent as a `systemMessage`. A busy lock is normal: the
 //    records stay for the next flush.
@@ -20,7 +26,7 @@
 // first line of every run logs the keys of the input, so a real turn confirms both are there.
 import { appendFileSync, closeSync, mkdirSync, openSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { basename, dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { emit, git, readInput, resolveCodescoutBinary, sanitizeSessionId, stateHome } from './lib.mjs';
 
@@ -49,12 +55,16 @@ function log(msg) {
 
 const oneLine = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
-// The main checkout of the repository `cwd` is in (the parent of the common git dir, which is the
-// same from a linked worktree), or null when it cannot be told.
-function mainCheckout(cwd) {
-  const common = git(cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
-  if (!common || basename(common) !== '.git') return null;
-  return dirname(common);
+// The path of every checkout of the repository `cwd` is in, the main checkout first (`git worktree
+// list --porcelain`), or [] when git cannot tell. A checkout whose folder is gone is listed too:
+// it holds no records, so the caller skips it.
+function checkouts(cwd) {
+  const out = git(cwd, ['worktree', 'list', '--porcelain']);
+  if (!out) return [];
+  return out
+    .split('\n')
+    .filter((line) => line.startsWith('worktree '))
+    .map((line) => line.slice('worktree '.length));
 }
 
 // The pids of the registry rows (`<profile>/sessions/<pid>.json`) that name this session. A record
@@ -185,24 +195,43 @@ async function main() {
     return null;
   }
 
-  const root = mainCheckout(cwd);
-  if (!root) {
-    log(`no main checkout found from ${cwd}: no flush`);
+  const roots = checkouts(cwd);
+  if (roots.length === 0) {
+    log(`no checkout found from ${cwd}: no flush`);
     return null;
   }
-  const batchDir = join(root, '.codescout', 'state', 'batched');
-  if (!hasSessionRecords(batchDir, sid)) return null;
+  const holding = roots.filter((root) => hasSessionRecords(join(root, '.codescout', 'state', 'batched'), sid));
+  if (holding.length === 0) return null;
 
+  const outDir = join(stateHome(process.env.HOME || process.env.USERPROFILE || homedir()), 'codescout-companion', 'box-flush');
+  mkdirSync(outDir, { recursive: true });
+  pruneOutputs(outDir);
+
+  // One wait for all the flushes. They run one after another; one still running when the time is
+  // up is left running (never killed), and a checkout after it waits for the next turn.
+  const deadline = Date.now() + waitMs();
+  const messages = [];
+  for (const [n, root] of holding.entries()) {
+    const left = deadline - Date.now();
+    if (left <= 0) {
+      log(`flush of ${root} not started: deadline`);
+      continue;
+    }
+    const message = await flushRoot(root, sid, outDir, left, n);
+    if (message) messages.push(message);
+  }
+  return messages.length > 0 ? messages.join('; ') : null;
+}
+
+// Flush the session's records in the checkout `root`, waiting for the flush at most `waitLeft` ms.
+// Answers the message for the agent, or null. `n` keeps the output file names of one run apart.
+async function flushRoot(root, sid, outDir, waitLeft, n) {
   const cs = resolveCodescoutBinary(root);
   if (!cs) {
     log('codescout binary not found: no flush');
     return null;
   }
-
-  const outDir = join(stateHome(process.env.HOME || process.env.USERPROFILE || homedir()), 'codescout-companion', 'box-flush');
-  mkdirSync(outDir, { recursive: true });
-  pruneOutputs(outDir);
-  const outFile = join(outDir, `${sid}-${Date.now()}.out`);
+  const outFile = join(outDir, `${sid}-${Date.now()}-${n}.out`);
   const fd = openSync(outFile, 'w');
   let child;
   try {
@@ -218,7 +247,7 @@ async function main() {
   }
 
   const ended = await new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(null), waitMs());
+    const timer = setTimeout(() => resolve(null), waitLeft);
     child.once('error', (e) => {
       clearTimeout(timer);
       resolve({ code: -1, error: e.message });
@@ -232,11 +261,11 @@ async function main() {
   if (!ended) {
     // Not killed: it holds the write lock and may be inside git. Its output stays in the file.
     child.unref();
-    log(`flush still running after ${waitMs()} ms, left running (pid ${child.pid}); output in ${outFile}`);
+    log(`flush of ${root} still running after ${waitLeft} ms, left running (pid ${child.pid}); output in ${outFile}`);
     return null;
   }
   if (ended.error) {
-    log(`flush did not start: ${ended.error}`);
+    log(`flush of ${root} did not start: ${ended.error}`);
     return null;
   }
   let text = '';

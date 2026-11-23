@@ -41,6 +41,7 @@ REPO="$TMP/repo"; WT="$TMP/wt"
 git init -q "$REPO" && git -C "$REPO" commit -q --allow-empty -m init
 git -C "$REPO" worktree add -q "$WT" -b wt-branch 2>/dev/null
 BATCH="$REPO/.codescout/state/batched"
+WTBATCH="$WT/.codescout/state/batched"
 
 run() { # run <json-input> -> stdout in $OUT, wall ms in $MS
   local t0 t1
@@ -50,7 +51,7 @@ run() { # run <json-input> -> stdout in $OUT, wall ms in $MS
 }
 input() { printf '{"hook_event_name":"Stop","session_id":"%s","cwd":"%s","stop_hook_active":false}' "$1" "$2"; }
 calls() { [ -f "$FAKE_LOG" ] && grep -c '^ARGV:' "$FAKE_LOG" || echo 0; }
-reset() { rm -f "$FAKE_LOG"; rm -rf "$BATCH"; unset FAKE_MODE; }
+reset() { rm -f "$FAKE_LOG"; rm -rf "$BATCH" "$WTBATCH"; unset FAKE_MODE; }
 logfile() { echo "$1/.claude/codescout-companion.log"; }
 
 # 1. no batched folder: codescout is not run.
@@ -75,10 +76,38 @@ reset; mkdir -p "$BATCH" "$REPO/sub"; printf '%s\n' '{"session":"sess-a","pid":n
 run "$(input sess-a "$REPO/sub")"
 [ "$(grep '^ARGV:' "$FAKE_LOG")" = "ARGV: box flush --project $REPO --session sess-a --json" ] && pass "subdirectory cwd targets the checkout root" || fail "subdir" "$(cat "$FAKE_LOG" 2>/dev/null)"
 
-# 3. cwd is a linked worktree: the flush targets the main checkout.
+# 3. records only in the main checkout, cwd is a linked worktree: the flush targets the main checkout.
 reset; mkdir -p "$BATCH"; printf '%s\n' '{"session":"sess-a","pid":null}' >"$BATCH/sess-a.jsonl"
 run "$(input sess-a "$WT")"
-[ "$(grep '^ARGV:' "$FAKE_LOG")" = "ARGV: box flush --project $REPO --session sess-a --json" ] && pass "linked worktree cwd targets the main checkout" || fail "worktree" "$(cat "$FAKE_LOG" 2>/dev/null)"
+[ "$(calls)" = 1 ] && [ "$(grep '^ARGV:' "$FAKE_LOG")" = "ARGV: box flush --project $REPO --session sess-a --json" ] && pass "linked worktree cwd, records in main: one flush of the main checkout" || fail "worktree" "$(cat "$FAKE_LOG" 2>/dev/null)"
+
+# 3b. records only in the worktree, cwd is the main checkout (a session pinned to the worktree):
+# the flush targets the worktree.
+reset; mkdir -p "$WTBATCH"; printf '%s\n' '{"session":"sess-a","pid":null}' >"$WTBATCH/sess-a.jsonl"
+run "$(input sess-a "$REPO")"
+[ "$(calls)" = 1 ] && [ "$(grep '^ARGV:' "$FAKE_LOG")" = "ARGV: box flush --project $WT --session sess-a --json" ] && pass "records in a worktree, cwd main: one flush of the worktree" || fail "worktree records" "$(cat "$FAKE_LOG" 2>/dev/null)"
+
+# 3c. records in both checkouts: two flushes, the main checkout first, whatever the cwd.
+reset; mkdir -p "$BATCH" "$WTBATCH"
+printf '%s\n' '{"session":"sess-a","pid":null}' >"$BATCH/sess-a.jsonl"
+printf '%s\n' '{"session":"sess-a","pid":null}' >"$WTBATCH/sess-a.jsonl"
+run "$(input sess-a "$WT")"
+WANT=$(printf 'ARGV: box flush --project %s --session sess-a --json\nARGV: box flush --project %s --session sess-a --json' "$REPO" "$WT")
+[ "$OUT" = '{"continue":true}' ] && [ "$(grep '^ARGV:' "$FAKE_LOG")" = "$WANT" ] && pass "records in both: two flushes, main first" || fail "both checkouts" "out=$OUT log=$(cat "$FAKE_LOG" 2>/dev/null)"
+
+# 3d. records in both and the first flush outlives the wait: one wait covers all the flushes, so
+# the worktree's is not started (left for the next turn), the first child is not killed, and the
+# log says which checkout was left.
+reset; mkdir -p "$BATCH" "$WTBATCH"
+printf '%s\n' '{"session":"sess-a","pid":null}' >"$BATCH/sess-a.jsonl"
+printf '%s\n' '{"session":"sess-a","pid":null}' >"$WTBATCH/sess-a.jsonl"
+export FAKE_PIDFILE="$TMP/fake.pid"; rm -f "$FAKE_PIDFILE"
+FAKE_MODE=sleep BOX_FLUSH_STOP_WAIT_MS=700 run "$(input sess-a "$REPO")"
+SLEEPER=$(cat "$FAKE_PIDFILE" 2>/dev/null)
+[ "$OUT" = '{"continue":true}' ] && [ "$(calls)" = 1 ] && pass "slow first flush: the second checkout is not started" || fail "deadline" "out=$OUT calls=$(calls)"
+grep -q "flush of $WT not started: deadline" "$(logfile "$REPO")" 2>/dev/null && pass "slow first flush: the checkout left for the next turn is logged" || fail "deadline log" "$(cat "$(logfile "$REPO")" 2>/dev/null)"
+if [ -n "$SLEEPER" ] && kill -0 "$SLEEPER" 2>/dev/null; then pass "slow first flush: the child is still alive (not killed)"; else fail "deadline child alive" "pid=$SLEEPER"; fi
+[ -n "$SLEEPER" ] && kill "$SLEEPER" 2>/dev/null; SLEEPER=""
 
 # 4. a record file of another id with the pid of this session's registry row: one call.
 reset; mkdir -p "$BATCH" "$HOME/.claude/sessions"
