@@ -13,20 +13,20 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
-### Current release verification — 2026-11-21 (1.22.8)
+### Current release verification — 2026-11-21 (1.23.0)
 
-_Measured at fe43109 (after release codescout-companion 1.22.8). Every element of every install record was read. 27 profile rows. All rows are green._
+_Measured at 379f38c (after release codescout-companion 1.23.0). Every element of every install record was read. 27 profile rows. All rows are green._
 
-Changed since the verification of 7c2ba6f: `codescout-companion` 1.22.7 → 1.22.8 (pushed to `origin/main`).
+Changed since the verification of fe43109: `codescout-companion` 1.22.8 → 1.23.0 (pushed to `origin/main`). The release also synced the `superpowers-marketplace` clone in `~/.claude-sdd` and `~/.claude-kat` from 5c90728 to 808dc47 (marketplace skew found at step 6.5).
 
-**codescout-companion** — canonical `1.22.8` · readme `1.22.8` · marketplace clean ✅
+**codescout-companion** — canonical `1.23.0` · readme `1.23.0` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 1.22.8 ✅ | ✅ | ✅ | `1.22.8` ✅ |
-| `~/.claude-sdd` | 1.22.8 ✅ | ✅ | ✅ | `1.22.8` ✅ |
-| `~/.claude-kat` | 1.22.8 ✅ | ✅ | ✅ | `1.22.8` ✅ |
-| `~/.claude-stef` | 1.22.8 ✅ | ✅ | ✅ | `1.22.8` ✅ |
+| `~/.claude` | 1.23.0 ✅ | ✅ | ✅ | `1.23.0` ✅ |
+| `~/.claude-sdd` | 1.23.0 ✅ | ✅ | ✅ | `1.23.0` ✅ |
+| `~/.claude-kat` | 1.23.0 ✅ | ✅ | ✅ | `1.23.0` ✅ |
+| `~/.claude-stef` | 1.23.0 ✅ | ✅ | ✅ | `1.23.0` ✅ |
 
 **buddy** — canonical `0.12.0` · readme `0.12.0` · marketplace clean ✅
 
@@ -580,6 +580,10 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-11-23 — codescout-companion 1.23.0
+
+codescout-companion `1.22.8` → `1.23.0`, pushed to `origin/main` (`fe43109..379f38c`). Changes since `1.22.9`: the hook `box-flush-stop` (new, with its test and its Stop entry in `hooks.json`) and a fix that limits its input-key probe log. The first push attempt stopped at step 6.5: `superpowers-marketplace` had two HEADs across the profiles (808dc47 in `~/.claude` and `~/.claude-stef`, 5c90728 in `~/.claude-sdd` and `~/.claude-kat`). The release synced the two stale clones with `rsync -a --delete` from `~/.claude`, then parity passed and the push went through.
 
 ### 2026-11-21 — codescout-companion 1.22.8
 
