@@ -228,6 +228,15 @@
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/goal-stop-hook.mjs"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/box-flush-stop.mjs",
+            "timeout": 15
+          }
+        ]
       }
     ],
     "SubagentStop": [
