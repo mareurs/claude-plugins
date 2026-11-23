@@ -1,7 +1,7 @@
 ---
 id: '4e6be25c094db5c9'
 kind: plan
-status: active
+status: done
 title: Session bridge Codex Implementation Plan
 tags:
 - session-bridge
@@ -84,7 +84,7 @@ topic: session-bridge-codex
 - [x] Write installer merge tests; observe failure, implement renderer/installer and verify absent roots stay absent.
 - [x] Update documentation with exact tool contracts, supported surfaces, queued/observed semantics and activation instructions.
 - [x] Run fmt, full bridge cargo test and clippy -D warnings. Expected success.
-- [ ] Run isolated installed-host read-only fork and direct queue smoke; verify original history/working files and exact correlated delivery. Run Claude MCP caller against disposable target. Missing boundaries remain outstanding.
+- [x] Run isolated installed-host read-only fork and direct queue smoke; verify original history/working files and exact correlated delivery. Run Claude MCP caller against disposable target. Missing boundaries remain outstanding. (Closed 2026-11-23 from `session-bridge-codex-session-log` W-1 and F-2: the read-only fork left the original rollout hash and mtime unchanged, and the disposable-target smoke observed exact delivery plus a native reply. Limit: the interactive Claude caller got `queued` from a busy live target, with no observed consumption in the window.)
 - [x] Fresh whole-change review: actually apply candidate identity/account/loaded/isolation/confirmation mutations, run tests, report surviving counts, restore every mutation. Fix Important findings with red/green tests.
 - [x] Re-run affected verification and report source implementation versus installed/live status separately.
 
