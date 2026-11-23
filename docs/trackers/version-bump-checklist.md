@@ -13,6 +13,76 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
+### Current release verification — 2026-11-24 (session-bridge 0.3.3)
+
+_Measured at a980519 (after release session-bridge 0.3.3, committed locally with `NO_PUSH=1`). Every element of every install record was read. 27 profile rows. All rows are green._
+
+Changed since the verification of 23df283: `session-bridge` 0.3.2 → 0.3.3. **Not pushed:** `origin/main` is at `80c7b18` and `main` is 17 commits ahead. Step 6.5 of the release reported no marketplace skew, so it synced no marketplace clone.
+
+**codescout-companion** — canonical `1.23.2` · readme `1.23.2` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
+| `~/.claude-sdd` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
+| `~/.claude-kat` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
+| `~/.claude-stef` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
+
+**buddy** — canonical `0.12.0` · readme `0.12.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-sdd` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-kat` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-stef` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+
+**legible** — canonical `0.2.1` · readme `0.2.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-sdd` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-kat` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-stef` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+
+**statusline** — canonical `1.2.1` · readme `1.2.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-sdd` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-kat` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+
+**sdd** — canonical `3.0.1` · readme `3.0.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-sdd` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-kat` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+| `~/.claude-stef` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+
+**hint-echo** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-stef` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+
+**session-bridge** — canonical `0.3.3` · readme `0.3.3` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.3.3 ✅ | ✅ | ✅ | `0.3.3` ✅ |
+| `~/.claude-sdd` | 0.3.3 ✅ | ✅ | ✅ | `0.3.3` ✅ |
+| `~/.claude-kat` | 0.3.3 ✅ | ✅ | ✅ | `0.3.3` ✅ |
+| `~/.claude-stef` | 0.3.3 ✅ | ✅ | ✅ | `0.3.3` ✅ |
+
+`cs-hint-codex` is not installed in any profile.
+
 ### Current release verification — 2026-11-24 (1.23.2)
 
 _Measured at 23df283 (after release codescout-companion 1.23.2, committed locally with `NO_PUSH=1`). Every element of every install record was read. 27 profile rows. All rows are green._
@@ -27,6 +97,76 @@ Changed since the verification of 14af68a: `codescout-companion` 1.23.1 → 1.23
 | `~/.claude-sdd` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
 | `~/.claude-kat` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
 | `~/.claude-stef` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
+
+**buddy** — canonical `0.12.0` · readme `0.12.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-sdd` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-kat` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-stef` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+
+**legible** — canonical `0.2.1` · readme `0.2.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-sdd` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-kat` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-stef` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+
+**statusline** — canonical `1.2.1` · readme `1.2.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-sdd` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-kat` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+
+**sdd** — canonical `3.0.1` · readme `3.0.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-sdd` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-kat` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+| `~/.claude-stef` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+
+**hint-echo** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-stef` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+
+**session-bridge** — canonical `0.3.2` · readme `0.3.2` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-sdd` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-kat` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+| `~/.claude-stef` | 0.3.2 ✅ | ✅ | ✅ | `0.3.2` ✅ |
+
+`cs-hint-codex` is not installed in any profile.
+
+### Current release verification — 2026-11-23 (1.23.1)
+
+_Measured at 14af68a (after release codescout-companion 1.23.1, committed locally with `NO_PUSH=1`). Every element of every install record was read. 27 profile rows. All rows are green._
+
+Changed since the verification of 379f38c: `codescout-companion` 1.23.0 → 1.23.1. **Not pushed:** `origin/main` is at `80c7b18` and `main` is 5 commits ahead. Step 6.5 of the release reported no marketplace skew, so it synced no marketplace clone.
+
+**codescout-companion** — canonical `1.23.1` · readme `1.23.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.23.1 ✅ | ✅ | ✅ | `1.23.1` ✅ |
+| `~/.claude-sdd` | 1.23.1 ✅ | ✅ | ✅ | `1.23.1` ✅ |
+| `~/.claude-kat` | 1.23.1 ✅ | ✅ | ✅ | `1.23.1` ✅ |
+| `~/.claude-stef` | 1.23.1 ✅ | ✅ | ✅ | `1.23.1` ✅ |
 
 **buddy** — canonical `0.12.0` · readme `0.12.0` · marketplace clean ✅
 
@@ -651,6 +791,12 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-11-24 — session-bridge 0.3.3
+
+session-bridge `0.3.2` → `0.3.3`, released locally with `NO_PUSH=1` (bump commit `a980519`) and **not pushed**: `origin/main` is at `80c7b18` and `main` is 17 commits ahead. Change since `0.3.2` (commit `2ca54ad`): `post_notice` states its limits in the tool description and in the schema (`maxLength` 120 and 4000), stores a title or body up to 20% over its advised length whole with a one-line note in the result, and refuses beyond that with the count of characters to cut; refs keep their strict limit of 20. The pinned schema in `tests/fixtures/tool-schemas.json` changed with it. The build step of the release (step 0.5) ran `cargo test` (423 passed, 0 failed), `clippy` and `cargo install`, which replaced `~/.cargo/bin/session-bridge`. The pre-flight (`./tests/run-all.sh` and the buddy pytest, 579 passed) was green, and step 6.5 reported parity across 4 profiles and no marketplace skew.
+
+**Delta found by this refresh:** none in the version checks. The content drift of the `buddy` skill `codescout-pika`, recorded in the 1.23.2 entry, is still open. **Not live in running sessions:** an MCP server that started before the install keeps the old binary until it reconnects, and the `target/release/session-bridge` of the repository, which one running server uses, was not rebuilt by the release.
 
 ### 2026-11-24 — codescout-companion 1.23.2
 
