@@ -466,7 +466,7 @@ call_as() {  # <session> <agent_id or ""> -> raw hook stdout of a native Read of
 }
 reason_of() { printf '%s' "$1" | jq -r '.hookSpecificOutput.permissionDecisionReason // "none"' 2>/dev/null; }
 is_full()    { [[ "$(reason_of "$1")" == *"faster path for source files"* ]]; }
-is_pointer() { [[ "$(reason_of "$1")" == "BLOCKED (see previous message)" ]]; }
+is_pointer() { [[ "$(reason_of "$1")" == "BLOCKED (see previous message)"* ]]; }  # prefix: since 2026-11-23 the pointer also names the tool that passes
 expect() {  # <label> <true|false> <detail>
     if [[ "$2" == "true" ]]; then echo "PASS [$1]"; PASS=$((PASS+1)); else echo "FAIL [$1]: $3"; FAIL=$((FAIL+1)); fi
 }

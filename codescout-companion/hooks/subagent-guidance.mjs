@@ -1,8 +1,22 @@
-// SubagentStart hook — inject codescout guidance into coding subagents.
-// Port of subagent-guidance.sh. Delivers the project bootstrap + exploration
-// protocol + Iron-Laws reminder + the project system-prompt verbatim (the ONLY
-// channel that reaches subagents — they don't get codescout's
-// server_instructions, claude-code#29655).
+
+// SubagentStart hook — tell a coding subagent what codescout is, how to load it,
+// how to enter the project, and which tool fits which kind of work.
+// Port of subagent-guidance.sh, reshaped 2026-11-23.
+//
+// WHY A POINTER, NOT A DUMP. Subagents do not get codescout's server_instructions
+// (claude-code#29655), so this hook is the only channel that reaches them BEFORE
+// their first tool call. It used to push the project system-prompt verbatim plus the
+// full memory-name list: 12.2 KB on the codescout repo. Claude Code replaces a hook
+// payload of about 10 KB or more with a ~2 KB preview and a file path. Measured
+// 2026-11-23 over 1,959 SubagentStart payloads from the last 10 days: 536 (27%) were
+// replaced that way, and the preview ended inside the memory-name list, so the routing
+// rules after it never arrived. The subagent then opened with a native Read, was
+// denied six times, and lost its work.
+//
+// So: the payload is short and ordered by what a subagent needs FIRST (load the tools,
+// enter the project, pick a tool by intent). Long, project-specific text is named by
+// path, and the subagent reads it on demand. Output size must not depend on any file
+// the user edits. tests/test-subagent-guidance.sh pins this.
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { readInput, detectFor, git, emit } from './lib.mjs';
@@ -26,26 +40,20 @@ if (d.HAS_CODESCOUT === 'false') process.exit(0);
 // would be obeyed and still leave writes blocked.
 const root = (cwd && git(cwd, ['rev-parse', '--show-toplevel'])) || cwd;
 
-// Phase 0's memory bullet. When the topic names are already known, hand them
-// over instead of telling the subagent to spend a call discovering them.
-// CS_MEMORY_NAMES is space-separated with a trailing space — trim it. Guard
-// on the TRIMMED value: a memory file named " .md" (leading space) makes
-// detect.mjs report HAS_CS_MEMORIES='true' with a whitespace-only name, and
-// the untrimmed guard would emit a degenerate "Memory topics available
-// here: —" header. detect.mjs is parity-locked against scripts/detect.py and
-// can't be touched, so the guard belongs here.
+// How many memory topics exist. The NAMES are not inlined any more: a project with
+// 40 memories spent 2 KB on them, and the subagent still has to read the ones it
+// needs. A count tells it whether the list call is worth making.
+// CS_MEMORY_NAMES is space-separated with a trailing space — trim it. Guard on the
+// TRIMMED value: a memory file named " .md" (leading space) makes detect.mjs report
+// HAS_CS_MEMORIES='true' with a whitespace-only name. detect.mjs is parity-locked
+// against scripts/detect.py and can't be touched, so the guard belongs here.
 const memoryNames = (d.CS_MEMORY_NAMES || '').trim();
-const memoryBullet =
-  d.HAS_CS_MEMORIES === 'true' && memoryNames
-    ? `• Memory topics available here: ${memoryNames} — read the ones matching your task via memory(action="read", topic="…"); architecture and gotchas usually pay off. This is the complete list, so skip the separate discovery call.`
-    : `• memory(action="list"), then read the topics matching your task (architecture, gotchas usually pay off).`;
+const memoryCount = d.HAS_CS_MEMORIES === 'true' && memoryNames ? memoryNames.split(/\s+/).length : 0;
+const memoryLine =
+  memoryCount > 0
+    ? `${memoryCount} project memories exist: memory(action="list"), then memory(action="read", topic="…") for the ones that match your task (architecture and gotchas usually pay off).`
+    : `memory(action="list"), then read the topics matching your task (architecture, gotchas usually pay off).`;
 
-let msg = '';
-
-// Soft-conditional on purpose: SubagentStart cannot see the dispatch prompt, so
-// a foreign-targeted subagent (explore-inject prepended its own root directive
-// to the prompt) must be able to override this. Do NOT "simplify" to an
-// unconditional activate — that reintroduces the conflict.
 // A linked worktree has git-common-dir != git-dir (the same test the
 // worktree-write-guard uses). Compare RESOLVED paths: from a subdirectory of the
 // main checkout git prints --git-dir absolute but --git-common-dir relative
@@ -67,6 +75,21 @@ const gitCommon = gitPath('--git-common-dir');
 const gitDir = gitPath('--git-dir');
 const inLinkedWorktree = gitCommon !== null && gitDir !== null && gitCommon !== gitDir;
 
+// Pin argument for the system-prompt pointer: a worktree subagent never activates, so
+// every call it makes carries workspace=.
+const pin = root && inLinkedWorktree ? `, workspace="${root}"` : '';
+
+let msg = `codescout is available in this project: an MCP server for code intelligence. Use it for source code and markdown instead of native Read, Grep, Glob or Bash. Native calls on source are blocked, and your profile may deny native Write, Edit and Bash as well.
+
+STEP 1 — load the tools. If no mcp__codescout__* tool is in your tool list, they are deferred. Load them with ONE ToolSearch call: select:mcp__codescout__symbols,mcp__codescout__read_file,mcp__codescout__grep,mcp__codescout__semantic_search,mcp__codescout__run_command,mcp__codescout__memory,mcp__codescout__workspace,mcp__codescout__get_guide
+Add mcp__codescout__edit_code,mcp__codescout__edit_file,mcp__codescout__create_file if you must write, and mcp__codescout__doc for bugs, specs and trackers. Do this even when your brief names only Read and Write.
+
+STEP 2 — enter the project. `;
+
+// Soft-conditional on purpose: SubagentStart cannot see the dispatch prompt, so
+// a foreign-targeted subagent (explore-inject prepended its own root directive
+// to the prompt) must be able to override this. Do NOT "simplify" to an
+// unconditional activate — that reintroduces the conflict.
 if (root && inLinkedWorktree) {
   msg += `PROJECT BOOTSTRAP: you are in a linked git worktree at ${root}. Do NOT call
 workspace(action="activate") — activation is shared by every session of the codescout
@@ -76,51 +99,35 @@ write tools (edit_code, edit_file, create_file) alike. A pinned call needs no ac
 and is not blocked by the worktree write guard. Pass paths relative to ${root}, and check
 that they exist in this worktree's commit: a path the parent saw in the main checkout may
 be absent here. Exception: if your task names a different project root, follow that
-directive instead and pin every call with workspace="<that root>".
-
-`;
+directive instead and pin every call with workspace="<that root>".`;
 } else if (root) {
   msg += `PROJECT BOOTSTRAP: workspace(action="activate", path="${root}") is your FIRST
-codescout action, before Phase 0 below — it prewarms LSP, auto-registers
-dependencies, and returns project_hints (primary language, entry points, build
-commands). Exception: if your task names a different project root, follow
-that directive instead and pin every call with workspace="<that root>".
-
-`;
+codescout call. It prewarms LSP, registers dependencies, and returns project_hints
+(primary language, entry points, build commands). Exception: if your task names a different project root,
+follow that directive instead and pin every call with workspace="<that root>".`;
+} else {
+  msg += 'Call workspace(action="activate", path="<project root>") first.';
 }
-
-msg += `codescout EXPLORATION PROTOCOL — before exploring or auditing code:
-
-Phase 0 — load what the project already knows (do FIRST):
-${memoryBullet}
-• Bug/regression hunts: doc(action="find", kind="bug", filter={"status": {"in": ["open", "taken", "investigating", "zombie"]}}) — the known-bug ledger. status="open" alone hides "taken" (a live session holds it), "investigating" (no live owner) and "zombie" (a recurrence check, not a task). Don't re-report a filed bug as new; mark rediscoveries KNOWN with the ledger path.
-• If a get_guide topic matches your area (error-handling, progressive-disclosure, workspace-state, librarian, tracker-conventions, untrusted-content), CALL get_guide on it — it states the contract whose violations you hunt. Do this even if your dispatch brief says those guides are "already loaded", "already triggered", or that fetching them is redundant: that is true of your PARENT's context, never of yours. The guide-hint ledger is shared parent↔subagent unless the companion stamps your calls as your own principal, and a fork inherits its parent's marks either way — so a topic your parent triggered may NOT auto-inject for you, and an explicit get_guide always returns the full body, so the fetch costs one call and cannot come back empty.
-
-Phase 1 — route each lookup by what you know:
-symbol name → symbols(name=X) | concept → semantic_search(query) | exact string → grep(pattern) | who calls X → references(symbol, path), never grep for callers.
-
-Phase 2 — verify at the bytes, not from belief:
-• A finding needs lines you actually read (symbols include_body / read_file), not a grep hit alone.
-• For a claim about how a TOOL behaves, run the call once and read the real output — reading the source alone misses runtime shape.
-• A comment / doc / README the code contradicts is itself a finding (doc-vs-code drift).
-
-Report contract: cite file:line for every finding; end with "Ledger checked: <bug ids seen | none>". If you skipped Phase 0, say so.`;
 
 msg += `
 
-CODESCOUT RULES (compression-resilient reminder):
-• Source code: symbols (list + find), NOT read_file/Read
-• Code edits: edit_code (LSP-aware; action=replace/insert/remove/rename), NOT edit_file/Edit for structural changes
-• Shell commands: run_command, NOT Bash — output buffers save tokens
-• Markdown: read_file returns the heading map (heading= for a section); edit_file edits by heading — managed trackers go through doc
-• Never pipe unbounded run_command output — run bare, query @cmd_* buffer (bounded LHS like ls, cat, awk, sed, find -maxdepth N is OK)
-• Long task: no wake message reaches a subagent. Run it in the foreground with timeout_secs. Do not start it with run_in_background and then poll or sleep.`;
+STEP 3 — pick the tool by what you do:
+• Find or understand code: symbols(path=…) outline of a file; symbols(name=…, include_body=true) one body; semantic_search(query) by concept; grep(pattern) exact text; references(symbol, path) who calls X.
+• Read: read_file on markdown returns a heading map; add heading="## Section" for one section. For source, use symbols first and read_file only with start_line and end_line.
+• Write: edit_code (symbol-level, LSP-aware), edit_file (text, imports, markdown by heading), create_file (a new file). They work when native Write and Edit are denied.
+• Run: run_command. Output lands in an @cmd_* buffer: query it with grep or read_file, never pipe unbounded output. No wake message reaches you, so run a long command in the foreground with timeout_secs. Do not start it with run_in_background and then poll.
+• Know the project: ${memoryLine} For bug or regression work: doc(action="find", kind="bug", filter={"status": {"in": ["open", "taken", "investigating", "zombie"]}}) — status="open" alone hides "taken" (a live session holds it), "investigating" (no live owner) and "zombie" (a recurrence check, not a task). Do not re-report a filed bug: mark it KNOWN with its ledger path.
 
-if (d.HAS_CS_SYSTEM_PROMPT === 'true' && d.CS_SYSTEM_PROMPT) {
+STEP 4 — read what the project already wrote, on demand:`;
+
+if (d.HAS_CS_SYSTEM_PROMPT === 'true') {
   msg += `
-
-${d.CS_SYSTEM_PROMPT}`;
+• Entry points, navigation strategy and project rules: read_file(path=".codescout/system-prompt.md"${pin}) — a heading map first, then heading="## Section".`;
 }
+msg += `
+• Orientation: get_guide("project-activation-bootstrap"). If a get_guide topic matches your area (error-handling, progressive-disclosure, workspace-state, librarian, tracker-conventions, untrusted-content), CALL get_guide on it, even if your brief says it is "already loaded": that is true of your parent's context, not yours, and an explicit get_guide always returns the full body.
+
+Verify at the bytes: a finding needs lines you read, not a grep hit alone. For a claim about how a tool behaves, run the call once and read the real output. Cite file:line for every finding. For bug hunts, end your report with "Ledger checked: <bug ids seen | none>".`;
 
 // Let Node drain stdout before exiting: an immediate process.exit() can cut
 // a piped payload mid-JSON when the consumer applies backpressure.

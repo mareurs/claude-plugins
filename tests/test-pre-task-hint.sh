@@ -81,14 +81,23 @@ else
   fail "empty session_id: exit 0 no marker" "ec=$EC"
 fi
 
-# Test 6: payload size — hint <500 bytes well under 2 KB cap
+# Test 6: payload size — hint stays small and bounded. Raised from 500 to 900 on
+# 2026-11-23 to carry the one-line brief rule (a subagent brief must name codescout
+# tools); still far under CC's ~10 KB inline cap.
 OUT=$(hook_input "sid-size" | run_hook)
 CTX=$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext // empty')
 SIZE=${#CTX}
-if [ "$SIZE" -gt 0 ] && [ "$SIZE" -lt 500 ]; then
-  pass "hint size <500 bytes (got $SIZE)"
+if [ "$SIZE" -gt 0 ] && [ "$SIZE" -lt 900 ]; then
+  pass "hint size <900 bytes (got $SIZE)"
 else
-  fail "hint size <500 bytes" "size=$SIZE"
+  fail "hint size <900 bytes" "size=$SIZE"
+fi
+
+# Test 7: the dispatcher is told to name codescout tools in the brief, and why.
+if assert_context_contains "$OUT" "name codescout tools" && assert_context_contains "$OUT" "'Read and Write'"; then
+  pass "hint carries the brief rule"
+else
+  fail "hint carries the brief rule" "$OUT"
 fi
 
 print_summary "pre-task-hint"

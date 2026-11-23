@@ -153,7 +153,24 @@ await ok('the deny reason drops Claude-only instructions and states opencode-tru
     '\n\n[!] 3 redirects in a row and none of the tools they name has answered.';
   const re = rehostReason(warned);
   assert.ok(re.includes('[!] 3 redirects in a row'), 'breaker warning must survive re-hosting');
-  assert.ok(!re.includes('/mcp'), 'Claude-only advice must still be removed');
+});
+
+// 3b. 2026-11-23: the guard's repeat pointer and footer name `ToolSearch`, a Claude Code tool.
+//     Both must sit behind the footer marker so OpenCode drops them, while the tool names the
+//     pointer gives before the marker survive. Reworded without the marker, the footer leaked /mcp.
+await ok('the repeat pointer and the deferred-tool sentence do not leak ToolSearch to opencode', () => {
+  const pointer =
+    'BLOCKED (see previous message). Use codescout read_file.' +
+    '\n\nIf a tool named above is not in your tool list, load it: ToolSearch select:mcp__codescout__read_file';
+  const out = rehostReason(pointer);
+  assert.ok(!out.includes('ToolSearch'), 'a Claude Code tool must not reach an opencode reason');
+  assert.ok(out.includes('Use codescout read_file.'), 'the tool the pointer names survives');
+  const footer =
+    'reason\n\nIf a tool named above is not in your tool list, it may be DEFERRED, not missing: ' +
+    'load it with ONE ToolSearch call (query "select:mcp__codescout__<tool>") before anything else. ' +
+    'If it is still absent, do not assume the MCP server is down… run /mcp…';
+  const re = rehostReason(footer);
+  assert.ok(!re.includes('ToolSearch') && !re.includes('/mcp'), 'the deferred-tool sentence is cut with the Claude footer');
 });
 
 // 4. What setup() registers. The v1 plugin returned a hooks OBJECT; v2 registers
@@ -308,6 +325,7 @@ try {
     assert.ok(threw, 'expected a throw to block the call');
     assert.ok(/codescout/i.test(threw.message), `reason must name codescout: ${threw.message}`);
     assert.ok(!/\/mcp/.test(threw.message), 'the reason must be re-hosted, not the Claude one');
+    assert.ok(!/ToolSearch/.test(threw.message), 'the real guard reason must not name a Claude-only tool');
   });
 
   await ok('a plain-text read is redirected too, not just source', async () => {

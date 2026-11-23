@@ -15,6 +15,8 @@ emitSkillHint(
   cwd,
   sessionId,
   'recon',
-  "First Agent dispatch this session. Reconnaissance recommended before subagent work — call Skill('codescout-companion:reconnaissance') for the full method unless this seam has already been scouted.",
+  "First Agent dispatch this session. Reconnaissance recommended before subagent work — call Skill('codescout-companion:reconnaissance') for the full method unless this seam has already been scouted. " +
+    "Brief rule: name codescout tools (symbols, read_file, grep, run_command, create_file, edit_file) in every brief. " +
+    "A brief that allows only 'Read and Write' sends the subagent into blocked native calls, and native Write, Edit and Bash may be denied in your profile.",
 );
 process.exit(0);

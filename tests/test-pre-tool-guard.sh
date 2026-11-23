@@ -212,6 +212,36 @@ else
   fail "Bash dedup: second call gets short reason" "$OUT2"
 fi
 
+# Test 18b: the short pointer must name the call that passes. A subagent retries within
+# 1-2 s, and the bare "see previous message" told it nothing (2026-11-23, session
+# 0bed4486: three of six denied Reads got only that).
+if assert_reason_contains "$OUT2" "mcp__codescout__run_command" && assert_reason_contains "$OUT2" "ToolSearch select:"; then
+  pass "Bash dedup: the short pointer names the tool and how to load it"
+else
+  fail "Bash dedup: the short pointer names the tool and how to load it" "$OUT2"
+fi
+
+# Test 18c: the FULL reason says a named tool may be deferred. Same incident: the redirect
+# named read_file, which the subagent could not call until it ran ToolSearch.
+if assert_reason_contains "$OUT1" "DEFERRED" && assert_reason_contains "$OUT1" "ToolSearch"; then
+  pass "full reason: says a named tool may be deferred and how to load it"
+else
+  fail "full reason: says a named tool may be deferred and how to load it" "$OUT1"
+fi
+
+# Test 18d: markdown Read — first call full, the repeat names read_file (probes path, not
+# the REDIRECT_TOOL fallback). Positive control: the first call must be a full deny.
+clear_dedup
+MD1=$(guard_input "Read" '"file_path":"'"$T/proj/NOTES.md"'"' | node "$HOOK" 2>/dev/null)
+MD2=$(guard_input "Read" '"file_path":"'"$T/proj/NOTES.md"'"' | node "$HOOK" 2>/dev/null)
+if assert_denied "$MD1" && assert_reason_contains "$MD1" "heading-aware" \
+  && assert_denied "$MD2" && assert_reason_contains "$MD2" "see previous message" \
+  && assert_reason_contains "$MD2" "ToolSearch select:mcp__codescout__read_file"; then
+  pass "Read .md dedup: the repeat names read_file and how to load it"
+else
+  fail "Read .md dedup: the repeat names read_file and how to load it" "MD1=$MD1 MD2=$MD2"
+fi
+
 # Test 19: different tool type in same window gets its own full reason
 clear_dedup
 OUT3=$(guard_input "Read" '"file_path":"'"$T/proj/app.ts"'"' | node "$HOOK" 2>/dev/null)

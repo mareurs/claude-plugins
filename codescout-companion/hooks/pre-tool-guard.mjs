@@ -83,8 +83,16 @@ const BREAKER_THRESHOLD = 3;
 // acknowledge_risk reaches the file in the second state; the user's "! <command>"
 // covers the first.
 // docs/issues/2026-09-07-the-source-redirect-names-tools-a-partial-tool-set-does-not-have.md (codescout)
+// The opening words of this footer are a CONTRACT: harnesses/opencode/plugins/codescout-companion.js
+// (CC_FOOTER_MARK) cuts the reason at '\n\nIf a tool named above is not in your tool list' and swaps
+// the rest for OpenCode advice. Everything Claude-only (ToolSearch, /mcp) must sit AFTER that marker,
+// or it leaks to OpenCode users. Reworded 2026-11-23 without this, it failed
+// harnesses/opencode/tests/test-codescout-companion.mjs ("the reason must be re-hosted").
 const ESCAPE_FOOTER_COMMON =
-  '\n\nIf a tool named above is not in your tool list, do not assume the MCP ' +
+  '\n\nIf a tool named above is not in your tool list, it may be DEFERRED, not missing: ' +
+  'load it with ONE ToolSearch call (query "select:mcp__codescout__<tool>", several names ' +
+  'comma-separated) before anything else. ' +
+  'If it is still absent, do not assume the MCP ' +
   'server is down: this session may expose only a subset of codescout\'s tools. ' +
   'Call one that IS present to find out — if `run_command` answers, it reaches ' +
   'the same file with `acknowledge_risk: true`, but only for a tool that is missing. ' +
@@ -103,6 +111,9 @@ const ESCAPE_FOOTER_SUBAGENT =
   'If no codescout tool is present at all, you cannot reach the user from here: retry the call. ' +
   `This guard stands down after ${BREAKER_THRESHOLD} unanswered redirects, so retrying releases it.`;
 const ESCAPE_FOOTER = input.agent_id ? ESCAPE_FOOTER_SUBAGENT : ESCAPE_FOOTER_MAIN;
+
+// The codescout tool that replaces a native call whose enforce() passes no probes.
+const REDIRECT_TOOL = { Bash: ['run_command'], Grep: ['grep'], Glob: ['tree'] };
 
 
 // Count one strike. Returns 0 when the breaker is disabled (no session id) or
@@ -187,7 +198,19 @@ function enforce(reason, probes = []) {
   const marker = (s) => join(tmpdir(), `cs-block-${createHash('sha256').update(s).digest('hex').slice(0, 8)}`);
   const firstForCaller = claimWindow(marker(`${toolName}\t${cwd}\t${sessionId}\t${input.agent_id || ''}`));
   if (!firstForCaller) {
-    denyPreToolUse('BLOCKED (see previous message)');
+    // A repeat inside the 3 s window. Say WHICH call passes, not only that the first message
+    // exists: a subagent retries within 1-2 s, and "see previous message" alone told it nothing
+    // (2026-11-23: three of its six denies were this bare pointer). The Claude-only ToolSearch
+    // sentence opens with the footer marker, so the OpenCode adapter cuts it (see
+    // ESCAPE_FOOTER_COMMON); the tool names stay before it, where every host can read them.
+    const named = probes.length > 0 ? probes : REDIRECT_TOOL[toolName] || [];
+    const pass =
+      named.length > 0
+        ? ` Use codescout ${named.join(' or ')}.` +
+          `\n\nIf a tool named above is not in your tool list, load it: ` +
+          `ToolSearch select:${named.map((t) => `mcp__codescout__${t}`).join(',')}`
+        : '';
+    denyPreToolUse(`BLOCKED (see previous message).${pass}`);
     process.exit(0);
   }
 
