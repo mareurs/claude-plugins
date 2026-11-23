@@ -103,8 +103,8 @@ for h in "### Phase 1 — Scout" "### Phase 2 — Compare" \
          "### Phase 3 — Externalize" "### Phase 4 — Resume + Announce"; do
   if grep -qF "$h" "$CORE"; then ok "core keeps '$h'"; else bad "core keeps '$h'" "not found"; fi
 done
-for marker in 'append_entry' 'Severity rubric' 'Status vocabulary' 'recon_count.py'; do
-  if grep -qF "$marker" "$CORE"; then
+for marker in 'codescout box recon add' 'codescout box new worklog recon' '--project' 'recon_count.py'; do
+  if grep -qF -- "$marker" "$CORE"; then
     ok "Phase 3 keeps '$marker' in-hand"
   else
     bad "Phase 3 '$marker'" "moved out — the externalize call must not sit behind a pointer"

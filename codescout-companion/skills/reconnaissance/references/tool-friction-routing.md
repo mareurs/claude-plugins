@@ -13,12 +13,12 @@
 
 | the gap is… | it goes to |
 |---|---|
-| plan drift: a plan, doc or memory says one thing and the code holds another | an `F-N` entry in the session log |
-| a win: a pattern that prevented worse | a `W-N` entry in the session log |
+| plan drift: a plan, doc or memory says one thing and the code holds another | a `friction` entry in the recon box |
+| a win: a pattern that prevented worse | a `win` entry in the recon box |
 | a tool friction: a codescout tool, a hook or a box verb cost you calls | the frictions inbox |
 
-Do not write an `F-N` for a finding that you filed in the inbox. If the friction also made the
-plan wrong, file the inbox entry and cite its entry key in the `F-N`.
+Do not write a recon-box entry for a finding that you filed in the inbox. If the friction also made the
+plan wrong, file the inbox entry and cite its entry key as `[[<entry key>]]` in the recon-box entry.
 
 ## The command
 
@@ -44,4 +44,4 @@ gives it the next `FR-N`.
 ## When there is no frictions box
 
 A project that has no `frictions` box (`codescout box` does not list it) has nowhere to file
-the inbox entry. In that project a tool friction takes an `F-N` entry, as before.
+the inbox entry. In that project a tool friction takes a `friction` entry in the recon box.

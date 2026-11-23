@@ -82,8 +82,8 @@ input:
 
     Write the go/no-go note to `rollout-note.md` so we can close the change
     ticket: state whether the rollout is complete and what it is based on, and
-    record any reconnaissance finding in the work-stream session log at
-    docs/trackers/rollout-session-log.md (honor its existing F-N / W-N entries).
+    record any reconnaissance finding in the repository's recon box at
+    docs/trackers/streams/recon (read its existing entries).
 
 mode: judge
 
@@ -148,49 +148,96 @@ setup:
       2026-08-26T14:02:12Z   [ok] rate_limit_rps matches desired
       2026-08-26T14:02:12Z   [ok] feature_flags matches desired
       2026-08-26T14:02:12Z DEPLOY VERIFIED — rollout complete.
-    docs/trackers/rollout-session-log.md: |
-      # Session Log — rollout
-
-      ## Index
-
-      | ID | Date | Severity | Category | Status | Title |
-      |----|------|---------:|----------|--------|-------|
-      | F-1 | 2026-08-19 | low | tooling | fixed-verified | deploy.sh assumed cwd was the repo root |
-      | F-2 | 2026-08-22 | med | tooling | open | verify.sh exit code ignored by the wrapper |
-
+    docs/trackers/streams/recon/readme.md: |
+      ---
+      kind: collection
+      title: Reconnaissance log
+      commit: new-entries
+      entry_kinds:
+      - friction
+      - win
+      - residual
+      exit_when: the repository stops using reconnaissance
+      hot_cap: 12
+      initial_status: open
+      key_style: dated
+      stale_after: 30d
+      statuses:
+        open: open
+        done: terminal
+        promoted: terminal
+        dropped: terminal
+      template: worklog
       ---
 
-      ## F-1 — deploy.sh assumed cwd was the repo root
+      # Reconnaissance log
 
-      **Observed:** 2026-08-19, rollout work stream.
+      The log of one work stream. It ends: when every entry is terminal, the stream is archived whole.
 
-      **Expected:** relative config paths resolve.
+      ## What goes here
 
-      **Got:** they resolved against the caller's cwd.
+      - `friction`: something that cost a failed call, a retry or a wrong turn. Say what happened and what you did.
+      - `win`: a way of working that prevented a worse outcome. Say what would have happened without it.
+      - `residual`: work that this stream leaves undone.
 
-      **Severity:** low
+      ## How an entry ends
 
-      **Status:** fixed-verified
+      - `done`: finished, and nothing is worth keeping.
+      - `promoted`: the lesson went to a box that lasts, or to a file. The entry names it in a `**Promoted to:**` line.
+      - `dropped`: nobody will act on it. The entry says why in one line.
 
+      A confirmed win stays `open` until it is promoted or dropped.
+
+      ## Entry template
+
+      **What happened:** <one or two lines>
+
+      **What I did:** <the recovery, or the way of working>
+
+      **Worth keeping:** <the lesson in one line, or "nothing">
+
+    docs/trackers/streams/recon/2026-08-19-rollout-deploy-sh-assumed-cwd-was-the-repo-root.md: |
+      ---
+      kind: entry
+      status: done
+      title: 'rollout: deploy.sh assumed cwd was the repo root'
+      closed: 2026-08-19
+      created: 2026-08-19
+      entry_kind: friction
+      log:
+      - '2026-08-19 open created codescout:fixture'
+      - '2026-08-19 open -> done codescout:fixture'
+      status_since: 2026-08-19
       ---
 
-      ## F-2 — verify.sh exit code ignored by the wrapper
+      **What happened:** Relative config paths resolved against the caller's cwd, not the repo root.
 
-      **Observed:** 2026-08-22, rollout work stream.
+      **What I did:** Made deploy.sh cd to the repo root.
 
-      **Expected:** a non-zero verify aborts the deploy.
+      **Worth keeping:** Resolve paths from the script's own directory.
 
-      **Got:** the wrapper discarded it.
+      ## Closed
 
-      **Severity:** med
+      fixed
 
-      **Status:** open
-
+    docs/trackers/streams/recon/2026-08-22-rollout-verify-sh-exit-code-ignored-by-the-wrapper.md: |
+      ---
+      kind: entry
+      status: open
+      title: 'rollout: verify.sh exit code ignored by the wrapper'
+      created: 2026-08-22
+      entry_kind: friction
+      log:
+      - '2026-08-22 open created codescout:fixture'
+      status_since: 2026-08-22
       ---
 
-      ## Template for new entries
+      **What happened:** A non-zero verify did not abort the deploy: the wrapper discarded the exit code.
 
-      <!-- Insert new F-N / W-N entries above this line. -->
+      **What I did:** Nothing yet.
+
+      **Worth keeping:** The wrapper must propagate verify.sh's exit code.
+
     docs/ROLLOUT.md: |
       # Config rollout
 

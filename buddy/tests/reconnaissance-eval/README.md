@@ -3,8 +3,8 @@
 A [prompt-tdd](../../../) eval for the `codescout-companion:reconnaissance` skill.
 It presents a seam-contact task — a plan that names code shape the model has not
 read — and judges whether the model scouts the real shape BEFORE acting and
-externalizes the plan-vs-reality gap as an `F-N` session-log entry with a
-**monotonic ID**.
+files the plan-vs-reality gap as a `friction` entry in the repository's recon
+box (`codescout box recon add`).
 
 ## What it tests
 
@@ -15,14 +15,13 @@ that appear in output ONLY if the skill fired — are:
    it is about to touch *before* editing or asserting a fact about it.
 2. **Plan-vs-reality compare.** An explicit "plan said X / reality holds Y" gap
    statement (Phase 2).
-3. **F-N / W-N externalization with a monotonic ID.** The gap is written into
-   `docs/trackers/<topic>-session-log.md` as the **next** monotonic integer
-   (never reused, never skipped), in the anchored entry shape
-   (Expected vs Got split, Severity from {low, med, high} with a concrete cost,
-   Status from the friction enum), with concrete identifiers (file path, field
-   name). IDs are what make the lesson portable — "entries without IDs don't
-   compound."
-4. **One-line announcement citing the ID** (Phase 4).
+3. **Friction / win filing in the recon box.** The gap is filed with
+   `codescout box recon add --kind friction` (a win with `--kind win`), under a
+   title that starts with the work-stream topic, with a body of the three worklog
+   fields (`**What happened:**`, `**What I did:**`, `**Worth keeping:**`) and
+   concrete identifiers (file path, field name). The entry key is what makes the
+   lesson citable.
+4. **One-line announcement citing the entry key** as `[[<entry key>]]` (Phase 4).
 5. **A positive control before generalising from an instrument** (Phase 1). Not
    only when a search returns zero — the trigger is *"I am about to say all X
    are Y"*. A report, a scan, a linter or a diagnostic that answers confidently
@@ -31,25 +30,25 @@ that appear in output ONLY if the skill fired — are:
 
 ## The discriminating marker
 
-The crux is the **monotonic-ID allocation** plus the **scout-before-edit**
-ordering. The positive scenario pre-seeds the tracker with `F-1` and `F-2`
-(and `W-1`), so the only correct new friction ID is `F-3`. A bare model handed
-the same prompt:
+The crux is the **recon-box filing** plus the **scout-before-edit**
+ordering. The positive scenario pre-seeds the box with two friction entries and a
+win (all titled `auth-refactor: ...`), so the correct new entry is a `friction`
+with a new `auth-refactor:` title. A bare model handed the same prompt:
 
-- has no concept of an `F-N` session-log entry or monotonic-ID allocation, so it
-  produces no ID-bearing entry at all (or an arbitrary/`F-1`/`W-` number);
+- has no concept of a recon box, so it files no entry at all (or a `win`, or a
+  duplicate of an existing title);
 - tends to implement the plan straight from the prompt text, walking into the
   fictional `expiry_ts` field (the real field is `deadline_unix`) instead of
   scouting first.
 
-So the skill-present arm allocates `F-3` with the right shape and uses
+So the skill-present arm files the friction with the right shape and uses
 `deadline_unix`; the `--ablate` arm does neither. That gap is the skill's power.
 
 Scenarios:
 
 | Scenario | Mode | What it proves |
 |---|---|---|
-| `seam-contact/gap-capture` | judge | Positive: scout-first + catch the `expiry_ts`/`deadline_unix` drift + write `F-3` (next monotonic ID) in anchored shape + cite the ID. High expected delta. |
+| `seam-contact/gap-capture` | judge | Positive: scout-first + catch the `expiry_ts`/`deadline_unix` drift + file a `friction` entry in the recon box with the three worklog fields + cite its key. High expected delta. |
 | `precision/no-decision-edit` | judge | Precision/control: a mechanical docstring typo (in "When NOT to Use") must NOT trigger an entry. Guards over-firing. **Low expected delta** — see below. |
 | `instrument/absence-about-a-writer` | judge | **TAUTOLOGICAL — screened.** Base-competence screen for `R-6`. Control 3/3 PASS at 1.00 → behaviour already present → **do not promote**. Regression guard. |\n| `instrument/self-validating-gate` | judge | **CONFIRMED GAP — the one that works.** Base-competence screen for `R-5`. Control 0/3, treatment (current skill) 0/3, both 0.00. Behaviour is absent by default *and* absent from the skill. Now the **pre-registered validation test** for `R-5`'s promotion — red today, and a flip to green measures the effect. |\n| `instrument/missing-output-state` | judge | **TAUTOLOGICAL — measured, no power.** Second `R-4` attempt, both faults of the first one fixed. `treat 3/3 · ctrl 3/3 · Δ+0.00`, and all three control runs probed the classifier unprompted. Kept as a **regression guard**. |
 | `instrument/green-report-control` | judge | **TAUTOLOGICAL — measured, no power.** Built to score marker 5 / `R-4`; paired run returned `treat 3/3 · ctrl 3/3 · Δ+0.00`. Base competence solves it. Do not cite it as evidence for `R-4`. See below. |
@@ -238,30 +237,33 @@ it auto-fires only if the task matches its description. The skill's description
 triggers on "before editing code that changes a struct, function signature, or
 API contract" and on capturing friction. The positive scenario's `message` is
 phrased squarely in that domain: implement a plan that names a struct field,
-and "record any reconnaissance finding in the work-stream session log" — naming
-both the seam-contact and the session-log capability. **Activation assumption:**
-a model WITH the skill loaded reliably invokes the scout-before-act + F-N
+and "record any reconnaissance finding in the repository's recon box" — naming
+both the seam-contact and the recon-box capability (the clause was reworded when
+the skill moved from a flat session log to the box; activation under the new
+wording is not re-measured). **Activation assumption:**
+a model WITH the skill loaded reliably invokes the scout-before-act + recon-box
 protocol on this message; the `--ablate` arm receives the SAME message without
 the skill files. Phase B validates this assumption empirically.
 
 ## L-7 caveat — PARTIAL control
 
 This skill is **MCP-coupled** (level 7): its native method runs on codescout
-tools (`symbols(include_body=true)`, `references`, `artifact(action="append_entry")`)
-and on a **librarian tracker artifact**. The isolated
+tools (`symbols(include_body=true)`, `references`) and on the `codescout box`
+CLI for its recon box. The isolated
 `~/.claude-test` profile strips ALL MCP. Consequences:
 
 - The **scout** is exercised with plain `Read`/`Grep` instead of `symbols`/
   `references`. The *discipline* (read actual shape before acting) survives; the
   specific codescout tool calls do not.
-- The **tracker** is supplied as a `setup.files` fixture (a pre-seeded
-  `auth-refactor-session-log.md`) so the model has a real seam-log to append to
-  with plain file tools. The skill's `cp <template>` bootstrap, `append_entry`
-  append mechanism, librarian artifact model, and `recon_count.py` statusline
-  bump are **NOT** exercised.
+- The **recon box** is supplied as `setup.files` fixtures (a pre-seeded
+  `docs/trackers/streams/recon/` with its readme and prior entries). The skill's
+  `codescout box new worklog recon` step and the `recon_count.py` statusline bump
+  are **NOT** exercised, and whether the isolated profile can run
+  `codescout box recon add` is **not verified**: the rubrics also accept a new
+  entry file with the same fields.
 
 What the eval measures is therefore the **MCP-independent core**: scout-before-
-act ordering, plan-vs-reality compare, monotonic-ID allocation, and entry shape.
+act ordering, plan-vs-reality compare, recon-box filing, and entry shape.
 The MCP plumbing is out of scope. **Flag: this is a PARTIAL negative control** —
 a `--ablate` FAIL proves the *content* (the protocol the SKILL.md teaches) has
 teeth, but does not exercise the full MCP-coupled flow as it runs in production.
@@ -277,10 +279,10 @@ There are no `_<lens>.md` addenda for this skill (only `SKILL.md`,
 
 ### Note on the precision scenario's delta
 
-`precision/no-decision-edit` is a CONTROL: a bare model also writes no tracker
+`precision/no-decision-edit` is a CONTROL: a bare model also files no recon-box
 entry for a typo, so the A-vs-`--ablate` delta on the "no entry" marker is
 expected to be **near zero**. That is a valid, honest result — the scenario's
-job is to confirm the skill does not *over-fire* (manufacture an F-N for a
+job is to confirm the skill does not *over-fire* (manufacture a recon-box entry for a
 mechanical edit), not to manufacture a delta. Do not inflate this rubric to
 force a gap.
 

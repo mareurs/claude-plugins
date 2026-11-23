@@ -1,26 +1,28 @@
 # prompt-tdd eval for the codescout-companion:reconnaissance skill.
 #
-# Scope: reconnaissance's SCOUT-BEFORE-ACT discipline and its F-N/W-N
-# session-log externalization protocol. Each scenario presents a seam-contact
+# Scope: reconnaissance's SCOUT-BEFORE-ACT discipline and its recon-box
+# externalization protocol. Each scenario presents a seam-contact
 # task (a plan that names code shape the model has not read), pre-seeds a
-# session-log tracker, and judges whether the model (a) scouts the actual shape
-# BEFORE editing/asserting, (b) captures the plan-vs-reality gap as an F-N entry
-# with the NEXT MONOTONIC ID into the tracker, and (c) announces a one-line
-# outcome citing that ID.
+# recon box (docs/trackers/streams/recon), and judges whether the model
+# (a) scouts the actual shape BEFORE editing/asserting, (b) files the
+# plan-vs-reality gap as a friction entry in the box (`codescout box recon
+# add --kind friction`), and (c) announces a one-line outcome citing the entry
+# key.
 #
-# Tier: T3 judge. The discriminating markers (next-monotonic-ID allocation, the
-# anchored F-N entry shape, the counterfactual on W-N) are semantic structure,
-# not literal substrings the prompt already contains — only a judge can score
-# "allocated F-3 because F-1/F-2 already exist" vs "echoed an F-number."
+# Tier: T3 judge. The discriminating markers (the friction filed under a new
+# topic-led title, the three worklog fields, the counterfactual on a win) are
+# semantic structure, not literal substrings the prompt already contains — only
+# a judge can score "filed a new friction with the three fields" vs "echoed an
+# existing entry."
 #
 # L-7 CONTROL CAVEAT (read README): this skill is MCP-coupled. Its native method
-# runs on codescout tools (symbols/references/append_entry) and a librarian
-# tracker. The isolated ~/.claude-test profile strips MCP, so the scout is
-# exercised with plain Read/Grep and the tracker is supplied as a setup.files
-# fixture. What survives the strip — and what these scenarios measure — is the
-# scout-before-act DISCIPLINE, the monotonic-ID allocation, and the entry shape.
-# The MCP plumbing (append_entry, librarian artifact, recon_count
-# statusline bump) is NOT exercised here. The control is therefore PARTIAL.
+# runs on codescout tools (symbols/references) and the codescout box CLI. The
+# isolated ~/.claude-test profile strips MCP, so the scout is
+# exercised with plain Read/Grep and the recon box is supplied as setup.files
+# fixtures. What survives the strip — and what these scenarios measure — is the
+# scout-before-act DISCIPLINE, the recon-box filing, and the entry shape.
+# The box creation step and the recon_count statusline bump are NOT exercised
+# here, and whether the profile can run `codescout box` is not verified. The control is therefore PARTIAL.
 #
 # The judge (default claude-haiku-4-5) calls the Anthropic API — run with
 # ANTHROPIC_API_KEY in the environment.

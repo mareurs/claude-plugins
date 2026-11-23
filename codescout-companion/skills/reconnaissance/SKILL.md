@@ -1,11 +1,11 @@
 ---
 name: reconnaissance
-description: Use before subagent dispatch, before editing code that changes a struct, function signature, or API contract, or after a tool response contradicts the plan. Appends friction (F-N) and wins (W-N) to the project's session-log tracker.
+description: Use before subagent dispatch, before editing code that changes a struct, function signature, or API contract, or after a tool response contradicts the plan. Files plan-drift frictions and wins in the project's recon box.
 ---
 
 # /codescout-companion:reconnaissance
 
-A **seam** is a place where your next action depends on the current shape of code you have not read this session: a struct's fields, a function's signature, an API's response, a tool's actual output. Scout the seam before you act. When plan and reality disagree, externalize the gap as a session-log entry with a monotonic ID — IDs make lessons portable across sessions; entries without IDs don't compound.
+A **seam** is a place where your next action depends on the current shape of code you have not read this session: a struct's fields, a function's signature, an API's response, a tool's actual output. Scout the seam before you act. When plan and reality disagree, externalize the gap as an entry in the project's recon box — a keyed entry can be cited from the next session; a gap kept in your head does not compound.
 
 **REQUIRED SUB-SKILL:** None. See § *Composition with other skills*.
 
@@ -30,8 +30,8 @@ A **seam** is a place where your next action depends on the current shape of cod
    ↓
 2. Compare (plan vs reality)
    ↓
-3. If gap     → plan drift: F-N entry; tool friction: frictions inbox (Phase 3)
-   If win     → W-N entry  (pattern that prevented worse)
+3. If gap     → plan drift: friction entry; tool friction: frictions inbox (Phase 3)
+   If win     → win entry  (pattern that prevented worse)
    If match   → silent resume (no entry needed)
    ↓
 4. Resume task + announce one-line outcome to user
@@ -67,104 +67,87 @@ Skip silently if the marker dir is unavailable — the skill works without the b
 
 ### Phase 2 — Compare
 
-State what the plan / docs said vs. what reality holds. **Match** → resume, no entry. **Gap** → Phase 3 (F-N). **Match, but the scout was non-trivial** (multiple files read, hidden contract surfaced, non-obvious shape) → Phase 3 (W-N): a pre-dispatch scout that prevented a subagent slip is a win even though nothing broke.
+State what the plan / docs said vs. what reality holds. **Match** → resume, no entry. **Gap** → Phase 3 (friction). **Match, but the scout was non-trivial** (multiple files read, hidden contract surfaced, non-obvious shape) → Phase 3 (win): a pre-dispatch scout that prevented a subagent slip is a win even though nothing broke.
 
 ### Phase 3 — Externalize
 
-Findings go into `docs/trackers/<topic>-session-log.md` in the active project.
+Findings go into the repository's one **recon box**, key `recon`, a `worklog` stream that this skill makes at its first run.
 
-**Route the gap first.** Plan drift (a plan, doc or memory disagrees with the code) takes an `F-N`. A **tool friction** (a codescout tool, hook or box verb cost you calls) goes to the inbox with no `F-N`: `codescout box frictions note --title "<one line>" --tool <tool name>`. Details and the no-box fallback: `references/tool-friction-routing.md`.
+**Route the gap first.** Plan drift (a plan, doc or memory disagrees with the code) takes a `friction` entry in the recon box, and a win takes a `win` entry. A **tool friction** (a codescout tool, hook or box verb cost you calls) goes to the frictions inbox, not the recon box: `codescout box frictions note --title "<one line>" --tool <tool name>`. Details and the no-box fallback: `references/tool-friction-routing.md`.
 
 **Before you cite a confirming result as evidence, name the proposition it proves — then ask whether a broken world produces the same result.** An uncontended 10/10 is the output a still-racy test also gives. A green suite is the output a never-called guard also gives. A match count measures a text, never a cause. If the check cannot *express* the failure, its result is not evidence about the failure: write down what you actually established, and leave the rest as a thing to check rather than a thing concluded.
 
 This is a check on the sentence you are about to write, not on your choice of tool — which is why it lives here and not in Phase 1. Both recorded failures happened in sessions that had already invoked this skill, while writing up a result (`codescout:R-125`, `codescout:bug-fix-session-log:F-78`).
 
-**Topic naming.** Pick a topic from the work stream, not the seam: `bug-fix`, `auth-refactor`, `jsonpath-impl`, `migration-2026-q2`. One topic = one work stream across sessions. If the right topic file already exists, append; if not, copy the template:
+**Make the box (first run only).** Run `codescout box`. If it does not list `recon`, make it once, then run the two commit lines the command prints:
 
 ```bash
-cp <codescout-repo>/docs/templates/session-log.md \
-   docs/trackers/<topic>-session-log.md
+codescout box new worklog recon --title "Reconnaissance log" --exit-when "the repository stops using reconnaissance"
 ```
 
-Resolve `<codescout-repo>` from `claude mcp list` (the codescout server's source path) or ask the user. Do not hardcode a path — installations differ.
+**In a linked worktree** the first line of `git worktree list` is the main checkout, `<main>`. `box new` is not refused there: it writes the box into the worktree, where `<main>` cannot see it. Pass `--project <main>` before the template name (`codescout box new --project <main> worklog recon ...`), and list with `codescout box --project <main>`.
 
-**ID + append — one call.** Do not hand-allocate the ID by grepping the tracker, and do not pre-write the Index row before the section exists — both race a peer session, and a pre-written row consumes the id it names (this is why codescout's own `statement-validity-session-log` starts at `F-2`/`W-3`). Let the server allocate and write the section in the same call:
+**One call per entry.**
 
-```python
-doc(action="append_entry", id="<tracker artifact id>", id_prefix="F",
-         anchor_heading="## Template for new entries",
-         title="<one-line title>", body="**Observed:** ...",
-         index_row="| {id} | <date> | <sev> | <cat> | open | **<title>** — … |",
-         index_after_line="<the table line your row follows>")
+```bash
+codescout box recon add --kind friction --title "<topic>: <one line>" --text body - <<'EOF'
+**What happened:** <the plan said X; the code holds Y, with path:line>
+**What I did:** <the workaround or the plan edit>
+**Worth keeping:** <the lesson in one line, or "nothing">
+EOF
 ```
 
-One write: the server allocates the next `F-N` / `W-N` id (separate counters), writes `## F-N — <title>` at the ledger's own level (`link_scan` defines on the `<ID> — <title>` shape as a heading's first inline text, at any depth), records the high-water mark, and stamps `**Valid:** dated <today>` unless the body declares a class. **`dated` takes no trailing text.** Put any qualifier on a following line — `**Valid:** dated 2026-05-18` then a blank line then the prose. An em-dash tail after `dated` is rejected outright (`is not an ISO date`), and the two branches of the grammar differ here: only `conditional — <event>` carries one. `index_row` rides the same `fs::write` with `{id}` replaced by the id just allocated, so section, high-water mark and Index row land together — **this is what "one call" means, and omitting the two parameters silently gives you the two-call form instead.**
+Start the title with the work stream's topic (`bug-fix`, `auth-refactor`, `migration-2026-q2`), not the seam: the box holds every topic of the repository. `--kind friction` is plan drift; `--kind win` is a pattern that prevented worse, and its body names what would have happened without it. A title that a live entry holds is refused. The call commits the entry and prints its key. In a linked worktree `add` is refused, and the refusal prints the exact command with `--project <main>`: run that.
 
-**The Index row needs a placement anchor, and one failure is silent:** a per-call `index_after_line` that matches several lines files your row under the first match, with no error. Prefer a declared `snapshot_anchor`. The refusals, what `entry_prefix` locks and the heading shape: `references/append-entry-anchoring.md` — read it before your first entry in an unfamiliar ledger.
+An entry ends with `codescout box recon close <entry> done|promoted|dropped --text reason -`. `close` prints its git line and commits nothing: run it. The reason of a `promoted` entry carries a `**Promoted to:**` line naming the destination. `codescout box recon` prints the statuses and rules.
 
-`edit_file` is not the append path: a ledger refuses it, and `append_entry` is the sole **id allocator** (see the reference above, § *What `entry_prefix` actually locks*).
-
-Never reuse an ID. Never skip an ID.
-
-**Severity rubric (F-N).**
-
-| Severity | When |
-|---|---|
-| `low` | Cosmetic, surfaced-but-not-blocking, future-proofing |
-| `med` | Would have caused ≥1 failed tool call, compile error, or 1 subagent retry; controller could absorb |
-| `high` | Would have cascaded — multiple subagent retries, wrong code merged, data loss risk, or hidden state change |
-
-If unsure, write `med` and explain the cost in one line. Anchored severity beats free-form severity.
-
-**Status vocabulary.** See the template's `## Status vocabulary` section — `open | mitigated | fixed-verified | wontfix-false-alarm | promoted-to-bug-tracker | pinned-as-eval-baseline` for frictions; `validated | promoted-to-permanent-docs | archived` for wins. Pick the one that matches; the template defines each.
-
-**Count the entry.** Right after the `append_entry` call lands, bump the session counter so the statusline `[recon]` badge shows your scout output as an `F<n>/W<n>` suffix. Use the helper next to this skill (its directory is the "Base directory for this skill" path printed when the skill loaded):
+**Count the entry.** Right after the `box add` call lands, bump the session counter so the statusline `[recon]` badge shows your scout output as an `F<n>/W<n>` suffix. Use the helper next to this skill (its directory is the "Base directory for this skill" path printed when the skill loaded):
 
 ```bash
 python3 "<skill-dir>/recon_count.py" bump F 2>/dev/null || true   # friction
 python3 "<skill-dir>/recon_count.py" bump W 2>/dev/null || true   # win
 ```
 
-Best-effort — the `2>/dev/null || true` keeps a counter failure from ever breaking the turn. The counter is session-scoped (resets each CC session) and independent of the tracker's monotonic F-N/W-N IDs.
+Best-effort — the `2>/dev/null || true` keeps a counter failure from ever breaking the turn. The counter is session-scoped (resets each CC session) and independent of the recon box's entry keys.
 
 #### Worked exemplars
 
 Two complete entries — one friction, one win — are in
 `references/worked-examples.md`. Read them once, when writing your first entry of
-a session; the rubric above is enough after that.
+a session; the template above is enough after that.
 
 ### Phase 4 — Resume + Announce
 
-With verified context, return to the original task. Announce the scout outcome to the user in **one line**, citing the F-N / W-N ID if one was written:
+With verified context, return to the original task. Announce the scout outcome to the user in **one line**, citing the entry key if one was written:
 
 - Match, no entry: `Recon: matched plan, proceeding.`
-- F-N written: `Recon: gap captured as F-7 (plan cited .hint field; type has no such field). Proceeding with workaround.`
+- Friction filed: `Recon: gap captured as [[<entry key>]] (plan cited .hint field; type has no such field). Proceeding with workaround.`
 - Tool friction filed: `Recon: tool friction filed as <entry key>.`
-- W-N written: `Recon: scout prevented Task 2 test-shape slip; captured as W-2.`
+- Win filed: `Recon: scout prevented Task 2 test-shape slip; captured as [[<entry key>]].`
 
-Cite the ID in the next subagent dispatch prompt and in the commit message of any change that closes the gap.
+Cite the entry as `[[<entry key>]]` (the key `add` printed) in the next subagent dispatch prompt and in the commit message of any change that closes the gap.
 
 ## Stop Conditions
 
 Reconnaissance is done when **any one** of:
 
 - The shape question has a one-line answer cited from the code.
-- The gap is captured: an F-N entry with an ID, or an inbox entry.
+- The gap is captured: a recon-box entry or a frictions-inbox entry.
 - The decision is made to revise the plan rather than the code (the plan owns the drift, not the substrate).
 
-Do NOT loop. If the same seam needs scouting again later in the session, the substrate has moved — capture that as a separate F-N entry (`category: architectural` or similar) rather than re-running this flow.
+Do NOT loop. If the same seam needs scouting again later in the session, the substrate has moved — capture that as a separate friction entry rather than re-running this flow.
 
 ## Common Mistakes
 
 - **Scouting after dispatching.** The subagent has already started; drift now lives in two contexts. Scout BEFORE dispatch.
-- **Skipping the counterfactual on W-N.** A win without a counterfactual reads as marketing. Name what would have happened without the pattern, with concrete evidence (round-trips saved, tests that would have failed, files that would have been wrongly edited).
+- **Skipping the counterfactual on a win.** A win without a counterfactual reads as marketing. Name what would have happened without the pattern, with concrete evidence (round-trips saved, tests that would have failed, files that would have been wrongly edited).
 
 ## Composition with other skills
 
 | Trigger | Skill | Reconnaissance role |
 |---|---|---|
 | Plan dispatched to subagent | `subagent-driven-development` | Scout the seam BEFORE dispatch |
-| Plan code looks fictional | `writing-plans` | Externalize as F-N, revise plan inline before any subagent |
+| Plan code looks fictional | `writing-plans` | File a friction entry, revise plan inline before any subagent |
 | Tool returned unexpected output | `systematic-debugging` | File it with `codescout box frictions note`, then debug from the baseline |
 | About to claim work complete | `verification-before-completion` | Different timing — reconnaissance is at the seam, verification is at completion |
 
@@ -177,6 +160,6 @@ read it when you are promoting or auditing, not to run recon.
 
 ## Skill maintenance
 
-Trigger-string scoring lives in `<codescout-repo>/docs/evals/reconnaissance-trigger.md`. Re-score before any future description change. **Behavioral eval** (do triggered scouts produce useful F-N entries?) lives at `<codescout-repo>/docs/evals/reconnaissance-output.md` — 14 cases drawn from the R-N ledger's hits and misses, with the six MISS cases (`codescout:R-2`, `codescout:R-4`, `codescout:R-8`, `codescout:R-10`, `codescout:R-19`, `codescout:R-23`) as a hard regression gate. **Baseline RUN** — 2026-09-04, `--paired` n=3, 15 cases: power 1 · tautological 7 · no-effect 7, only C4 clears Δ≥0.5. **Ship gate NOT met** (C2/R-4 at −0.67; C5 has no scenario). Re-score before any change targeting scout *behavior*, measuring the **`--paired` rate delta, never a raw pass-count** (L-15).
+Trigger-string scoring lives in `<codescout-repo>/docs/evals/reconnaissance-trigger.md`. Re-score before any future description change. **Behavioral eval** (do triggered scouts produce useful friction entries?) lives at `<codescout-repo>/docs/evals/reconnaissance-output.md` — 14 cases drawn from the R-N ledger's hits and misses, with the six MISS cases (`codescout:R-2`, `codescout:R-4`, `codescout:R-8`, `codescout:R-10`, `codescout:R-19`, `codescout:R-23`) as a hard regression gate. **Baseline RUN** — 2026-09-04, `--paired` n=3, 15 cases: power 1 · tautological 7 · no-effect 7, only C4 clears Δ≥0.5. **Ship gate NOT met** (C2/R-4 at −0.67; C5 has no scenario). Re-score before any change targeting scout *behavior*, measuring the **`--paired` rate delta, never a raw pass-count** (L-15).
 
 Version history is tracked via git on this file; see `git log -- codescout-companion/skills/reconnaissance/SKILL.md`.

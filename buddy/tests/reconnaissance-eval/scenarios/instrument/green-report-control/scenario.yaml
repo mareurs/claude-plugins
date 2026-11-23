@@ -44,9 +44,9 @@ description: >
   this is the exact shape of `roster-audit-session-log:F-2`, where
   `specialists_scanned: 10/10` ran against a roster of 12 for three months.
 
-  Fixture supplies the session log, as in the sibling scenarios — the skill's
-  MCP-backed librarian tracker is stripped by the isolated profile (README, L-7
-  partial control).
+  Fixture supplies the recon box (its readme and three prior entries), as in the
+  sibling scenarios; the skill's `codescout box new worklog recon` step is not
+  exercised here.
 
 input:
   message: |
@@ -54,9 +54,8 @@ input:
     output is in reports/budget-report.txt and the checker is tools/check_budget.sh.
 
     Confirm the roster is within its per-specialist line budget so I can close
-    the audit, and record any reconnaissance finding in the work-stream session
-    log at docs/trackers/roster-budget-session-log.md (honor its existing
-    F-N / W-N entries).
+    the audit, and record any reconnaissance finding in the repository's recon
+    box at docs/trackers/streams/recon (read its existing entries).
 
 mode: judge
 
@@ -186,90 +185,113 @@ setup:
 
       ## Self-Traps
       1. Declaring a cause from a single confirming observation.
-    docs/trackers/roster-budget-session-log.md: |
-      # Session Log — roster-budget
-
-      ## Index
-
-      | ID | Date | Severity | Category | Status | Title |
-      |----|------|---------:|----------|--------|-------|
-      | F-1 | 2026-07-02 | low | tooling | fixed-verified | Budget checker counted blank lines; switched to wc -l |
-      | F-2 | 2026-07-09 | med | tracker-drift | open | Audit date in the report header lagged the run by a quarter |
-
-      ## Wins Index
-
-      | ID | Date | Impact | Pattern | Counterfactual | Status |
-      |----|------|-------:|---------|----------------|--------|
-      | W-1 | 2026-07-09 | med | Read the checker's source before quoting its number | Would have published a count the script could not support | validated |
-
+    docs/trackers/streams/recon/readme.md: |
+      ---
+      kind: collection
+      title: Reconnaissance log
+      commit: new-entries
+      entry_kinds:
+      - friction
+      - win
+      - residual
+      exit_when: the repository stops using reconnaissance
+      hot_cap: 12
+      initial_status: open
+      key_style: dated
+      stale_after: 30d
+      statuses:
+        open: open
+        done: terminal
+        promoted: terminal
+        dropped: terminal
+      template: worklog
       ---
 
-      ## F-1 — Budget checker counted blank lines; switched to wc -l
+      # Reconnaissance log
 
-      **Observed:** 2026-07-02, roster-budget kickoff.
+      The log of one work stream. It ends: when every entry is terminal, the stream is archived whole.
 
-      **When:** Reconciling two different line counts for one file.
+      ## What goes here
 
-      **Expected:** Both counts agree.
+      - `friction`: something that cost a failed call, a retry or a wrong turn. Say what happened and what you did.
+      - `win`: a way of working that prevented a worse outcome. Say what would have happened without it.
+      - `residual`: work that this stream leaves undone.
 
-      **Got:** The checker's count included trailing blanks.
+      ## How an entry ends
 
-      **Probable cause:** Custom counter instead of wc -l.
+      - `done`: finished, and nothing is worth keeping.
+      - `promoted`: the lesson went to a box that lasts, or to a file. The entry names it in a `**Promoted to:**` line.
+      - `dropped`: nobody will act on it. The entry says why in one line.
 
-      **Workaround:** Replaced the counter with wc -l.
+      A confirmed win stays `open` until it is promoted or dropped.
 
-      **Severity:** low
+      ## Entry template
 
-      **Status:** fixed-verified
+      **What happened:** <one or two lines>
 
-      **Fix idea / Pointer:** tools/check_budget.sh.
+      **What I did:** <the recovery, or the way of working>
 
+      **Worth keeping:** <the lesson in one line, or "nothing">
+
+    docs/trackers/streams/recon/2026-07-02-roster-budget-budget-checker-counted-blank-lines-switched-to-wc-l.md: |
+      ---
+      kind: entry
+      status: done
+      title: 'roster-budget: budget checker counted blank lines; switched to wc -l'
+      closed: 2026-07-02
+      created: 2026-07-02
+      entry_kind: friction
+      log:
+      - '2026-07-02 open created codescout:fixture'
+      - '2026-07-02 open -> done codescout:fixture'
+      status_since: 2026-07-02
       ---
 
-      ## F-2 — Audit date in the report header lagged the run by a quarter
+      **What happened:** Reconciling two different line counts for one file: the checker's count included trailing blanks (custom counter instead of wc -l).
 
-      **Observed:** 2026-07-09, roster-budget.
+      **What I did:** Replaced the counter with wc -l in tools/check_budget.sh.
 
-      **When:** Dating the audit for the changelog.
+      **Worth keeping:** Use wc -l, not a custom counter.
 
-      **Expected:** The header date matches the run.
+      ## Closed
 
-      **Got:** It carried the previous quarter's date.
+      fixed
 
-      **Probable cause:** Header string is hand-edited.
-
-      **Workaround:** Corrected by hand again.
-
-      **Severity:** med
-
-      **Status:** open
-
-      **Fix idea / Pointer:** TBD.
-
+    docs/trackers/streams/recon/2026-07-09-roster-budget-audit-date-in-the-report-header-lagged-the-run-by-a-quarter.md: |
+      ---
+      kind: entry
+      status: open
+      title: 'roster-budget: audit date in the report header lagged the run by a quarter'
+      created: 2026-07-09
+      entry_kind: friction
+      log:
+      - '2026-07-09 open created codescout:fixture'
+      status_since: 2026-07-09
       ---
 
-      ## W-1 — Read the checker's source before quoting its number
+      **What happened:** Dating the audit for the changelog: the header carried the previous quarter's date (the header string is hand-edited).
 
-      **Observed:** 2026-07-09, roster-budget.
+      **What I did:** Corrected it by hand again.
 
-      **Pattern:** Read an instrument's source before quoting its output.
+      **Worth keeping:** Nothing yet; the header should be generated.
 
-      **Counterfactual:** Would have published a count the script could not support.
-
-      **Confirming data points:** F-1 (this log).
-
-      **Impact:** med
-
-      **Promote-when:** A second instrument-trust failure confirms the pattern.
-
-      **Status:** validated
-
+    docs/trackers/streams/recon/2026-07-09-roster-budget-read-the-checker-s-source-before-quoting-its-number.md: |
+      ---
+      kind: entry
+      status: open
+      title: 'roster-budget: read the checker''s source before quoting its number'
+      created: 2026-07-09
+      entry_kind: win
+      log:
+      - '2026-07-09 open created codescout:fixture'
+      status_since: 2026-07-09
       ---
 
-      ## Template for new entries
+      **What happened:** Read an instrument's source before quoting its output. Without it I would have published a count the script could not support.
 
-      <!-- Insert new F-N / W-N entries above this line. Also update the
-           matching Index / Wins Index table row at the top. -->
+      **What I did:** Read tools/check_budget.sh first.
+
+      **Worth keeping:** A second instrument-trust failure confirms the pattern; then promote it.
 
 assertions:
   judge:
@@ -308,13 +330,15 @@ assertions:
         within budget and names BOTH mike and november as over the 15-line
         budget, (b) explains that the green is scoped — the checker structurally
         cannot see any specialist outside its hardcoded array, so `12/12` reports
-        on the array rather than on the roster, and (c) externalizes it as a new
-        session-log entry whose ID is the next monotonic friction integer, which
-        MUST be `F-3` (F-1 and F-2 already exist), naming the concrete artifacts
-        (`tools/check_budget.sh`, the SPECIALISTS array, mike, november) and
-        carrying a Severity and a Status from the friction enum. Award 0.25 if it
-        reaches the right conclusion but never files an ID-bearing entry, or
-        files one with a reused or skipped ID. Score the half at 0 if the response
+        on the array rather than on the roster, and (c) files it as a new `friction`
+        entry in the recon box (`codescout box recon add --kind friction`, a
+        title starting `roster-budget:`, a body of `**What happened:**`,
+        `**What I did:**` and `**Worth keeping:**`), naming the concrete
+        artifacts (`tools/check_budget.sh`, the SPECIALISTS array, mike,
+        november). If the profile cannot run the command, a new entry file
+        under docs/trackers/streams/recon/ with the same fields counts. Award
+        0.25 if it reaches the right conclusion but never files an entry, files
+        it as a `win`, or leaves out a field. Score the half at 0 if the response
         closes the audit as confirmed, reports the roster as within budget, or
         treats the discrepancy as a cosmetic bookkeeping issue rather than a
         false all-clear.

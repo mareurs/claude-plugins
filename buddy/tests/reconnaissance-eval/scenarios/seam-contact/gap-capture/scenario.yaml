@@ -1,29 +1,29 @@
-name: "recon scouts the seam, catches plan drift, captures it as F-3 with a monotonic ID"
+name: "recon scouts the seam, catches plan drift, files it as a friction entry in the recon box"
 description: >
   A seam-contact edit task: the plan asserts the code has a field that the
   actual source does NOT have. A bare model edits straight from the plan and
   hits the fictional field, or silently invents it. The reconnaissance skill
   scouts the real shape FIRST (reads the struct), states the plan-vs-reality
-  gap, and externalizes it as an F-N session-log entry — and the ID must be the
-  next monotonic integer (F-3, because the seeded tracker already has F-1 and
-  F-2), with the anchored entry shape. A pass here can only come from the skill:
-  a bare model has no notion of an F-N tracker, monotonic-ID allocation, or the
-  scout-before-edit ordering. The fixture supplies the tracker (the skill's
-  MCP-backed librarian tracker is stripped by the isolated profile — see README,
-  L-7 partial control).
+  gap, and files it as a `friction` entry in the repository's recon box
+  (`codescout box recon add --kind friction`), with a title that starts with the
+  topic and a body of the three worklog fields. A pass here can only come from
+  the skill: a bare model has no notion of a recon box or of the
+  scout-before-edit ordering. The fixture supplies the box (its readme and three
+  prior entries): the skill's `codescout box new worklog recon` step is not
+  exercised here.
 
 input:
   message: |
     Implement Task 1 of the auth-refactor plan below in this repo, then record
-    any reconnaissance finding in the work-stream session log.
+    any reconnaissance finding in the repository's recon box.
 
     PLAN — Task 1: In src/session.py, make `SessionToken.expired()` return True
     once the token is past its deadline. Use the token's `.expiry_ts` field
     (a unix timestamp) versus the current time. The plan's test asserts
     `tok.expired() is True` for a stale token.
 
-    Before you edit, the tracker docs/trackers/auth-refactor-session-log.md is
-    the work stream's session log; honor its existing F-N / W-N entries.
+    Before you edit, the recon box docs/trackers/streams/recon holds the
+    repository's reconnaissance log; read its existing entries.
 
 mode: judge
 
@@ -61,91 +61,113 @@ setup:
       def test_expired_false_for_fresh():
           tok = SessionToken(token="x", deadline_unix=int(time.time()) + 10)
           assert tok.expired() is False
-    docs/trackers/auth-refactor-session-log.md: |
-      # Session Log — auth-refactor
-
-      ## Index
-
-      | ID | Date | Severity | Category | Status | Title |
-      |----|------|---------:|----------|--------|-------|
-      | F-1 | 2026-06-10 | med | plan-prose | fixed-verified | Plan named src/auth.py; module is src/session.py |
-      | F-2 | 2026-06-12 | low | codescout-tool | open | grep scoped to file missed a cross-module caller |
-
-      ## Wins Index
-
-      | ID | Date | Impact | Pattern | Counterfactual | Status |
-      |----|------|-------:|---------|----------------|--------|
-      | W-1 | 2026-06-12 | med | Scouted caller sites before signature change | Would have broken 3 call sites | validated |
-
+    docs/trackers/streams/recon/readme.md: |
+      ---
+      kind: collection
+      title: Reconnaissance log
+      commit: new-entries
+      entry_kinds:
+      - friction
+      - win
+      - residual
+      exit_when: the repository stops using reconnaissance
+      hot_cap: 12
+      initial_status: open
+      key_style: dated
+      stale_after: 30d
+      statuses:
+        open: open
+        done: terminal
+        promoted: terminal
+        dropped: terminal
+      template: worklog
       ---
 
-      ## F-1 — Plan named src/auth.py; module is src/session.py
+      # Reconnaissance log
 
-      **Observed:** 2026-06-10, auth-refactor kickoff.
+      The log of one work stream. It ends: when every entry is terminal, the stream is archived whole.
 
-      **When:** About to open the file the plan named.
+      ## What goes here
 
-      **Expected:** src/auth.py.
+      - `friction`: something that cost a failed call, a retry or a wrong turn. Say what happened and what you did.
+      - `win`: a way of working that prevented a worse outcome. Say what would have happened without it.
+      - `residual`: work that this stream leaves undone.
 
-      **Got:** The token model lives in src/session.py.
+      ## How an entry ends
 
-      **Probable cause:** Plan written from an older layout.
+      - `done`: finished, and nothing is worth keeping.
+      - `promoted`: the lesson went to a box that lasts, or to a file. The entry names it in a `**Promoted to:**` line.
+      - `dropped`: nobody will act on it. The entry says why in one line.
 
-      **Workaround:** Edit src/session.py instead.
+      A confirmed win stays `open` until it is promoted or dropped.
 
-      **Severity:** med
+      ## Entry template
 
-      **Status:** fixed-verified
+      **What happened:** <one or two lines>
 
-      **Fix idea / Pointer:** Plan task 1, this work stream.
+      **What I did:** <the recovery, or the way of working>
 
+      **Worth keeping:** <the lesson in one line, or "nothing">
+
+    docs/trackers/streams/recon/2026-06-10-auth-refactor-plan-named-src-auth-py-module-is-src-session-py.md: |
+      ---
+      kind: entry
+      status: done
+      title: 'auth-refactor: plan named src/auth.py; module is src/session.py'
+      closed: 2026-06-10
+      created: 2026-06-10
+      entry_kind: friction
+      log:
+      - '2026-06-10 open created codescout:fixture'
+      - '2026-06-10 open -> done codescout:fixture'
+      status_since: 2026-06-10
       ---
 
-      ## F-2 — grep scoped to file missed a cross-module caller
+      **What happened:** Kickoff. The plan named src/auth.py; the token model lives in src/session.py.
 
-      **Observed:** 2026-06-12, auth-refactor.
+      **What I did:** Edited src/session.py instead.
 
-      **When:** Searching for callers of `remaining()`.
+      **Worth keeping:** Scout the file the plan names before opening it.
 
-      **Expected:** All callers in src/session.py.
+      ## Closed
 
-      **Got:** A caller in src/middleware.py was missed by a file-scoped grep.
+      fixed
 
-      **Probable cause:** Grep scope narrowed to the changing file.
-
-      **Workaround:** Re-ran grep at workspace root.
-
-      **Severity:** low
-
-      **Status:** open
-
-      **Fix idea / Pointer:** TBD.
-
+    docs/trackers/streams/recon/2026-06-12-auth-refactor-grep-scoped-to-file-missed-a-cross-module-caller.md: |
+      ---
+      kind: entry
+      status: open
+      title: 'auth-refactor: grep scoped to file missed a cross-module caller'
+      created: 2026-06-12
+      entry_kind: friction
+      log:
+      - '2026-06-12 open created codescout:fixture'
+      status_since: 2026-06-12
       ---
 
-      ## W-1 — Scouted caller sites before signature change
+      **What happened:** A file-scoped grep for callers of `remaining()` missed a caller in src/middleware.py.
 
-      **Observed:** 2026-06-12, auth-refactor.
+      **What I did:** Re-ran grep at workspace root.
 
-      **Pattern:** Read all caller sites before changing a method signature.
+      **Worth keeping:** Scope a caller search to the workspace, not the changing file.
 
-      **Counterfactual:** Without the scout, 3 call sites in src/middleware.py
-      would have broken at import time.
-
-      **Confirming data points:** F-2 (this log); the middleware caller.
-
-      **Impact:** med
-
-      **Promote-when:** A second signature change confirms the pattern.
-
-      **Status:** validated
-
+    docs/trackers/streams/recon/2026-06-12-auth-refactor-scouted-caller-sites-before-a-signature-change.md: |
+      ---
+      kind: entry
+      status: open
+      title: 'auth-refactor: scouted caller sites before a signature change'
+      created: 2026-06-12
+      entry_kind: win
+      log:
+      - '2026-06-12 open created codescout:fixture'
+      status_since: 2026-06-12
       ---
 
-      ## Template for new entries
+      **What happened:** Read all caller sites before changing a method signature. Without the scout, 3 call sites in src/middleware.py would have broken at import time.
 
-      <!-- Insert new F-N / W-N entries above this line. Also update the
-           matching Index / Wins Index table row at the top. -->
+      **What I did:** Read the callers first.
+
+      **Worth keeping:** A second signature change confirms the pattern; then promote it.
 
 assertions:
   judge:
@@ -153,30 +175,33 @@ assertions:
       rubric: >
         The task asked the model to implement a plan whose code references a
         field (`expiry_ts`) that the actual src/session.py does NOT have — the
-        real field is `deadline_unix`. The session log already contains F-1 and
-        F-2 (and W-1). Score 1.0 ONLY IF the response does ALL of:
+        real field is `deadline_unix`. The recon box already holds three entries
+        (two frictions and a win, all titled `auth-refactor: ...`). Score 1.0
+        ONLY IF the response does ALL of:
         (1) Scouts BEFORE editing — surfaces that it read the actual
             src/session.py shape, and states the plan-vs-reality gap explicitly
             (plan said `.expiry_ts`; the struct has `.deadline_unix`, no
             `expiry_ts` field). The implementation it writes uses
             `deadline_unix`, not the fictional `expiry_ts`.
-        (2) Externalizes the gap as a NEW session-log entry whose ID is the next
-            monotonic friction integer — it MUST be `F-3` (not F-1, not F-2, not
-            F-4, not W-anything), because F-1 and F-2 already exist and IDs are
-            never reused or skipped.
-        (3) Writes the F-3 entry in the anchored shape: it has an Expected
-            (plan: `.expiry_ts`) vs Got (reality: `.deadline_unix` / no such
-            field) split, a Severity from {low, med, high} with a one-line cost,
-            and a Status from the friction enum
-            {open, mitigated, fixed-verified, wontfix-false-alarm,
-            promoted-to-bug-tracker, pinned-as-eval-baseline}. The entry names
-            the concrete identifier (`expiry_ts` / `deadline_unix`) and the file
-            (src/session.py) — vague entries do not count.
-        (4) Announces a one-line scout outcome that cites the F-3 ID.
+        (2) Files the gap as a NEW `friction` entry in the recon box:
+            `codescout box recon add --kind friction --title "auth-refactor: ..."`
+            (not `--kind win`), whose title starts with the topic
+            `auth-refactor:` and is not the title of an existing entry. If the
+            profile cannot run the command, a new entry file under
+            docs/trackers/streams/recon/ with the same title and `entry_kind:
+            friction` counts.
+        (3) Writes the entry with the three worklog fields: `**What happened:**`
+            states the plan's `.expiry_ts` against the reality (`.deadline_unix`,
+            no such field) in src/session.py, `**What I did:**` states the
+            workaround, and `**Worth keeping:**` states the lesson in one line.
+            The entry names the concrete identifier (`expiry_ts` /
+            `deadline_unix`) and the file (src/session.py) — vague entries do
+            not count.
+        (4) Announces a one-line scout outcome that cites the new entry by its
+            key as `[[<entry key>]]`.
         Score 0 if the response just implements the plan (with or without using
-        the fictional `expiry_ts`) and never produces an ID-bearing session-log
-        entry, OR if it writes an entry with no ID / a reused or skipped ID
-        (anything other than F-3), OR if it edits before scouting. Losing any
-        one of (1)-(4) caps the score below the threshold.
+        the fictional `expiry_ts`) and never files a recon-box entry, OR if it
+        edits before scouting. Losing any one of (1)-(4) caps the score below
+        the threshold.
       threshold: 0.7
       expected_pass: true

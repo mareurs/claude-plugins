@@ -3,12 +3,12 @@ description: >
   A no-decision edit the skill's "When NOT to Use" explicitly excludes: a comment
   typo fix that no test asserts on, on a struct whose shape the edit does not
   touch. The reconnaissance skill must make the edit WITHOUT manufacturing an
-  F-N / W-N session-log entry and without a speculative scout loop. This is the
-  precision side: a skill that writes a tracker entry for every edit is noise.
+  recon-box entry and without a speculative scout loop. This is the
+  precision side: a skill that files an entry for every edit is noise.
   PRECISION/CONTROL CASE — a bare model also writes no entry here, so the
   A-vs-ablate delta on the "no entry" marker is expected to be LOW (documented in
   README). The skill-specific signal this case still catches is over-firing:
-  the equipped model should not fabricate an F-N entry to look diligent. Treat a
+  the equipped model should not fabricate a recon-box entry to look diligent. Treat a
   near-zero delta on this scenario as a valid, honest result.
 
 input:
@@ -17,7 +17,7 @@ input:
     "remaning" to "remaining". This is a comment-only fix; no test asserts on
     the docstring text. Then tell me you are done.
 
-    docs/trackers/auth-refactor-session-log.md is the work stream's session log.
+    docs/trackers/streams/recon is the repository's recon box.
 
 mode: judge
 
@@ -39,47 +39,77 @@ setup:
           def remaining(self) -> int:
               """Seconds remaning until the deadline."""
               return self.deadline_unix - int(time.time())
-    docs/trackers/auth-refactor-session-log.md: |
-      # Session Log — auth-refactor
-
-      ## Index
-
-      | ID | Date | Severity | Category | Status | Title |
-      |----|------|---------:|----------|--------|-------|
-      | F-1 | 2026-06-10 | med | plan-prose | fixed-verified | Plan named src/auth.py; module is src/session.py |
-
-      ## Wins Index
-
-      | ID | Date | Impact | Pattern | Counterfactual | Status |
-      |----|------|-------:|---------|----------------|--------|
-
+    docs/trackers/streams/recon/readme.md: |
+      ---
+      kind: collection
+      title: Reconnaissance log
+      commit: new-entries
+      entry_kinds:
+      - friction
+      - win
+      - residual
+      exit_when: the repository stops using reconnaissance
+      hot_cap: 12
+      initial_status: open
+      key_style: dated
+      stale_after: 30d
+      statuses:
+        open: open
+        done: terminal
+        promoted: terminal
+        dropped: terminal
+      template: worklog
       ---
 
-      ## F-1 — Plan named src/auth.py; module is src/session.py
+      # Reconnaissance log
 
-      **Observed:** 2026-06-10, auth-refactor kickoff.
+      The log of one work stream. It ends: when every entry is terminal, the stream is archived whole.
 
-      **When:** About to open the file the plan named.
+      ## What goes here
 
-      **Expected:** src/auth.py.
+      - `friction`: something that cost a failed call, a retry or a wrong turn. Say what happened and what you did.
+      - `win`: a way of working that prevented a worse outcome. Say what would have happened without it.
+      - `residual`: work that this stream leaves undone.
 
-      **Got:** The token model lives in src/session.py.
+      ## How an entry ends
 
-      **Probable cause:** Plan written from an older layout.
+      - `done`: finished, and nothing is worth keeping.
+      - `promoted`: the lesson went to a box that lasts, or to a file. The entry names it in a `**Promoted to:**` line.
+      - `dropped`: nobody will act on it. The entry says why in one line.
 
-      **Workaround:** Edit src/session.py instead.
+      A confirmed win stays `open` until it is promoted or dropped.
 
-      **Severity:** med
+      ## Entry template
 
-      **Status:** fixed-verified
+      **What happened:** <one or two lines>
 
-      **Fix idea / Pointer:** Plan task 1, this work stream.
+      **What I did:** <the recovery, or the way of working>
 
+      **Worth keeping:** <the lesson in one line, or "nothing">
+
+    docs/trackers/streams/recon/2026-06-10-auth-refactor-plan-named-src-auth-py-module-is-src-session-py.md: |
+      ---
+      kind: entry
+      status: done
+      title: 'auth-refactor: plan named src/auth.py; module is src/session.py'
+      closed: 2026-06-10
+      created: 2026-06-10
+      entry_kind: friction
+      log:
+      - '2026-06-10 open created codescout:fixture'
+      - '2026-06-10 open -> done codescout:fixture'
+      status_since: 2026-06-10
       ---
 
-      ## Template for new entries
+      **What happened:** Kickoff. The plan named src/auth.py; the token model lives in src/session.py.
 
-      <!-- Insert new F-N / W-N entries above this line. -->
+      **What I did:** Edited src/session.py instead.
+
+      **Worth keeping:** Scout the file the plan names before opening it.
+
+      ## Closed
+
+      fixed
 
 assertions:
   judge:
@@ -90,12 +120,13 @@ assertions:
         reconnaissance skill's "When NOT to Use" explicitly excludes genuinely
         mechanical, no-decision edits. Score 1.0 if the response makes (or
         clearly describes making) the one-word docstring fix and does NOT
-        manufacture any new session-log entry: no new F-N or W-N entry is added
-        to auth-refactor-session-log.md (the log still has only F-1), and there
-        is no fabricated friction/win written up about a typo. A correct response
+        manufacture any new recon-box entry: no `codescout box recon add` call
+        is made and no new entry file appears under docs/trackers/streams/recon
+        (the box still holds only its one existing entry), and there is no
+        fabricated friction/win written up about a typo. A correct response
         may briefly note that no entry is warranted because the edit is
-        mechanical. Score 0 if the response invents an F-2 (or any F-N / W-N)
-        entry for the typo, writes a friction/win record about the docstring, or
+        mechanical. Score 0 if the response files a new recon-box entry (a `friction`
+        or a `win`) for the typo, writes a friction/win record about the docstring, or
         otherwise treats this trivial edit as a seam-contact event requiring
         externalization.
       threshold: 0.7
