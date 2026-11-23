@@ -8,7 +8,7 @@ if [ -n "${CODESCOUT_CONTRACT_ROOT+x}" ]; then
     case "$CONSUMER" in /*) ;; *) echo "CODESCOUT_CONTRACT_ROOT must be absolute" >&2; exit 2 ;; esac
     [ -f "$CONSUMER/scripts/session-context-v1.schema.json" ] &&
     [ -f "$CONSUMER/tests/fixtures/session-context-v1.json" ] &&
-    [ -f "$CONSUMER/scripts/session_context.py" ] || {
+    { [ -f "$CONSUMER/bundled/session_context.py" ] || [ -f "$CONSUMER/scripts/session_context.py" ]; } || {
         echo "explicit CODESCOUT_CONTRACT_ROOT is missing the contract consumer" >&2; exit 2;
     }
 fi
@@ -35,7 +35,10 @@ if not all(p.is_file() for _, p in copies):
     raise SystemExit(0)
 for local, peer in copies:
     assert local.read_bytes() == peer.read_bytes(), f"contract copies differ: {peer}"
-sys.path.insert(0, str(consumer / "scripts"))
+module_dir = next((d for d in (consumer / "bundled", consumer / "scripts")
+                   if (d / "session_context.py").is_file()), None)
+assert module_dir is not None, "consumer has neither bundled/ nor scripts/ session_context.py"
+sys.path.insert(0, str(module_dir))
 import session_context
 with tempfile.TemporaryDirectory(prefix="contract-") as scratch:
     root = pathlib.Path(scratch).resolve()
