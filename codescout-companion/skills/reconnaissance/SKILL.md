@@ -79,27 +79,29 @@ Findings go into the repository's one **recon box**, key `recon`, a `worklog` st
 
 This is a check on the sentence you are about to write, not on your choice of tool — which is why it lives here and not in Phase 1. Both recorded failures happened in sessions that had already invoked this skill, while writing up a result (`codescout:R-125`, `codescout:bug-fix-session-log:F-78`).
 
-**Make the box (first run only).** Run `codescout box`. If it does not list `recon`, make it once, then run the two commit lines the command prints:
+**Make the box (first run only).** Run `codescout box` (in a linked worktree, `codescout box --project <main>`, below). If it does not list `recon`, make it once, then run the two commit lines the command prints:
 
 ```bash
 codescout box new worklog recon --title "Reconnaissance log" --exit-when "the repository stops using reconnaissance"
 ```
 
-**In a linked worktree** the first line of `git worktree list` is the main checkout, `<main>`. `box new` is not refused there: it writes the box into the worktree, where `<main>` cannot see it. Pass `--project <main>` before the template name (`codescout box new --project <main> worklog recon ...`), and list with `codescout box --project <main>`.
+**In a linked worktree** `<main>` is the main checkout, the first line of `git worktree list`, and every recon-box call takes `--project <main>` right after `box`: `codescout box --project <main>` to list, `codescout box new --project <main> worklog recon ...` to make the box (without it, `box new` writes the box into the worktree, where `<main>` cannot see it), and `codescout box --project <main> recon add|close|promote ...` to write (without it, a write is refused).
 
 **One call per entry.**
 
 ```bash
 codescout box recon add --kind friction --title "<topic>: <one line>" --text body - <<'EOF'
 **What happened:** <the plan said X; the code holds Y, with path:line>
+
 **What I did:** <the workaround or the plan edit>
+
 **Worth keeping:** <the lesson in one line, or "nothing">
 EOF
 ```
 
-Start the title with the work stream's topic (`bug-fix`, `auth-refactor`, `migration-2026-q2`), not the seam: the box holds every topic of the repository. `--kind friction` is plan drift; `--kind win` is a pattern that prevented worse, and its body names what would have happened without it. A title that a live entry holds is refused. The call commits the entry and prints its key. In a linked worktree `add` is refused, and the refusal prints the exact command with `--project <main>`: run that.
+Start the title with the work stream's topic (`bug-fix`, `auth-refactor`, `migration-2026-q2`), not the seam: the box holds every topic of the repository. `--kind friction` is plan drift; `--kind win` is a pattern that prevented worse, and its body names what would have happened without it. A title that a live entry holds is refused. The call commits the entry and prints its key.
 
-An entry ends with `codescout box recon close <entry> done|promoted|dropped --text reason -`. `close` prints its git line and commits nothing: run it. The reason of a `promoted` entry carries a `**Promoted to:**` line naming the destination. `codescout box recon` prints the statuses and rules.
+An entry ends with `codescout box recon close <entry> done|dropped --text reason -`, or, when its lesson moved to another box or a file, `codescout box recon promote <entry> --to <box>` / `--to-file <path>`, which writes the `**Promoted to:**` line. `close` and `promote` commit nothing and print a git line: run it. In a linked worktree the printed line has no `-C <main>`, so commit the paths it names with `git -C <main> add -- <path>` and `git -C <main> commit -m "<message>" -- <path>`. `codescout box recon` prints the statuses and rules.
 
 **Count the entry.** Right after the `box add` call lands, bump the session counter so the statusline `[recon]` badge shows your scout output as an `F<n>/W<n>` suffix. Use the helper next to this skill (its directory is the "Base directory for this skill" path printed when the skill loaded):
 
@@ -122,7 +124,7 @@ With verified context, return to the original task. Announce the scout outcome t
 
 - Match, no entry: `Recon: matched plan, proceeding.`
 - Friction filed: `Recon: gap captured as [[<entry key>]] (plan cited .hint field; type has no such field). Proceeding with workaround.`
-- Tool friction filed: `Recon: tool friction filed as <entry key>.`
+- Tool friction filed: `Recon: tool friction filed as [[<entry key>]].`
 - Win filed: `Recon: scout prevented Task 2 test-shape slip; captured as [[<entry key>]].`
 
 Cite the entry as `[[<entry key>]]` (the key `add` printed) in the next subagent dispatch prompt and in the commit message of any change that closes the gap.

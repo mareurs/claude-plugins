@@ -14,13 +14,15 @@ lacks, an unknown event kind) and it must be REFUSED — if it is accepted, the 
 and the PASS below it means nothing.
 
 Shell lines are not `doc(...)` calls. The `codescout box ...` command lines of the reconnaissance
-skill are counted and reported as INFO (case_recon_box_lines); nothing here runs them.
+skill are run against the real binary by case_recon_box, in a throwaway git repo of the test's own
+sandbox, after a control (an undeclared `--kind`) that must be refused with exit 2.
 """
 
 from __future__ import annotations
 
 import ast
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -33,7 +35,6 @@ from skill_contract_calls import run_catalog_examples  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 RECON_SKILL = ROOT / "codescout-companion" / "skills" / "reconnaissance" / "SKILL.md"
-RECON_BOX_FILES = [RECON_SKILL, RECON_SKILL.parent / "references" / "worked-examples.md"]
 FAILS = 0
 CREATED: list[str] = []  # fixture ledger ids not yet dropped; see make_ledger
 # The heading the shipped ledger templates carry for new entries. The fixture holds THIS heading, not
@@ -221,15 +222,101 @@ def case_prescribed_exemplars(cs: IsolatedCodescout) -> list[tuple[Path, dict]]:
     return covered
 
 
-BOX_LINE_RE = re.compile(r"^\s*codescout box\b", re.MULTILINE)
+BASH_BLOCK_RE = re.compile(r"```bash\n(.*?)\n```", re.DOTALL)
+KEY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-\S+$")
 
 
-def case_recon_box_lines() -> None:
-    """The reconnaissance skill teaches `codescout box ...` shell lines, which the doc/tool call
-    extractors do not see. Say so in the output, with the count, rather than by silence."""
-    counts = {f.name: len(BOX_LINE_RE.findall(f.read_text())) for f in RECON_BOX_FILES}
-    info("reconnaissance box command lines (shell, not doc(...) calls; signature and runtime NOT checked here): "
-         + ", ".join(f"{name}: {n}" for name, n in counts.items()))
+def recon_add_blocks(path: Path) -> list[tuple[list[str], str]]:
+    """Every fenced bash block of `path` that runs `codescout box recon add ... <<'EOF'`, as
+    (argv after `codescout`, heredoc body). Backslash-newline continuations are joined first."""
+    out = []
+    for block in BASH_BLOCK_RE.findall(path.read_text()):
+        if not block.startswith("codescout box recon add"):
+            continue
+        head, _, rest = block.partition("<<'EOF'\n")
+        body = rest.rsplit("\nEOF", 1)[0] + "\n"
+        out.append((shlex.split(head.replace("\\\n", " "))[1:], body))
+    return out
+
+
+def case_recon_box(binary: str, env: dict, sandbox: Path) -> None:
+    """The reconnaissance skill's `codescout box` lines, run for real: the first-run `box new`, then the
+    prescribed `add` blocks (SKILL.md and worked-examples.md), then `close` and `promote`.
+
+    The control comes first: the same `add` with an undeclared `--kind` must be refused (exit 2, `is not
+    declared`), or nothing below proves the harness can see a rejected call. The repo is a plain git
+    repo in the test's own sandbox (the isolated env allows a temp-rooted workspace), so nothing is
+    written outside what this test already writes, and nothing in the worktree."""
+    label = "reconnaissance box lines"
+    skill_text = RECON_SKILL.read_text()
+    repo = sandbox / "boxrepo"
+    git_repo(repo)
+
+    def box(args: list[str], stdin: str = "") -> subprocess.CompletedProcess:
+        return subprocess.run([binary, *args], cwd=repo, env=env, input=stdin, text=True, capture_output=True, timeout=60)
+
+    new_blocks = [b for b in BASH_BLOCK_RE.findall(skill_text) if b.startswith("codescout box new worklog recon")]
+    adds = recon_add_blocks(RECON_SKILL) + recon_add_blocks(RECON_SKILL.parent / "references" / "worked-examples.md")
+    if len(new_blocks) != 1 or len(adds) < 3:
+        return bad(f"{label} extracted", f"want 1 `box new` block and >=3 `box recon add` blocks, got {len(new_blocks)} and {len(adds)}")
+    ok(f"{label} extracted: 1 `box new` block, {len(adds)} `box recon add` blocks")
+
+    new_args = shlex.split(new_blocks[0])[1:]
+    made = box(new_args)
+    readme = "docs/trackers/streams/recon/readme.md"
+    if made.returncode != 0 or f"git add {readme}" not in made.stdout:
+        return bad(f"{label}: `box new worklog recon` makes the box and prints its commit lines",
+                   f"rc={made.returncode} stdout={made.stdout[:200]!r} stderr={made.stderr[:200]!r}")
+    want_exit = new_args[new_args.index("--exit-when") + 1]
+    if want_exit not in (repo / readme).read_text():
+        return bad(f"{label}: --exit-when text reaches the readme", f"{want_exit!r} not in {readme}")
+    ok(f"{label}: `box new worklog recon` makes the box, prints its commit lines, keeps --exit-when")
+    subprocess.run(["git", "-C", str(repo), "add", "--", readme], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "box", "--", readme], check=True)
+
+    keys: list[str] = []
+    for i, (args, body) in enumerate(adds):
+        where = f"{label}: add block {i + 1}"
+        if i == 0:
+            wrong = list(args)
+            wrong[wrong.index("--kind") + 1] = "bogus"
+            refused = box(wrong, body)
+            if refused.returncode != 2 or "is not declared" not in refused.stdout + refused.stderr:
+                return bad(f"{label}: control (--kind bogus) is refused with exit 2",
+                           f"harness cannot detect a rejected add: rc={refused.returncode} out={(refused.stdout + refused.stderr)[:160]!r}")
+            ok(f"{label}: control (--kind bogus) is refused with exit 2")
+        done = box(args, body)
+        key = done.stdout.strip().splitlines()[-1] if done.stdout.strip() else ""
+        if done.returncode != 0 or not KEY_RE.match(key):
+            bad(f"{where} is accepted and prints an entry key", f"rc={done.returncode} stdout={done.stdout[:120]!r} stderr={done.stderr[:160]!r}")
+            continue
+        entry = repo / "docs/trackers/streams/recon" / f"{key}.md"
+        kind = args[args.index("--kind") + 1]
+        if entry.is_file() and f"entry_kind: {kind}" in entry.read_text() and "**What happened:**" in entry.read_text():
+            ok(f"{where} ({kind}) is accepted; the entry carries its kind and the fields")
+            keys.append(key)
+        else:
+            bad(f"{where} writes the entry", f"{entry} missing, wrong kind or no `**What happened:**`")
+    dirty = subprocess.run(["git", "-C", str(repo), "status", "--porcelain", "--", "docs/trackers/streams/recon"],
+                           capture_output=True, text=True).stdout.strip()
+    ok(f"{label}: `add` committed every entry itself") if not dirty else bad(f"{label}: `add` commits the entry", dirty[:200])
+    if len(keys) < 3:
+        return
+
+    close_form = re.search(r"`(codescout box recon close <entry> done\|dropped --text reason -)`", skill_text)
+    promote_form = re.search(r"`codescout box recon promote <entry> --to <box>` / `(--to-file <path>)`", skill_text)
+    if not (close_form and promote_form):
+        return bad(f"{label}: close and promote forms found in SKILL.md", f"close={bool(close_form)} promote={bool(promote_form)}")
+    closed = box(["box", "recon", "close", keys[0], "done", "--text", "reason", "-"], "fixed in the plan\n")
+    if closed.returncode == 0 and "git add" in closed.stdout:
+        ok(f"{label}: `close <entry> done --text reason -` is accepted and prints a git line")
+    else:
+        bad(f"{label}: close is accepted", f"rc={closed.returncode} out={closed.stdout[:160]!r} err={closed.stderr[:160]!r}")
+    promoted = box(["box", "recon", "promote", keys[1], "--to-file", "README.md"])
+    if promoted.returncode == 0 and "Promoted to" in (repo / "docs/trackers/streams/recon" / f"{keys[1]}.md").read_text():
+        ok(f"{label}: `promote <entry> --to-file <path>` is accepted and writes the `**Promoted to:**` line")
+    else:
+        bad(f"{label}: promote is accepted and writes its line", f"rc={promoted.returncode} out={promoted.stdout[:160]!r} err={promoted.stderr[:160]!r}")
 
 
 SPEC_DRIFT_SKILL = SKILLS / "spec-drift" / "SKILL.md"
@@ -452,8 +539,6 @@ def main() -> int:
     if binary is None:
         print("  SKIP: no codescout binary (CODESCOUT_BIN, PATH, ~/.cargo/bin) — skill-call legality NOT checked")
         return 0
-    case_recon_box_lines()
-
     sandbox = Path(tempfile.mkdtemp(prefix="cs-skill-call-"))
     try:
         repo = sandbox / "repo"
@@ -461,6 +546,7 @@ def main() -> int:
         (repo / "docs" / "trackers").mkdir(parents=True)
         with IsolatedCodescout(repo, sandbox, binary) as cs:
             covered = case_prescribed_exemplars(cs)
+            case_recon_box(binary, cs.env, sandbox)
             case_spec_drift(cs)
             case_spec_drift_finds(cs)
             case_sdd_calls(cs)

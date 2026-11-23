@@ -12,7 +12,7 @@
 
 Each project that uses this skill keeps its own R-N ledger at
 `docs/trackers/reconnaissance-patterns.md`. This is a librarian
-tracker artifact, separate from the per-work-stream session logs in
+tracker artifact, separate from the recon box of
 Phase 3 — its scope is the **skill itself**, not any one task. Entries
 describe when recon helped (hit), when it missed (miss), and what
 should change in `SKILL.md` next (proposal).
@@ -110,19 +110,19 @@ separate outcomes, not interchangeable changes in a summary counter.
 
 | Did recon catch the drift? | Action |
 |---|---|
-| Yes, and downstream gates (spec review, compiler) confirmed | Write a `hit` entry, cite the W-N in the work-stream session log |
-| No, but a downstream gate caught it instead | Write a `miss` entry, cite the F-N. Optionally a `proposal` if the fix is obvious |
-| Drift was a false alarm | No R-N entry (work-stream session log only) |
+| Yes, and downstream gates (spec review, compiler) confirmed | Write a `hit` entry, cite the `win` entry of the recon box as `[[<entry key>]]` |
+| No, but a downstream gate caught it instead | Write a `miss` entry, cite the `friction` entry as `[[<entry key>]]`. Optionally a `proposal` if the fix is obvious |
+| Drift was a false alarm | No R-N entry (recon box only) |
 
 Per-project R-N entries are short — one paragraph + evidence. The full
-narrative lives in the work-stream session log; the R-N entry is the
+narrative lives in the recon-box entry; the R-N entry is the
 cross-cutting lesson.
 
 **Sync flow.** When an R-N proposal reaches promote-when threshold,
 sync it back into the skill:
 
 1. PR against `codescout-companion/skills/reconnaissance/SKILL.md`.
-2. PR description cites the R-N IDs + their session-log evidence.
+2. PR description cites the R-N IDs + their recon-box entries.
 3. On merge, mark the project's R-N entry `Verdict: promoted` and
    pin the commit SHA + skill version.
 

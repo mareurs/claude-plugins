@@ -67,8 +67,8 @@ The qualified form selects the intended source log explicitly.
 
 | Verdict | Meaning |
 |---------|---------|
-| `hit` | Scout caught drift; subagent / implementer avoided rework. Pair with a W-N in the source session log. |
-| `miss` | Scout did not catch drift; a downstream gate caught it. Pair with an F-N in the source session log. Refines scout phases. |
+| `hit` | Scout caught drift; subagent / implementer avoided rework. Pair with a `win` entry of the recon box. |
+| `miss` | Scout did not catch drift; a downstream gate caught it. Pair with a `friction` entry of the recon box. Refines scout phases. |
 | `proposal` | Vocabulary / phase expansion derived from one or more hits/misses. Lands in `SKILL.md` after threshold datapoints. |
 | `promoted` | Proposal landed in `SKILL.md`. Pin the commit SHA + skill version. |
 | `wontfix` | Considered, declined — costlier than the miss it would prevent. Pin the rationale. |
@@ -76,7 +76,7 @@ The qualified form selects the intended source log explicitly.
 ## How to append
 
 When Phase 3 of recon produces evidence about the skill itself, capture it here
-in addition to the work-stream session log. Set `tracker_id` from the bootstrap
+in addition to the recon-box entry. Set `tracker_id` from the bootstrap
 result (or the existing ledger's catalog id), `prefix` to its declared namespace,
 `entry_title` to a short title, and `entry_body` from the entry template below.
 
@@ -105,7 +105,7 @@ the skill itself:
 1. Open a PR (or change) against the `codescout-companion` repo,
    specifically `skills/reconnaissance/SKILL.md`.
 2. The PR description references the R-N entries + their host
-   session-log F-N / W-N evidence by name.
+   recon-box entries (`[[<entry key>]]`) by key.
 3. After merge, edit the R-N entry in the project tracker:
    set `Verdict: promoted` and pin the commit SHA + skill version
    in the entry body.

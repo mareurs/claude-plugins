@@ -2,7 +2,7 @@ name: "recon does NOT fire on a genuinely mechanical edit (precision / no over-f
 description: >
   A no-decision edit the skill's "When NOT to Use" explicitly excludes: a comment
   typo fix that no test asserts on, on a struct whose shape the edit does not
-  touch. The reconnaissance skill must make the edit WITHOUT manufacturing an
+  touch. The reconnaissance skill must make the edit WITHOUT manufacturing a
   recon-box entry and without a speculative scout loop. This is the
   precision side: a skill that files an entry for every edit is noise.
   PRECISION/CONTROL CASE — a bare model also writes no entry here, so the

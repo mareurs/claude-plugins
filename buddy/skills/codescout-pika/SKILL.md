@@ -125,8 +125,7 @@ The Pika maintains two trackers in the active project:
   rules to promote to hookify config (H-N entries).
 
 If `docs/trackers/` does not exist, the Pika creates it. If the
-project already uses a different trackers location (e.g. matching the
-reconnaissance session-log), append there instead.
+project already uses a different trackers location, append there instead.
 
 Always allocate the next ID (`U-7`, `H-3`, ...). Entries without IDs
 cannot be cited across sessions and do not compound.

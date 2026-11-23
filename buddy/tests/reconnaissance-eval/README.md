@@ -247,6 +247,11 @@ the skill files. Phase B validates this assumption empirically.
 
 ## L-7 caveat — PARTIAL control
 
+Every scenario loads the skill from `setup.skills[0].source`, the main checkout's
+`codescout-companion/skills/reconnaissance`. Run the evals after a change to the
+skill has landed there; run from a branch, they load main's skill against this
+branch's fixtures.
+
 This skill is **MCP-coupled** (level 7): its native method runs on codescout
 tools (`symbols(include_body=true)`, `references`) and on the `codescout box`
 CLI for its recon box. The isolated

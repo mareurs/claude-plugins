@@ -34,7 +34,9 @@ description: >
   The message below now CARRIES the activation clause, so this scenario as it
   stands measures the primed condition. Its value is (a) the historical unprimed
   0/3, recorded above and not reproducible without removing the clause, and
-  (b) a regression guard on the primed path.
+  (b) a regression guard on the primed path. The message now carries the clause
+  "record any reconnaissance finding in the repository's recon box"; the primed
+  3/3 above was measured on the session-log clause and is not re-measured.
 
   Weak negative signal at n=2, watched not concluded: with the skill loaded the
   model found a genuine but DIFFERENT defect (verify.sh's grep truncation), filed

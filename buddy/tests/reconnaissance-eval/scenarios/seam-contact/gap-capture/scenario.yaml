@@ -198,7 +198,8 @@ assertions:
             `deadline_unix`) and the file (src/session.py) — vague entries do
             not count.
         (4) Announces a one-line scout outcome that cites the new entry by its
-            key as `[[<entry key>]]`.
+            key as `[[<entry key>]]` (the key `add` printed, or the new file's stem when the
+            entry was written as a file).
         Score 0 if the response just implements the plan (with or without using
         the fictional `expiry_ts`) and never files a recon-box entry, OR if it
         edits before scouting. Losing any one of (1)-(4) caps the score below

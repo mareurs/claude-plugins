@@ -103,11 +103,34 @@ for h in "### Phase 1 — Scout" "### Phase 2 — Compare" \
          "### Phase 3 — Externalize" "### Phase 4 — Resume + Announce"; do
   if grep -qF "$h" "$CORE"; then ok "core keeps '$h'"; else bad "core keeps '$h'" "not found"; fi
 done
-for marker in 'codescout box recon add' 'codescout box new worklog recon' '--project' 'recon_count.py'; do
+# Each marker names the mutation of SKILL.md it catches (measured by deleting or
+# rewording the text on a scratch copy; a marker that no mutation turns red is dead weight):
+#   'codescout box recon add'                       <- the one-call entry block deleted
+#   'codescout box new worklog recon'               <- the first-run box creation deleted
+#   '--exit-when'                                   <- the creation line loses its --exit-when
+#   'codescout box new --project <main> worklog recon' <- the linked-worktree paragraph deleted
+#   'codescout box --project <main> recon add'      <- the worktree write route deleted (a bare --project would still match elsewhere)
+#   'codescout box recon add --kind friction'       <- the add line's flag renamed (e.g. --type); the prose also says --kind friction, so the marker holds the whole line start
+#   '--kind win'                                    <- the win kind dropped from the prose
+#   'codescout box recon promote'                   <- promotion taught as a hand-written close reason
+#   'recon_count.py" bump F' / '... bump W'         <- either counter line deleted or renamed
+for marker in 'codescout box recon add' 'codescout box new worklog recon' '--exit-when' \
+              'codescout box new --project <main> worklog recon' 'codescout box --project <main> recon add' \
+              'codescout box recon add --kind friction' '--kind win' 'codescout box recon promote' \
+              'recon_count.py" bump F' 'recon_count.py" bump W'; do
   if grep -qF -- "$marker" "$CORE"; then
     ok "Phase 3 keeps '$marker' in-hand"
   else
     bad "Phase 3 '$marker'" "moved out — the externalize call must not sit behind a pointer"
+  fi
+done
+# The flat session-log model must stay out of the core: a second model for the same job.
+# Mutation caught: a doc(action="append_entry" ...) session-log paragraph appended to SKILL.md.
+for gone in 'append_entry' 'session-log.md' 'Severity rubric' 'Status vocabulary'; do
+  if grep -qF -- "$gone" "$CORE"; then
+    bad "core has no flat session-log path" "found '$gone' — frictions and wins go to the recon box only"
+  else
+    ok "core has no '$gone'"
   fi
 done
 
