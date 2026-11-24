@@ -35,3 +35,7 @@ node_modules/
 .codescout/usage.db-shm
 .codescout/write.lock
 .codescout/write.lock.holder
+
+# Written by Claude Code when a mod loads; not part of the plugin (see the design docs of the two mods)
+/codescout-display/tsconfig.json
+/session-toast/tsconfig.json
