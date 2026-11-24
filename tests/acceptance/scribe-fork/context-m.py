@@ -70,7 +70,7 @@ def analyse(label):
 
 cells = collections.defaultdict(list)
 for label in sys.argv[1:]:
-    m = re.match(r"M([a-z])(\d+)x\d+$", label)
+    m = re.match(r"[ML]([a-z])(\d+)x\d+$", label)
     cells[(m.group(1), int(m.group(2)))].append(analyse(label))
 order = sorted(cells, key=lambda c: (c[1], c[0]))
 print(f"{'cell':11} {'runs':>4} {'calls':>6} {'box calls':>10} {'box result bytes':>17} {'cache-read tok':>15} {'cache-write tok':>16}")
