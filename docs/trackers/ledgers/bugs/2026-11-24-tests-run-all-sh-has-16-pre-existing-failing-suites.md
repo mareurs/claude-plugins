@@ -1,11 +1,13 @@
 ---
 kind: entry
-status: zombie
+status: wontfix
 title: '`tests/run-all.sh` has ~16 pre-existing failing suites, unrelated to session-start.mjs bootstrap fix'
+closed: 2026-11-24
 created: 2026-11-24
 entry_kind: bug
 log:
 - '2026-11-24 zombie created codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
+- '2026-11-24 zombie -> wontfix codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
 status_since: 2026-11-24
 ---
 
@@ -279,3 +281,15 @@ fixture rewrite and a WSL host to observe.
 **CI.** `CS_TEST_SKIP` is removed from `.github/workflows/cross-platform-hooks.yml`, so every suite runs. No assertion was edited except the one `cd` case that named a real path; only the fixture setup changed.
 
 **Not covered.** The ~10 WSL-only suites still need a WSL host. The change has not run on a real GitHub runner yet.
+
+## Closed
+
+Closed 2026-11-24 on the user's decision, as `wontfix`, not `fixed`: no cause was found and no fix was made.
+
+Measured today: `tests/run-all.sh` exit 0, "All suites passed", on the Arch workstation (about 9.5 minutes). This is the fourth same-machine green (2026-11-07, 2026-11-14, 2026-11-24, besides the 2026-08 and 2026-09 ones). It is not evidence about the original environment.
+
+What is established: the five ambient-config suites are hermetic, and the CI `full-suite` job passed on a real runner (runs 41012475002 and 41176478070).
+
+What is not established: about 10 of the 16 original failures came from a fresh Ubuntu WSL box without Node. That host no longer runs Claude Code, so it cannot be measured.
+
+Re-open if `./tests/run-all.sh` fails on any host that is not this workstation (a fresh WSL or Ubuntu checkout, another contributor's machine, or a widened CI matrix).
