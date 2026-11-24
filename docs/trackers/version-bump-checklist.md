@@ -13,6 +13,103 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
+### Current release verification — 2026-11-24 (codescout-display 0.1.2)
+
+_Measured at 04fdc43 (after release codescout-display 0.1.2, committed locally with `NO_PUSH=1`). Every element of every install record was read. 39 profile rows. All rows are green._
+
+Changed since the verification of a980519: `codescout-display` 0.1.1 → 0.1.2. **Three plugins have rows for the first time:** `codescout-display`, `codescout-redirect` and `session-toast`. The earlier blocks held 27 rows because the plugin set was a fixed list of eight; the discovery in this tracker's prompt finds eleven. **Not pushed:** `origin/main` is at `80c7b18` and `main` is 145 commits ahead.
+
+**codescout-companion** — canonical `1.23.2` · readme `1.23.2` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
+| `~/.claude-sdd` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
+| `~/.claude-kat` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
+| `~/.claude-stef` | 1.23.2 ✅ | ✅ | ✅ | `1.23.2` ✅ |
+
+**buddy** — canonical `0.12.0` · readme `0.12.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-sdd` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-kat` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+| `~/.claude-stef` | 0.12.0 ✅ | ✅ | ✅ | `0.12.0` ✅ |
+
+**legible** — canonical `0.2.1` · readme `0.2.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-sdd` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-kat` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+| `~/.claude-stef` | 0.2.1 ✅ | ✅ | ✅ | `0.2.1` ✅ |
+
+**statusline** — canonical `1.2.1` · readme `1.2.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-sdd` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-kat` | 1.2.1 ✅ | ✅ | ✅ | `1.2.1` ✅ |
+| `~/.claude-stef` | not installed | – | – | – |
+
+**sdd** — canonical `3.0.1` · readme `3.0.1` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-sdd` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1` ✅ |
+| `~/.claude-kat` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+| `~/.claude-stef` | 3.0.1 ✅ | ✅ | ✅ | `3.0.1, 3.0.1` ✅ |
+
+**hint-echo** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-stef` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+
+**session-bridge** — canonical `0.3.3` · readme `0.3.3` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.3.3 ✅ | ✅ | ✅ | `0.3.3` ✅ |
+| `~/.claude-sdd` | 0.3.3 ✅ | ✅ | ✅ | `0.3.3` ✅ |
+| `~/.claude-kat` | 0.3.3 ✅ | ✅ | ✅ | `0.3.3` ✅ |
+| `~/.claude-stef` | 0.3.3 ✅ | ✅ | ✅ | `0.3.3` ✅ |
+
+**codescout-display** — canonical `0.1.2` · readme `0.1.2` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.2 ✅ | ✅ | ✅ | `0.1.2` ✅ |
+| `~/.claude-sdd` | 0.1.2 ✅ | ✅ | ✅ | `0.1.2` ✅ |
+| `~/.claude-kat` | 0.1.2 ✅ | ✅ | ✅ | `0.1.2` ✅ |
+| `~/.claude-stef` | 0.1.2 ✅ | ✅ | ✅ | `0.1.2` ✅ |
+
+**codescout-redirect** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-stef` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+
+**session-toast** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude-stef` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+
+`cs-hint-codex` is not installed in any profile.
 ### Current release verification — 2026-11-24 (session-bridge 0.3.3)
 
 _Measured at a980519 (after release session-bridge 0.3.3, committed locally with `NO_PUSH=1`). Every element of every install record was read. 27 profile rows. All rows are green._
@@ -791,6 +888,12 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-11-24 — codescout-display 0.1.2
+
+`codescout-display` `0.1.1` → `0.1.2`, released locally with `NO_PUSH=1` (bump commit `04fdc43`) and **not pushed**: `origin/main` is at `80c7b18` and `main` is 145 commits ahead. Change since `0.1.1` (commits `4eb3382`, `c97e845`, `47082a4`): a `symbols` card (each body as highlighted code, the outline as colored labels), a right-aligned token estimate (`in ~N · out ~M`) with a color for each figure, and latency tests. The release ran the full gate: `run-all.sh`, the buddy tests (579 passed), `check-versions.sh`, the cache seed in 4 of 4 profiles, the record repoint and `check-profile-parity.sh`.
+
+**Delta found by this refresh:** the plugin set. Three plugins that `*/.claude-plugin/plugin.json` discovers had no rows in any earlier block: `codescout-display`, `codescout-redirect` and `session-toast`. All three are installed in 4 of 4 profiles, at the canonical version, with the cache dir present and `installPath` under its own profile. Their rows are in the block above. Not live in running sessions: a session that started before the install keeps the code it loaded; the mod loads at launch or on `/reload-plugins`.
 
 ### 2026-11-24 — session-bridge 0.3.3
 
