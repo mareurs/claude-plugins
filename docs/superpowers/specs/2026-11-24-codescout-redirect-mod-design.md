@@ -95,6 +95,8 @@ Instrument: the dev mod `codescout-redirect-probe`, hot-reloaded in a live sessi
 | `Bash` | `echo hello` and `git status --short` were answered with a note. `ls /nonexistent-dir` gave `Exit code 2` as an error. A chained command went to the guard. A 200-line `git log` returned an excerpt, the size marker and a note naming the `@cmd_*` buffer. |
 | `Monitor` | The model received the mod's refusal text, not a bare deny. |
 
+Widened `Read`, `Grep` and `Glob` (the repository's `codescout-redirect`, loaded with `claude -p --plugin-dir`, Haiku, one run): a `Read` of `harnesses/README.md`, which the guard denies, was answered by `read_file`. Line 1 was `# Other harnesses` and the `[codescout-redirect]` note arrived. The mod's own tests use fakes for `process.run`, `session.cwd` and `fs.read`; this run shows the real engine accepts them. Not run live: `block_reads: false`, a subagent, and a config dir path.
+
 What this does not show:
 
 - The `ls` error case has the same text as a native run. The result fits the mod, but no marker proved which path answered.

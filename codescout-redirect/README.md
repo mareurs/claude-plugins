@@ -6,19 +6,18 @@ A Claude Code mod that answers a native tool call from codescout, in place of a 
 
 Design, measurements and open points: `docs/superpowers/specs/2026-11-24-codescout-redirect-mod-design.md`.
 
-## Scope of 0.1.0
-
-The scope is narrow on purpose.
+## Scope
 
 | Tool | Answered |
 |---|---|
-| `Read` | a `.mjs` file under `claude-plugins` |
-| `Grep`, `Glob` | `path` unset, or under `claude-plugins` |
+| `Read`, `Grep`, `Glob` | every call the guard would deny: all except images and PDF, skill payloads, harness `tool-results/` output and Claude config dirs (`exemptReason` in `guard-rules.mjs`) |
 | `Write`, `Edit` | only inside `claude-plugins/redirect-probe-sandbox/` |
 | `Bash` | one simple read-only command: `ls`, `pwd`, `echo`, `date`, `wc`, `git status\|log\|diff\|branch`; no `;`, `&`, `\|`, `<`, `>`, backtick, `$` or newline |
 | `Monitor` | always a refusal that names the fix: `run_command(run_in_background=true)`, then end the turn |
 
-A codescout error, a `pending_ack` or a thrown error falls through to the next hook.
+The mod stands aside, and the next hook (the guard) decides, when `block_reads` is `false` in `.claude/codescout-companion.json` (or `codescout-routing.json`) and the caller is the main agent, when `HOME` cannot be read, and when codescout answers with an error. A subagent is still redirected under `block_reads: false`, as in the guard.
+
+`hooks/guard-rules.mjs` is a byte copy of `codescout-companion/hooks/guard-rules.mjs`. After a change there run `scripts/sync-codescout-redirect.sh`; `tests/test-codescout-redirect.sh` fails while the copy drifts. The mod adds nothing to a file that Codex, Copilot, OpenCode or Pi read.
 
 ## Needs
 

@@ -1,27 +1,84 @@
 import type { Register } from 'claude-code'
+// @ts-expect-error TS7016: guard-rules.mjs is plain JavaScript, shared with the guard (see the sync script)
+import { norm, exemptReason } from './guard-rules.mjs'
 
-// Scope of 0.1.0 (narrow on purpose, see the spec):
-//   Read   - a .mjs file under claude-plugins
-//   Grep, Glob - path unset or under claude-plugins
-//   Write, Edit - only inside claude-plugins/redirect-probe-sandbox/
-//   Bash   - one simple read-only command (SAFE_BASH below)
-//   Monitor - always a refusal that names the fix
-// Everything else goes on to the next hook and the engine. A failure fails open.
-const SRC_RE = /\/claude-plugins\/.*\.mjs$/
-const ROOT_RE = /\/claude-plugins(\/|$)/
+// Scope (the plugin version is 0.1.0 until a release):
+//   Read, Grep, Glob - every call the guard would deny (exemptReason of guard-rules.mjs says which
+//                      calls it lets through: images, skill payloads, harness output, config dirs)
+//   Write, Edit      - only inside claude-plugins/redirect-probe-sandbox/
+//   Bash             - one simple read-only command (SAFE_BASH below)
+//   Monitor          - always a refusal that names the fix
+// The mod stands aside, and the next hook (the guard) decides, when:
+//   - block_reads is false in .claude/codescout-companion.json (or codescout-routing.json) and the
+//     caller is the main agent (a subagent is still redirected, as in the guard);
+//   - HOME and CLAUDE_CONFIG_DIR cannot be read;
+//   - codescout answers with an error.
 const SERVER = 'codescout'
-// Write and Edit act only inside this throwaway folder of the repo.
 const SANDBOX_RE = /\/claude-plugins\/redirect-probe-sandbox\//
+// One simple command: no chaining, redirection, pipes or substitution.
+const SAFE_BASH = /^(ls|pwd|echo|date|wc|git (status|log|diff|branch))(\s[^;&|<>`$\n]*)?$/
+// The same expression as pre-tool-guard.mjs: HOME, else USERPROFILE, else os.homedir().
+const ENV_SCRIPT =
+  "JSON.stringify({home:process.env.HOME||process.env.USERPROFILE||require('os').homedir()," +
+  "configDir:process.env.CLAUDE_CONFIG_DIR||''})"
+
+type Env = { home: string; configDir: string }
 
 const textOf = (res: { content: Array<{ type: string; text?: string }> }) =>
   res.content.map(b => (b.type === 'text' ? (b.text ?? '') : '')).join('')
 
-const inScope = (p: unknown) => typeof p !== 'string' || ROOT_RE.test(p)
+// Read once per session and kept: the mod has no env of its own. `register` clears it, so a reload
+// (and each test) starts clean.
+let env: Env | undefined
+
+async function getEnv($: any): Promise<Env | null> {
+  if (env) return env
+  try {
+    const r = await $.process.run(['node', '-p', ENV_SCRIPT])
+    if (r.exitCode === 0) {
+      const j = JSON.parse(r.stdout)
+      if (typeof j.home === 'string' && j.home) env = { home: norm(j.home), configDir: String(j.configDir || '') }
+    }
+  } catch {
+    /* stays undefined: the mod does not redirect */
+  }
+  return env ?? null
+}
+
+// The guard's rule: the FIRST config file that exists decides; `false` or "false" opts out.
+async function blockReadsOff($: any, cwd: string): Promise<boolean> {
+  for (const f of ['codescout-companion.json', 'codescout-routing.json']) {
+    let text: string
+    try {
+      text = await $.fs.read(`${cwd}/.claude/${f}`)
+    } catch {
+      continue
+    }
+    try {
+      const v = JSON.parse(text).block_reads
+      return v === false || v === 'false'
+    } catch {
+      return false
+    }
+  }
+  return false
+}
+
+// The environment when the mod may answer this call, else null.
+async function gate($: any, e: { agentId?: string }): Promise<Env | null> {
+  const got = await getEnv($)
+  if (!got) return null
+  if (!e.agentId && (await blockReadsOff($, await $.session.cwd()))) return null
+  return got
+}
 
 export const register: Register = on => {
+  env = undefined
+
   // ---- Read -> codescout read_file ------------------------------------
   on('tool.call', { tool: 'Read' }, async ($, e, next) => {
-    if (!SRC_RE.test(e.file_path)) return next(e)
+    const g = await gate($, e)
+    if (!g || exemptReason('Read', norm(e.file_path), g)) return next(e)
     const args: Record<string, unknown> = { path: e.file_path }
     if (e.offset !== undefined) args.offset = e.offset
     if (e.limit !== undefined) args.limit = e.limit
@@ -31,9 +88,11 @@ export const register: Register = on => {
       $.ui.toast(`${$.plugin.name}: read_file failed, native Read goes on`)
       return next(e)
     }
-    // codescout puts "N lines" (and, on a range read, one blank line) first.
+    // codescout puts "N lines" (and, on a range read, one blank line) first. N is the file's real length.
+    const raw = textOf(res)
     const ranged = e.offset !== undefined || e.limit !== undefined
-    const text = textOf(res).replace(ranged ? /^\d+ lines?\n\n?/ : /^\d+ lines?\n/, '')
+    const head = raw.match(ranged ? /^(\d+) lines?\n\n?/ : /^(\d+) lines?\n/)
+    const text = head ? raw.slice(head[0].length) : raw
     const lines = text.split('\n').length
     $.ui.toast(`${$.plugin.name}: Read answered by codescout read_file`)
     return {
@@ -44,7 +103,7 @@ export const register: Register = on => {
           content: text,
           numLines: lines,
           startLine: e.offset ?? 1,
-          totalLines: lines,
+          totalLines: head ? Number(head[1]) : lines,
         },
       },
       context: [
@@ -61,7 +120,8 @@ export const register: Register = on => {
   // ---- Grep -> codescout grep -----------------------------------------
   on('tool.call', { tool: 'Grep' }, async ($, e, next) => {
     const a = e as unknown as Record<string, any>
-    if (!inScope(a.path)) return next(e)
+    const g = await gate($, e)
+    if (!g || exemptReason('Grep', norm(a.path || ''), g)) return next(e)
     const ctx = Math.max(a['-C'] ?? 0, a.context ?? 0, a['-A'] ?? 0, a['-B'] ?? 0)
     const args: Record<string, unknown> = { pattern: a.pattern }
     if (a.path) args.path = a.path
@@ -99,7 +159,8 @@ export const register: Register = on => {
   // ---- Glob -> codescout tree(glob) -----------------------------------
   on('tool.call', { tool: 'Glob' }, async ($, e, next) => {
     const a = e as unknown as Record<string, any>
-    if (!inScope(a.path)) return next(e)
+    const g = await gate($, e)
+    if (!g || exemptReason('Glob', norm(a.pattern || ''), g)) return next(e)
     const args: Record<string, unknown> = { glob: a.pattern }
     if (a.path) args.path = a.path
 
@@ -133,7 +194,7 @@ export const register: Register = on => {
 
   // ---- Write -> codescout create_file (sandbox only) -------------------
   on('tool.call', { tool: 'Write' }, async ($, e, next) => {
-    if (!SANDBOX_RE.test(e.file_path)) return next(e)
+    if (!SANDBOX_RE.test(e.file_path) || !(await gate($, e))) return next(e)
     let original: string | null = null
     try {
       original = await $.fs.read(e.file_path)
@@ -171,7 +232,7 @@ export const register: Register = on => {
 
   // ---- Edit -> codescout edit_file (sandbox only) ----------------------
   on('tool.call', { tool: 'Edit' }, async ($, e, next) => {
-    if (!SANDBOX_RE.test(e.file_path)) return next(e)
+    if (!SANDBOX_RE.test(e.file_path) || !(await gate($, e))) return next(e)
     let original: string
     try {
       original = await $.fs.read(e.file_path)
@@ -223,10 +284,8 @@ export const register: Register = on => {
   })
 
   // ---- Bash -> codescout run_command (read-only allowlist only) --------
-  // One simple command, no chaining, redirection, pipes or substitution.
-  const SAFE_BASH = /^(ls|pwd|echo|date|wc|git (status|log|diff|branch))(\s[^;&|<>`$\n]*)?$/
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    if (e.run_in_background || !SAFE_BASH.test(e.command.trim())) return next(e)
+    if (e.run_in_background || !SAFE_BASH.test(e.command.trim()) || !(await gate($, e))) return next(e)
     const args: Record<string, unknown> = {
       command: e.command,
       timeout_secs: Math.ceil((e.timeout ?? 120000) / 1000),
