@@ -1,6 +1,7 @@
 ---
 kind: bug
-status: investigating
+status: fixed
+fixed_on: 2026-11-24
 title: Harness-neutral session identity and provenance are needed for Codex and other harnesses
 tags:
 - codescout-companion
@@ -41,6 +42,17 @@ stock_codex_plan: 3f373e14fa311cc8
 stock_codex_spike: '2026-11-08: installed Arch Codex 0.167.0, private CODEX_HOME, trusted hooks without bypass, installed Codescout behind transparent capture. Native MCP callId/sessionId/threadId match tool hooks for Code Mode writes; resume, fork, child/root and post-compaction write measured. Eight create_file requests match actual bytes; 11 MCP requests observed overall. Explicit denial blocks; timeout/exit-1 hooks permit shell effects. Interrupted MCP call wrote its start marker but not final marker and has no post hook. Direct App Server MCP client call writes without model tool hooks. Two actual Promise.all slow calls have non-overlapping hook intervals, so simultaneous execution is unestablished. Identity route needs no Codex patch; complete effect inventory/exclusive formatting remains unproved. Evidence: docs/evidence/2026-11-08-stock-codex-hooks-spike.json. No production integration or installation; temporary auth copy removed.'
 unverified: Stock adapter source is implemented, reviewed, verified and integrated into the primary branches. Real-profile activation and installation are not performed. Complete effect inventory, exclusive formatter authorization, host dispatch overlap and Kat authenticated smoke remain unestablished. Shared-MCP usage misattribution incident 16de4012209e895f remains open; guard ACK is not a causal fix.
 ---
+
+## Closure — 2026-11-24
+
+The maintainer closed this issue on 2026-11-24 with the source work delivered and four items open. I did not re-run any test for this closure; the evidence is the records below.
+
+- **Delivered:** the versioned context, the Claude and Codex adapters, the Codex-aware commit guards (`a6d175ee0`, `2cdf4fca7`, `8939ee5ec`, `af0c22f2d` in codescout) and the stock-Codex observations (plugin `6e3036a`, codescout `f6d96e59f`). No Codex patch is needed.
+- **Open, moved to the `runtime` ledger:**
+  - `2026-11-24-identity-the-stock-codex-adapter-is-merged-but-not-released`: release and install in the six profiles.
+  - `2026-11-24-identity-effect-inventory-exclusive-formatter-authorization`: effect inventory, exclusive formatter authorization and dispatch overlap.
+  - `2026-11-24-identity-the-kat-profile-authenticated-smoke-run-was-never`: the Kat smoke run.
+- **Not claimed:** the acceptance criterion on install checks for all six profiles. The shared-MCP usage misattribution lives in codescout (`docs/issues/2026-11-09-shared-mcp-usage-misattributes-observation-work.md`).
 
 ## Stock adapter design — 2026-11-09
 
@@ -158,7 +170,7 @@ Evidence boundary: the gate result is observed; the formatter/provenance contrac
 
 ## Status
 
-Investigating. On 2026-10-10, `env -u CLAUDE_CODE_SESSION_ID ./scripts/gate.sh` again exited 2 before any lane on Codescout HEAD `d188fdc87d53c2c255271628ab7e61978335f43f`. No borrowed identity or build-isolation bypass was used.
+Closed 2026-11-24 (see Closure). Investigation record: on 2026-10-10, `env -u CLAUDE_CODE_SESSION_ID ./scripts/gate.sh` again exited 2 before any lane on Codescout HEAD `d188fdc87d53c2c255271628ab7e61978335f43f`. No borrowed identity or build-isolation bypass was used.
 
 Codex source at HEAD `59f18e8133f2c1d3427677658752ac46697d41b7` supplies the shared root identity through `Session::session_id()` to its normal hook requests. PreToolUse/PostToolUse command inputs carry `session_id`, optional `agent_id`, `cwd`, `tool_use_id`, and native tool input/result. `thread_spawn_subagent_hook_context` separates a child by its thread id. `exec_env::inject_session_env` supplies `CODEX_SESSION_ID` and `CODEX_VERSION` to shell environments; `create_env` supplies `CODEX_THREAD_ID` separately. The installed CLI reports `codex-cli 0.160.0`. These are source/version observations, not a lifecycle or running-host capture test.
 
