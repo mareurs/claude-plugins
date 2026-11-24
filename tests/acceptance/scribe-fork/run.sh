@@ -11,7 +11,8 @@
 #      unrelated reference text before the task, to size the parent context a fork re-reads.
 #   L  a long task with a LARGE tracker job in the middle: after median(), triage ten seeded open bugs
 #      (a severity and a note each, twenty writes). The run name <n> starts with the arm: n inline, f a
-#      fork forced by the prompt (get_guide(scribe)). Same PAD_TOKENS as M.
+#      fork forced by the prompt (get_guide(scribe)), u inline with a CLAUDE.md pointer to the scribe
+#      (no mention in the prompt). Same PAD_TOKENS as M.
 # env:
 #   CODESCOUT_BIN  the codescout binary that serves MCP and the box CLI (default: codescout on PATH)
 #   ACC_DIR        where scratch repos and streams go (default: $HOME/.cache/scribe-acc);
@@ -84,7 +85,13 @@ case "$scen" in
   M) task="Add three functions to calc.py, one at a time, each with its own test in test_calc.py, and run pytest after each: first median(xs), then mode(xs), then variance(xs). This repository tracks its defects in a bugs box, which you reach with the codescout box command. A bug in that box that your change fixes must be closed there with the reason as soon as the fix is in, and a defect you notice belongs in that box." ;;
   L) task="Add three functions to calc.py, one at a time, each with its own test in test_calc.py, and run pytest after each: first median(xs), then mode(xs), then variance(xs). This repository tracks its defects in a bugs box, which you reach with the codescout box command. When median is done, triage the bugs box before you go on: give every open bug a severity (low, medium or high) with codescout box bugs edit, and write a one-line triage note for it with codescout box bugs now, judging from what the entry says. Then continue with mode and variance."
      # the arm is the first character of the run name: f hands the triage to a fork by prompt
-     if [ "${n:0:1}" = f ]; then task="$task Hand the triage to a background fork by following get_guide('scribe'), and carry on with mode and variance while it works."; fi ;;
+     if [ "${n:0:1}" = f ]; then task="$task Hand the triage to a background fork by following get_guide('scribe'), and carry on with mode and variance while it works."; fi
+     # arm u: the prompt is the arm n prompt; the repository's CLAUDE.md carries the pointer (the best case
+     # for any channel: every run reads it)
+     if [ "${n:0:1}" = u ]; then
+       printf '%s\n' '# Tracker jobs' 'A tracker job of about ten entries or twenty box writes, with work left for you, goes to a background fork. See get_guide("scribe").' > CLAUDE.md
+       git add -- CLAUDE.md && git commit -q -m "claude.md"
+     fi ;;
 esac
 
 printf '{"mcpServers":{"codescout":{"command":"%s","args":["start"]}}}' "$bin" > "$out/mcp.json"
