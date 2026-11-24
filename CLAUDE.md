@@ -43,8 +43,8 @@ Read a memory topic with `memory(action="read", topic=…)`.
 
 | Need | Read |
 |---|---|
-| Release, profile or Codex work on this machine | `machine-linux` |
-| A claim about a Windows work box | `machine-windows` (another host, not this machine) |
+| Release, profile or Codex work on this machine | `codescout box runtime find "Linux workstation"` and `find "Codex on this machine"` |
+| A claim about a Windows work box (another host, not this machine) | `codescout box runtime find "Windows work box"` |
 | Why a hook edit is live and a skill edit is not; the measurement behind the table | `plugin-load-channels` |
 | The SessionStart or SubagentStart payload: what it holds and why it is capped | `agent-dispatch-hooks` |
 | Write, resume or archive a passover | `session-passover` |
@@ -116,7 +116,7 @@ Lives at `cs-hint-codex/`. The `[cs-hint]` advisories of buddy as one PostToolUs
 - **The root stays five files**: `.claude-plugin/plugin.json`, `hooks/hooks.json`, `hooks/cs_hint.py`, `scripts/cs_heuristics.py`, `scripts/cs_tool_log.py`. No README, tests or skills inside; any file added or edited there cancels every user's approval. `tests/test-cs-hint-codex.sh` pins the layout. Tests, docs and the sync script live outside the root.
 - **The two `scripts/` files are byte copies of `buddy/scripts/`** (a symlink in the root is an error for Codex). After a change to either buddy file run `scripts/sync-cs-hint-codex.sh`, bump the plugin version, and expect every Codex user to approve again. The test fails while a copy drifts.
 - **Stdlib only.** Unlike `buddy` (PyYAML is a hard dependency of its SessionStart), the hook needs only `python3`.
-- **Do not leave `buddy`'s PostToolUse hook active beside it in Codex**: both emit the same advisories. For new users: install `cs-hint-codex` and not `buddy` (README). On this machine `buddy` is installed too, with that one hook switched off (memory `machine-linux`). Claude Code keeps `buddy`; do not install `cs-hint-codex` there.
+- **Do not leave `buddy`'s PostToolUse hook active beside it in Codex**: both emit the same advisories. For new users: install `cs-hint-codex` and not `buddy` (README). On this machine `buddy` is installed too, with that one hook switched off (runtime ledger: `codescout box runtime find "Codex on this machine"`). Claude Code keeps `buddy`; do not install `cs-hint-codex` there.
 - Fails silent (no output, exit 0). `CS_HINT_ENABLED=false` disables it. State: `$PLUGIN_DATA/<session>/cs_tool_log.jsonl`.
 
 ## Version Management
