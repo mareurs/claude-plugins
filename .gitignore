@@ -16,6 +16,7 @@ test-detect.sh
 !/.codescout/
 /.codescout/*
 !/.codescout/memories/
+!/.codescout/scripts/
 !/.codescout/system-prompt.md
 /.codescout/private-memories/
 .buddy/

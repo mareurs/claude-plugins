@@ -1,11 +1,11 @@
 ---
 kind: entry
-status: open
+status: inbox
 title: 'codescout-redirect: a subagent still opens with a native Bash when only the description advises'
 created: 2026-11-24
 entry_kind: friction
 log:
-- '2026-11-24 open created codescout:457161f7-f66c-4b6c-a42f-629164dad4f2'
+- '2026-11-24 inbox created codescout:457161f7-f66c-4b6c-a42f-629164dad4f2'
 status_since: 2026-11-24
 ---
 
