@@ -124,7 +124,7 @@ esac
 
 # 5. The body must keep telling the reader the claim is about the hook, not about
 #    authorship -- and must keep naming the instrument that CAN answer authorship.
-#    CLAUDE.md § Testing Discipline: a guard's predicate is routinely tested and its
+#    A guard's predicate is routinely tested and its
 #    remedy text never is, so assert the shape (both parties still named), not the prose.
 case "$ctx_root" in
   *'file-provenance.py'*)
