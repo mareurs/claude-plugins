@@ -19,7 +19,7 @@ Agent-facing text (hook output, deny messages, skill and tool descriptions) stat
 
 ## What belongs in this file
 
-A line earns residency here only if a session that never opens another doc would act wrongly without it. Put new measurements and incident history in `docs/` or a tracker, and leave a one-line pointer under the same heading, because scripts and other docs cite this file's sections by name.
+A line earns residency here only if a session that never opens another doc would act wrongly without it. Put new measurements in a memory topic and incident history in `docs/` or a tracker, and leave a one-line pointer under the same heading (the `Where things live` table), because scripts and other docs cite this file's sections by name.
 
 ## Structure
 
@@ -181,7 +181,9 @@ Run before any version bump:
 ```bash
 ./tests/run-all.sh
 cd buddy && pytest
-``` when you find issues.** If a design review, code review, or debugging session
+```
+
+**Write tests when you find issues.** If a design review, code review, or debugging session
 reveals a bug or edge case — write a test for it before or alongside the fix. Don't rely on
 manual verification for behavior that can be captured as an automated test.
 
