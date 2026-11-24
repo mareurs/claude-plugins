@@ -1,10 +1,12 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import { PREFIX, buildCard, pendingCard, tokenLine } from './cards'
+import { PREFIX, buildCard, pendingCard, tokenLevel, tokenParts } from './cards'
 import type { Card } from './cards'
 
 const ACCENT = 'suggestion' // a theme key: the card follows the person's theme
+// The token row: theme keys for green, orange and red.
+const LEVEL_COLOR = { low: 'success', mid: 'warning', high: 'error' } as const
 
 // Ids of the cards the person has opened. A new tag declines what an older version stored.
 const open = atom({ plugin: 'codescout-display', key: 'open' } as const, [] as string[], { shape: 'open-1' })
@@ -90,7 +92,9 @@ function drawCard(els: any, card: Card, isOpen: boolean, toggle?: () => unknown,
   if (card.tokens) {
     children.push(
       <Box justifyContent="flex-end">
-        <Text dimColor>{tokenLine(card.tokens)}</Text>
+        <Text color={LEVEL_COLOR[tokenLevel('input', card.tokens.input)]}>{tokenParts(card.tokens).input}</Text>
+        <Text dimColor>{' · '}</Text>
+        <Text color={LEVEL_COLOR[tokenLevel('output', card.tokens.output)]}>{tokenParts(card.tokens).output}</Text>
       </Box>,
     )
   }

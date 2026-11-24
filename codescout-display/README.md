@@ -26,11 +26,12 @@ A result longer than 12 lines ends with `… N more lines hidden`, and a button,
 
 ## The token estimate
 
-The last row of every finished card, on the right, is one dim line: `in ~42 · out ~3.4k`.
+The last row of every finished card, on the right, is one line, colored by size (below): `in ~42 · out ~3.4k`.
 
 - **in:** the tokens of the call the model wrote (its arguments).
 - **out:** the tokens of everything the model read back: the whole reply, not the folded head, and the notes that hooks added.
 - **An estimate:** the mod has no tokenizer, so it counts 4 characters to a token and shows `~`. Under 1000 it shows the number, then `1.2k`, then whole thousands (`125k`). The count can differ from the real one, mostly for text that is not English or code.
+- **Color:** each figure has its own color, because a call is about five times smaller than a reply. `in`: green below 100 tokens, orange from 100, red from 500. `out`: green below 750, orange from 750, red from 2000. The limits come from 37,043 measured tool results of the last two days; on each side about 73% of results are green, a fifth orange and 7% red. Red on `out` mostly means the reply is at its tool's own output cap; red on `in` is a large write. Notes and the method: `docs/superpowers/specs/2026-11-24-codescout-display-mod-design.md` § Token colors.
 - **Not shown:** on the frame of a call that has not ended, and on the engine's own row (an error, an interrupted call).
 
 ## The header

@@ -61,7 +61,25 @@ const compact = (n: number): string => {
   return `${Math.round(n / 1000)}k`
 }
 
-export const tokenLine = (t: Tokens): string => `in ~${compact(t.input)} · out ~${compact(t.output)}`
+export const tokenParts = (t: Tokens): { input: string; output: string } => ({ input: `in ~${compact(t.input)}`, output: `out ~${compact(t.output)}` })
+
+// How much of the context a call takes. The call and its reply have their own limits: a call is five times
+// smaller than a reply (p50 54 against 285 tokens), so one limit for both would hide a large call.
+// Measured 2026-11-22..24 on 37,043 tool results (docs/superpowers/specs/2026-11-24-codescout-display-mod-design.md
+// § Token colors). Each side: orange is about the top quarter, red about the top 8%.
+// Re-measure with scripts/measure-tool-result-sizes.py before a change.
+export const IN_MID = 100
+export const IN_HIGH = 500
+export const OUT_MID = 750
+export const OUT_HIGH = 2000
+
+export type TokenLevel = 'low' | 'mid' | 'high'
+
+export function tokenLevel(side: 'input' | 'output', tokens: number): TokenLevel {
+  const [mid, high] = side === 'input' ? [IN_MID, IN_HIGH] : [OUT_MID, OUT_HIGH]
+
+  return tokens >= high ? 'high' : tokens >= mid ? 'mid' : 'low'
+}
 
 
 // The argument that names what the call is about, for the card's header.

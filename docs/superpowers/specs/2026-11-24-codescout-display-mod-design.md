@@ -174,6 +174,17 @@ The person asked for the number of input and output tokens of each card, in the 
 - **Estimate:** 4 characters to a token, shown with `~`. A `ToolUse` hook gets no usage figures and no tokenizer (the props are listed above), so an exact count is not reachable here. A tokenizer would add a dependency and a version to keep in step with the model's.
 - **Cost against the six rules:** none for the model. One more row on a human-facing surface, and a figure that can be wrong by a margin that the `~` admits.
 
+## Token colors (added 2026-11-24)
+
+The token row is two figures, `in` and `out`, each green, orange or red by its own size. Both stay in the context for the rest of the session, but a call is about five times smaller than a reply, so the sides have separate limits. A `ToolUse` hook gets no context-window figure, so the card's own size is the only size it can show.
+
+- **Limits, one pair for each side** (the call and the reply have different scales: input p50 54, p90 319, p99 2177; reply p50 285, p90 1682, p99 2509): the `in` figure is orange from `IN_MID = 100` and red from `IN_HIGH = 500`; the `out` figure is orange from `OUT_MID = 750` and red from `OUT_HIGH = 2000`. Each figure has its own color. Theme keys `success`, `warning`, `error`. A first version used the sum of both sides with one pair of limits; the person pointed out that the sides differ, and the sum hid a large call behind a small reply.
+- **Measured** 2026-11-22 09:17 to 2026-11-24 09:17 UTC by a subagent over the transcripts of three profiles (the fourth had none): 37,043 results after dropping 6,877 duplicates and the `api-request-blob` lines, which repeat content. The orchestrator recomputed the totals from the dataset and got the same numbers.
+- **Distribution (reply tokens):** p50 285, p75 794, p90 1686, p95 2304, p99 2509, max 14,080. Codescout is 91% of the results, and its replies stop near 2.5k tokens (its own output budget): 8% of its results sit between 2000 and 2550.
+- **Why these numbers:** each side is set so that about 73% of results are green, about a fifth orange and about 7% red. Input: 72.7% / 20.7% / 6.6%. Reply: 73.6% / 18.7% / 7.7%. The reply's red at 2000 is the start of the pile-up at codescout's output budget, so red means "this reply is at its tool's cap" or, for a native `Read`, a large file; at 2500 red would almost never show (2.2%). A large input comes from writes: `create_file` p90 3851, `edit_code` p90 1162, `Agent` prompts p50 1282. The main agent alone is lighter than the sub-agents (reply p90 1141 against 1682 overall).
+- **Largest sources:** codescout `read_file` 40% of all reply tokens, `run_command` 30%, `grep` 13%, `symbols` 7%. A native `Read` is rare but the heaviest (p99 10,461).
+- **Limits of the measure:** two days, one person's work (mostly this repository), 61% of the results from sub-agents, and an estimate of 4 characters to a token. Re-measure with `scripts/measure-tool-result-sizes.py` before a change; the script prints the share of each color on each side at the limits in `cards.ts`.
+
 ## Not decided here
 
 - **The open control.** The builder verifies `Button` plus state in a `ToolUse` row first, as the first task and a gate. Decided 2026-11-24: if it cannot work, the card folds anyway (see Decision). The plan treats the control as the main path.

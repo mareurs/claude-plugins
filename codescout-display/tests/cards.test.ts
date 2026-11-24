@@ -13,7 +13,12 @@ import {
   pendingCard,
   replyOf,
   stripControl,
-  tokenLine,
+  tokenLevel,
+  tokenParts,
+  IN_HIGH,
+  IN_MID,
+  OUT_HIGH,
+  OUT_MID,
 } from '../hooks/cards'
 
 const lines = (n: number) => Array.from({ length: n }, (_, i) => `l${i + 1}`).join('\n')
@@ -592,11 +597,11 @@ test('symbols: the language of a body comes from the file line of its group, not
 
 // ---- tokens -----------------------------------------------------------------------------------
 
-test('tokenLine: plain below 1000, one decimal to 10k, whole thousands above', () => {
-  expect(tokenLine({ input: 3, output: 12 })).toBe('in ~3 · out ~12')
-  expect(tokenLine({ input: 999, output: 1000 })).toBe('in ~999 · out ~1k')
-  expect(tokenLine({ input: 1234, output: 9949 })).toBe('in ~1.2k · out ~9.9k')
-  expect(tokenLine({ input: 10400, output: 125000 })).toBe('in ~10k · out ~125k')
+test('tokenParts: plain below 1000, one decimal to 10k, whole thousands above', () => {
+  expect(tokenParts({ input: 3, output: 12 })).toEqual({ input: 'in ~3', output: 'out ~12' })
+  expect(tokenParts({ input: 999, output: 1000 })).toEqual({ input: 'in ~999', output: 'out ~1k' })
+  expect(tokenParts({ input: 1234, output: 9949 })).toEqual({ input: 'in ~1.2k', output: 'out ~9.9k' })
+  expect(tokenParts({ input: 10400, output: 125000 })).toEqual({ input: 'in ~10k', output: 'out ~125k' })
 })
 
 test('a card carries an estimate of the tokens of the call and of everything the model read back, notes included', () => {
@@ -616,3 +621,72 @@ test('the output estimate counts the whole reply, not the folded head', () => {
 test('a pending card has no token estimate', () => {
   expect(pendingCard('mcp__codescout__tree', { path: '.' }).tokens).toBeUndefined()
 })
+
+test('the token limits are ordered, and a call is judged smaller than a reply', () => {
+  expect(IN_MID).toBeGreaterThan(0)
+  expect(IN_HIGH).toBeGreaterThan(IN_MID)
+  expect(OUT_MID).toBeGreaterThan(0)
+  expect(OUT_HIGH).toBeGreaterThan(OUT_MID)
+  expect(IN_MID).toBeLessThan(OUT_MID)
+  expect(IN_HIGH).toBeLessThan(OUT_HIGH)
+})
+
+test('tokenLevel output: low below OUT_MID, mid from OUT_MID, high from OUT_HIGH', () => {
+  expect(tokenLevel('output', OUT_MID - 1)).toBe('low')
+  expect(tokenLevel('output', OUT_MID)).toBe('mid')
+  expect(tokenLevel('output', OUT_HIGH - 1)).toBe('mid')
+  expect(tokenLevel('output', OUT_HIGH)).toBe('high')
+})
+
+test('tokenLevel input: low below IN_MID, mid from IN_MID, high from IN_HIGH', () => {
+  expect(tokenLevel('input', IN_MID - 1)).toBe('low')
+  expect(tokenLevel('input', IN_MID)).toBe('mid')
+  expect(tokenLevel('input', IN_HIGH - 1)).toBe('mid')
+  expect(tokenLevel('input', IN_HIGH)).toBe('high')
+})
+
+test('the same number of tokens is a different level on each side', () => {
+  expect(tokenLevel('input', IN_HIGH)).toBe('high')
+  expect(tokenLevel('output', IN_HIGH)).toBe('low')
+})
+
+// ---- latency ----------------------------------------------------------------------------------
+// The card is built in the render path of the terminal, so its cost is paid on every repaint of a row.
+// Measured 2026-11-24 (node 22, one core): 0.05 to 0.6 ms for 100,000 characters, under 2 ms for 400,000.
+// The budget is 40 times that: it catches a pass that grows with the square of the reply, not a slow machine.
+
+const BUDGET_MS = 25
+
+const bulk = (chars: number, make: (i: number) => string): string => {
+  const out: string[] = []
+  for (let n = 0, i = 0; n < chars; i++) {
+    const line = make(i)
+    out.push(line)
+    n += line.length + 1
+  }
+
+  return out.join('\n') + '\n'
+}
+
+const code = (i: number) => `  const value${i} = compute(${i}, 'some text that looks like code', [1, 2, 3]) // note ${i}`
+const median = (xs: number[]) => xs.sort((a, b) => a - b)[Math.floor(xs.length / 2)]!
+
+for (const [name, tool, input, text] of [
+  ['read_file', 'read_file', { path: 'a.ts' }, `2000 lines\n\n${bulk(FULL_CAP, code)}`],
+  ['grep', 'grep', { pattern: 'x' }, bulk(FULL_CAP, code)],
+  ['symbols with bodies', 'symbols', { path: 'a.ts', include_body: true }, `a.ts (1)\n  Function  1-9  big\n${bulk(FULL_CAP, i => `      ${code(i)}`)}`],
+  ['a JSON reply', 'run_command', { command: 'ls' }, JSON.stringify({ stdout: bulk(FULL_CAP, code), exit_code: 0 })],
+] as const) {
+  test(`latency: a card for ${name} of ${FULL_CAP} characters builds in under ${BUDGET_MS} ms`, () => {
+    const output = [{ type: 'text', text }]
+    buildCard(`mcp__codescout__${tool}`, input, output)
+    const times = Array.from({ length: 9 }, () => {
+      const start = performance.now()
+      buildCard(`mcp__codescout__${tool}`, input, output)
+
+      return performance.now() - start
+    })
+
+    expect(median(times)).toBeLessThan(BUDGET_MS)
+  })
+}

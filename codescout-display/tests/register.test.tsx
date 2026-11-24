@@ -1,5 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
+import { IN_HIGH, IN_MID, OUT_HIGH, OUT_MID } from '../hooks/cards'
+
 // Kit calls (plan Task 1):
 //   mount:        $.ui.mount({ plugin, surface, component: 'ToolUse', props })
 //   pass-through: await ui.keepsBeneath() is true when the hook kept the engine's node (next(e)),
@@ -403,7 +405,7 @@ test('a finished card ends with a right-aligned row of the token estimate, below
   const last = card?.children.at(-1)
 
   expect(last?.props.justifyContent).toBe('flex-end')
-  expect(await ui.find({ type: 'Text', text: /^in ~\d+ · out ~\d+$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^out ~\d+$/ })).toBeDefined()
   expect(card?.children.some((c: any) => c.type === 'Button')).toBe(true)
   await ui.unmount()
 })
@@ -414,3 +416,32 @@ test('a pending frame has no token row', async $ => {
   expect(await ui.find({ type: 'Text', text: /^in ~/ })).toBeUndefined()
   await ui.unmount()
 })
+
+const chars = (tokens: number) => 'x'.repeat(tokens * 4)
+
+for (const [name, tokens, color] of [
+  ['below OUT_MID is green', OUT_MID - 10, 'success'],
+  ['from OUT_MID is orange', OUT_MID + 10, 'warning'],
+  ['from OUT_HIGH is red', OUT_HIGH + 10, 'error'],
+] as const) {
+  test(`the out figure ${name}`, async $ => {
+    const ui = await mount($, { output: text(chars(tokens)) })
+
+    expect((await ui.find({ type: 'Text', text: /^out ~/ }))?.props.color).toBe(color)
+    await ui.unmount()
+  })
+}
+
+for (const [name, tokens, color] of [
+  ['below IN_MID is green', IN_MID - 30, 'success'],
+  ['from IN_MID is orange', IN_MID + 30, 'warning'],
+  ['from IN_HIGH is red', IN_HIGH + 30, 'error'],
+] as const) {
+  test(`the in figure ${name}, whatever the reply`, async $ => {
+    const ui = await mount($, { input: { path: chars(tokens) }, output: text('ok') })
+
+    expect((await ui.find({ type: 'Text', text: /^in ~/ }))?.props.color).toBe(color)
+    expect((await ui.find({ type: 'Text', text: /^out ~/ }))?.props.color).toBe('success')
+    await ui.unmount()
+  })
+}
