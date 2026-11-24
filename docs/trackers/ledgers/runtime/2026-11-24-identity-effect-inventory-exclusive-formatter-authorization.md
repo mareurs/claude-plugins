@@ -1,11 +1,13 @@
 ---
 kind: entry
-status: open
+status: promoted
 title: 'Identity: effect inventory, exclusive formatter authorization and host dispatch overlap are unestablished'
+closed: 2026-11-24
 created: 2026-11-24
 entry_kind: residual
 log:
 - '2026-11-24 open created codescout:9b880af2-23db-4b95-9e16-ebb0c6f8d466'
+- '2026-11-24 open -> promoted codescout:9b880af2-23db-4b95-9e16-ebb0c6f8d466'
 status_since: 2026-11-24
 topics:
 - identity
@@ -16,3 +18,7 @@ topics:
 **Done when:** each case is measured on a real host, or the UNKNOWN path is pinned by a test.
 
 **From:** the same issue; evidence in docs/evidence/2026-11-08-stock-codex-hooks-spike.json.
+
+## Closed
+
+**Promoted to:** [[2026-11-24-stock-codex-hooks-effect-inventory-formatter-exclusivity-and]]
