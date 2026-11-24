@@ -30,13 +30,13 @@ template_version: 1
 
 # Good agent patterns
 
-A pattern is a way that a surface an agent reads or calls (a hook, a deny text, a tool result, a skill, a box verb) treats the agent, kept because it saves the agent calls, tokens or trust. Each entry names the alternatives it beat, what it costs, and the evidence. Progressive disclosure is the model: a result too large for the context becomes a handle that the agent queries.
+A pattern is a way that a surface an agent reads or calls treats the agent, kept because it saves calls, tokens or trust. Each entry names the alternatives it lost to, the cost and the evidence. Progressive disclosure is the model.
 
-What goes in: a pattern that a measurement, a session or an incident supports, or a proposal for one with its test. An entry that measured an alternative and rejected it keeps the numbers, so nobody repeats the probe. Not here: a working law (it goes to conventions), a bug, a friction, an idea with no test.
+Not here: a working law (conventions), a bug, a friction, an idea with no test. A rejected alternative keeps its numbers, so nobody repeats the probe.
 
 ## Kinds and statuses
 
-- A `decision` is `accepted`, then `superseded` (another replaces it, through `supersede`) or `dropped` (withdrawn, the body says why).
+- A `decision` is `accepted`, then `superseded` (another replaces it) or `dropped` (the body says why).
 - A `proposal` is `proposed`, then `adopted` (name the decision with `**Adopted as:** [[key]]`) or `dropped`. File it with `add --kind proposal --status proposed` and a `revisit_by` date in the JSON: `{"fields": {"revisit_by": "YYYY-MM-DD"}}`.
 
 ## Anchors
@@ -51,10 +51,6 @@ A decision not to build, or that no code implements, has `**Unanchored:** <why>`
 - A change that keeps the decision in force is a dated paragraph under `## Amendments`, with the reason. Add the heading with `edit`, then `reaffirm --anchor`. `reaffirm --text` records a check, not an amendment.
 - A change that replaces the decision is a `supersede`.
 
-## Self-healing
-
-`check` and `heal` find and repair drift; their docstrings list what each does.
-
 ## Entry template
 
 **Decision:** one sentence.
@@ -67,7 +63,7 @@ A decision not to build, or that no code implements, has `**Unanchored:** <why>`
 
 **Consequences:** now easier; now harder.
 
-**Change scenarios absorbed:** the named future changes it protects against.
+**Change scenarios absorbed:** the future changes it protects against.
 
 **Revisit-when:** the trigger.
 
