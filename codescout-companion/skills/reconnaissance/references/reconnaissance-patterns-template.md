@@ -79,7 +79,9 @@ result (or the existing ledger's catalog id), `prefix` to its declared namespace
 `entry_title` to a short title, and `entry_body` from the entry template below.
 
 Let the server allocate the id, write its section, and add the Index row in one
-call. Do not reserve a row or allocate an id by hand. The bootstrap declares the
+call. Do not reserve a row or allocate an id by hand: the catalog's reservation serialises
+concurrent calls on a checkout that has not opted in, the checkout write lock on an opted-in
+one. The bootstrap declares the
 Index header as `snapshot_anchor`, so this row lands at that table's tail:
 
 ```python

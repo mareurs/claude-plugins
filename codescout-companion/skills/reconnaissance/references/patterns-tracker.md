@@ -35,7 +35,7 @@ tracker_id = created.get("id") or created["key"]
 ```
 
 This registers the ledger with explicit metadata and reserves its prefix in the
-same call. A prefix already owned by another ledger is refused before the file is
+same call (on an opted-in checkout the checkout write lock serialises two such calls). A prefix already owned by another ledger is refused before the file is
 created; select a free prefix and retry. Use that prefix consistently for entries,
 append calls and the Index. The entries of the `recon` box are cited by key,
 `[[<entry key>]]`, so they need no prefix.
@@ -65,7 +65,8 @@ the choice at the top of the new ledger. Prefer yielding to an incumbent over
 renumbering a shipping document.
 
 **Take a baseline before creating the ledger.** Ensure the relevant Markdown is
-indexed (`librarian(action="reindex")` when needed), then save a read-only
+indexed (`librarian(action="reindex")` when needed; on a checkout whose rows are not kept
+it makes none, and doctor's `summary.not_run` names the checks that did not run), then save a read-only
 `librarian(action="link_scan", write=False)` result. Use the same scope and artifact
 limit for the post-bootstrap scan; a nested workspace may require `scope="repo"` (a
 derived-index checkout, whose root `.gitignore` commits `/.codescout/derived.db*`, takes

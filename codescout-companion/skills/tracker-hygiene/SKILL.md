@@ -101,7 +101,9 @@ indistinguishable from one whose row drifted.
 Ordered, because later steps read what earlier ones write:
 
 1. `librarian(action="reindex")` — rows first; every `doc(find)` before this
-   returns a confidently wrong empty set.
+   returns a confidently wrong empty set. On a checkout whose rows are not kept it makes
+   no rows (its answer lists the checkout under `old_phase_skipped`); `summary.not_run`
+   says which checks did not run.
 2. `index(action="verify")`, then repair memories server-side (for codescout:
    `codescout migrate-memories --in-place`). Check `skipped` in the result.
 3. `index(action="build")` — background; poll `index(action="status")`.
@@ -194,7 +196,7 @@ observed Y"*.
 | **D1** | index-drift | Live file absent from the index, or index row points at a missing/moved file | add or repoint the index row — *which* cluster/section is a per-file placement judgment, so gate the placement, not just the add | high |
 | **D2** | terminal-not-archived | Frontmatter `archived`/`superseded` but file in live dir; or file in archive dir with `status: active` | `doc(update, patch={status:...})` + `doc(move, new_rel_path=...)` per archive policy — **but a tracker superseded *by a successor* uses a `supersedes` edge, not a status patch (see note below)** | high |
 | **D3** | stale-active | `status: active` and no git touch in N days | **a question** — archive, or confirm still-live? Never presume archive | low, by design |
-| **D4** | frontmatter-catalog-mismatch | Catalog row disagrees with file frontmatter, or file has no catalog row / no `kind:` | reconcile via `doc(update)`; `librarian(action="reindex")` for orphans | high |
+| **D4** | frontmatter-catalog-mismatch | Catalog row disagrees with file frontmatter, or file has no catalog row / no `kind:` | reconcile via `doc(update)`; `librarian(action="reindex")` for orphans (a checkout whose rows are not kept makes none: read `summary.not_run`) | high |
 | **D5** | canonical-conflict | Two live trackers claim one topic (tag/topic overlap + index cluster), or a child restates its canonical's status | judgment call — merge, link, or bless the fork | low |
 | **D9** | augmentation-stale | `doc(action="list_stale")` returns the artifact | refresh **only if mechanical**, else defer to owner (see the D9 rule below) — never fabricate | medium |
 | **D10** | session-log-decay | File matches `*session-log*.md` in the live dir, frontmatter `status: active` or `draft`, AND no git touch in ≥21 days | propose **distill-then-archive** (procedure below) — never a bare archive; every sub-step is its own gate | low, by design |
