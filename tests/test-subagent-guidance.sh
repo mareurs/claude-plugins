@@ -97,6 +97,26 @@ if assert_context_contains "$OUT" "\"investigating\" (no live owner)" && assert_
   pass "bug ledger: explains investigating and zombie"
 else fail "bug ledger: explains investigating and zombie" "$OUT"; fi
 
+# --- A project that keeps its bugs in a bugs box (docs/trackers/ledgers/bugs/readme.md): the entries are
+# --- catalog kind `entry`, so the old `doc find kind="bug"` query returns nothing for it (measured
+# --- 2026-11-24, claude-plugins after the bug migration: 0 items, 3 live bugs). It must be told the
+# --- box verb instead, with the same status meanings. A project without the box keeps the old query.
+if assert_context_contains "$OUT" "kind=\"bug\"" && ! assert_context_contains "$OUT" "codescout box bugs"; then
+  pass "bug ledger: a project without a bugs box keeps the doc find query"
+else fail "bug ledger: a project without a bugs box keeps the doc find query" "$OUT"; fi
+make_git_repo "$T/boxproj"
+write_routing_config "$T/boxproj" '{"server_name":"codescout"}'
+mkdir -p "$T/boxproj/docs/trackers/ledgers/bugs"
+printf -- '---\nkind: collection\ntitle: Bugs\n---\n' > "$T/boxproj/docs/trackers/ledgers/bugs/readme.md"
+OUTB=$(run_hook "$T/boxproj" "general-purpose")
+if assert_context_contains "$OUTB" "codescout box bugs list" && ! assert_context_contains "$OUTB" "kind=\"bug\""; then
+  pass "bug ledger: a project with a bugs box is sent to codescout box bugs list, not to kind=bug"
+else fail "bug ledger: a project with a bugs box is sent to codescout box bugs list" "$OUTB"; fi
+if assert_context_contains "$OUTB" "\"investigating\" (no live owner)" && assert_context_contains "$OUTB" "\"zombie\" (a recurrence check, not a task)" \
+  && assert_context_contains "$OUTB" "Ledger checked:"; then
+  pass "bug ledger (box): keeps the status meanings and the Ledger checked line"
+else fail "bug ledger (box): keeps the status meanings and the Ledger checked line" "$OUTB"; fi
+
 # --- Gate CLOSED → silent, with the environment sealed (not ambient config). ---
 OUT=$(run_hook "$T/bare" "general-purpose")
 RC=$?

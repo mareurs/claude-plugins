@@ -17,8 +17,8 @@
 // enter the project, pick a tool by intent). Long, project-specific text is named by
 // path, and the subagent reads it on demand. Output size must not depend on any file
 // the user edits. tests/test-subagent-guidance.sh pins this.
-import { realpathSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { realpathSync, existsSync } from 'node:fs';
+import { resolve, join } from 'node:path';
 import { readInput, detectFor, git, emit } from './lib.mjs';
 
 const input = readInput();
@@ -39,6 +39,15 @@ if (d.HAS_CODESCOUT === 'false') process.exit(0);
 // deletes it via a literal join on tool_input.path), so the injected activate
 // would be obeyed and still leave writes blocked.
 const root = (cwd && git(cwd, ['rev-parse', '--show-toplevel'])) || cwd;
+
+// Where the open bugs are. A project that keeps its bugs in a bugs box has them as catalog kind `entry`,
+// so `doc find kind="bug"` returns nothing for it (measured 2026-11-24, claude-plugins after its bug
+// migration: 0 items for 3 live bugs, and a subagent was told that no bug was open). Every other project
+// keeps bug files with kind bug. Both texts are the same size: the payload must not grow with a project.
+const hasBugsBox = Boolean(root) && existsSync(join(root, 'docs/trackers/ledgers/bugs/readme.md'));
+const bugLine = hasBugsBox
+  ? `run_command(command="codescout box bugs list") lists the live bugs. "taken" (a live session holds it), "investigating" (no live owner) and "zombie" (a recurrence check, not a task) are open too.`
+  : `doc(action="find", kind="bug", filter={"status": {"in": ["open", "taken", "investigating", "zombie"]}}) — status="open" alone hides "taken" (a live session holds it), "investigating" (no live owner) and "zombie" (a recurrence check, not a task).`;
 
 // How many memory topics exist. The NAMES are not inlined any more: a project with
 // 40 memories spent 2 KB on them, and the subagent still has to read the ones it
@@ -116,7 +125,7 @@ STEP 3 — pick the tool by what you do:
 • Read: read_file on markdown returns a heading map; add heading="## Section" for one section. For source, use symbols first and read_file only with start_line and end_line.
 • Write: edit_code (symbol-level, LSP-aware), edit_file (text, imports, markdown by heading), create_file (a new file). They work when native Write and Edit are denied.
 • Run: run_command. Output lands in an @cmd_* buffer: query it with grep or read_file, never pipe unbounded output. No wake message reaches you, so run a long command in the foreground with timeout_secs. Do not start it with run_in_background and then poll.
-• Know the project: ${memoryLine} For bug or regression work: doc(action="find", kind="bug", filter={"status": {"in": ["open", "taken", "investigating", "zombie"]}}) — status="open" alone hides "taken" (a live session holds it), "investigating" (no live owner) and "zombie" (a recurrence check, not a task). Do not re-report a filed bug: mark it KNOWN with its ledger path.
+• Know the project: ${memoryLine} For bug or regression work: ${bugLine} Do not re-report a filed bug: mark it KNOWN with its ledger path.
 
 STEP 4 — read what the project already wrote, on demand:`;
 
