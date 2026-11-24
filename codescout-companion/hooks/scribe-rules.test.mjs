@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { boxWriteVerb, SCRIBE_MESSAGE, WRITE_VERBS } from './scribe-rules.mjs';
+import { boxHelpWriteVerb, boxWriteVerb, SCRIBE_MESSAGE, WRITE_VERBS } from './scribe-rules.mjs';
 
 test('WRITE_VERBS is exactly the nine box write verbs', () => {
   assert.deepEqual(
@@ -73,4 +73,36 @@ test('SCRIBE_MESSAGE carries the recipe, stays short and states no history', () 
   for (const banned of ['was removed', 'formerly', 'no longer']) {
     assert.ok(!SCRIBE_MESSAGE.includes(banned), banned);
   }
+});
+
+// A help call for a write verb is the first sign that an agent is about to edit a box (arm e).
+test('boxHelpWriteVerb names the write verb a help call asks about', () => {
+  const cases = [
+    ['codescout box help close', 'close'],
+    ['codescout box bugs help edit', 'edit'],
+    ['codescout box bugs close --help', 'close'],
+    ['codescout box bugs add --help 2>&1 | head -5', 'add'],
+    ['codescout box --project /r bugs help promote', 'promote'],
+    ['codescout box frictions help note', 'note'],
+    ['codescout box bugs help close; codescout box bugs help add', 'close'],
+    ['cd d && codescout box residuals help reaffirm 2>&1 | head -3', 'reaffirm'],
+  ];
+  for (const [command, verb] of cases) assert.equal(boxHelpWriteVerb(command), verb, command);
+});
+
+test('boxHelpWriteVerb is null for other help, for writes and for text that only mentions help', () => {
+  const cases = [
+    'codescout box help',
+    'codescout box bugs help',
+    'codescout box bugs help list',
+    'codescout box help new',
+    'codescout box bugs close k fixed',
+    'codescout box bugs list',
+    'echo "codescout box help close"',
+    "cat <<'EOF'\ncodescout box bugs help close\nEOF",
+    'ls',
+    '',
+  ];
+  for (const command of cases) assert.equal(boxHelpWriteVerb(command), null, command);
+  for (const v of [undefined, null, 7]) assert.equal(boxHelpWriteVerb(v), null);
 });

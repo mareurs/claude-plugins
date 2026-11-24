@@ -129,12 +129,39 @@ function verbOf(words) {
 
 // The first write verb of an unquoted `codescout box` call in `command`, else null.
 export function boxWriteVerb(command) {
+  return firstBoxVerdict(command, verbOf);
+}
+
+// Runs `verdictOf` over the words of each unquoted `codescout box` call in `command`; the first
+// non-null verdict wins.
+function firstBoxVerdict(command, verdictOf) {
   if (typeof command !== 'string' || command === '') return null;
   const masked = mask(command);
   for (const m of masked.matchAll(INVOCATION)) {
     const simple = masked.slice(m.index + m[0].length).split(/[;&|\n)]/, 1)[0];
-    const verb = verbOf(simple.split(/\s+/).filter(Boolean));
-    if (verb) return verb;
+    const verdict = verdictOf(simple.split(/\s+/).filter(Boolean));
+    if (verdict) return verdict;
   }
   return null;
+}
+
+// The write verb that a help call asks about, else null: `box help <verb>`, `box <key> help <verb>`
+// and `box [<key>] <verb> --help`. The first sign that an agent is about to edit a box.
+function helpVerbOf(words) {
+  const named = [];
+  for (let i = 0; i < words.length && named.length < 3; i += 1) {
+    if (words[i] === '--project') i += 1;
+    else if (!words[i].startsWith('-')) named.push(words[i]);
+  }
+  if (words.includes('--help') || words.includes('-h')) {
+    if (WRITE_VERBS.includes(named[0])) return named[0];
+    return WRITE_VERBS.includes(named[1]) ? named[1] : null;
+  }
+  if (named[0] === 'help') return WRITE_VERBS.includes(named[1]) ? named[1] : null;
+  if (named[1] === 'help') return WRITE_VERBS.includes(named[2]) ? named[2] : null;
+  return null;
+}
+
+export function boxHelpWriteVerb(command) {
+  return firstBoxVerdict(command, helpVerbOf);
 }

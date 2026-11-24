@@ -166,3 +166,51 @@ test('the default window is long enough to mean once per session', () => {
   assert.equal(run(call(ADD), {}, dir).out, '');
   rmSync(dir, { recursive: true, force: true });
 });
+
+// --- Arm e: arm b, plus a refusal of the first help call for a write verb. ---
+
+const HELP_CLOSE = 'codescout box bugs help close';
+const HELP_ADD = 'codescout box help add';
+
+test('arm e: a help call for a complex verb is refused with no exit, three times at most', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'scribe-nudge-'));
+  const env = { CS_SCRIBE_VARIANT: 'e' };
+  const outs = [1, 2, 3, 4].map(() => run(call(HELP_CLOSE), env, dir).out);
+  assert.deepEqual(outs.map((o) => o !== ''), [true, true, true, false]);
+  const reason = JSON.parse(outs[0]).hookSpecificOutput.permissionDecisionReason;
+  assert.ok(reason.includes("get_guide('scribe')"));
+  assert.ok(!reason.includes('repeat this call'));
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('arm e: a help call for add keeps the single repeat exit', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'scribe-nudge-'));
+  const env = { CS_SCRIBE_VARIANT: 'e' };
+  const first = run(call(HELP_ADD), env, dir).out;
+  assert.ok(JSON.parse(first).hookSpecificOutput.permissionDecisionReason.includes('repeat this call'));
+  assert.equal(run(call(HELP_ADD), env, dir).out, '');
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('arm e: help and write calls for complex verbs share the three refusals', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'scribe-nudge-'));
+  const env = { CS_SCRIBE_VARIANT: 'e' };
+  const outs = [HELP_CLOSE, CLOSE, HELP_CLOSE, CLOSE].map((c) => run(call(c), env, dir).out);
+  assert.deepEqual(outs.map((o) => o !== ''), [true, true, true, false]);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('arm e: help for a read verb, and any call from a fork, pass', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'scribe-nudge-'));
+  const env = { CS_SCRIBE_VARIANT: 'e' };
+  assert.equal(run(call('codescout box bugs help list'), env, dir).out, '');
+  assert.equal(run(call(HELP_CLOSE, { agent_id: 'a1' }), env, dir).out, '');
+  assert.deepEqual(readdirSync(dir), []);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('arm b does not look at help calls', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'scribe-nudge-'));
+  assert.equal(run(call(HELP_CLOSE), { CS_SCRIBE_VARIANT: 'b' }, dir).out, '');
+  rmSync(dir, { recursive: true, force: true });
+});

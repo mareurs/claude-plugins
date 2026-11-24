@@ -15,13 +15,14 @@ import { statSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readInput, denyPreToolUse, sanitizeSessionId, shortHash } from './lib.mjs';
-import { boxWriteVerb, COMPLEX_VERBS, MESSAGE_NO_EXIT, MESSAGE_THRESHOLD, SCRIBE_MESSAGE } from './scribe-rules.mjs';
+import { boxHelpWriteVerb, boxWriteVerb, COMPLEX_VERBS, MESSAGE_NO_EXIT, MESSAGE_THRESHOLD, SCRIBE_MESSAGE } from './scribe-rules.mjs';
 
 // One refusal per session in practice: the replay of real sessions showed that a refusal after the
 // agent has chosen to work inline buys nothing. The knob lets a test shorten it.
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 // Experiment arms, CS_SCRIBE_VARIANT: a (default) the repeat exit; b no exit for complex verbs,
-// standing down after this many refusals; c the exit with the threshold quoted.
+// standing down after this many refusals; c the exit with the threshold quoted; e arm b plus a
+// refusal of the first help call for a write verb, which comes before the agent reads anything.
 const STAND_DOWN_AFTER = 3;
 
 function main() {
@@ -30,14 +31,16 @@ function main() {
   if (process.env.CS_SCRIBE_NUDGE === 'false') return;
   if (input.tool_name !== 'Bash' && input.tool_name !== 'mcp__codescout__run_command') return;
   if (input.agent_id) return;
-  const verb = boxWriteVerb(input.tool_input && input.tool_input.command);
+  const command = input.tool_input && input.tool_input.command;
+  const variant = process.env.CS_SCRIBE_VARIANT || 'a';
+  // Arm e also acts on `box help <write verb>`: the same verb, a step earlier.
+  const verb = boxWriteVerb(command) || (variant === 'e' ? boxHelpWriteVerb(command) : null);
   if (!verb) return;
 
   const dir = process.env.CS_SCRIBE_STATE_DIR || tmpdir();
   const key = shortHash(sanitizeSessionId(input.session_id || ''));
-  const variant = process.env.CS_SCRIBE_VARIANT || 'a';
 
-  if (variant === 'b' && COMPLEX_VERBS.includes(verb)) {
+  if ((variant === 'b' || variant === 'e') && COMPLEX_VERBS.includes(verb)) {
     // No repeat exit for a complex verb. Count the refusals so a harness without a fork is not stuck.
     const counter = join(dir, `cs-scribe-n-${key}`);
     let n = 0;
