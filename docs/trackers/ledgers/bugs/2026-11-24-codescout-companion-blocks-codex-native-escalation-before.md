@@ -268,3 +268,11 @@ The same native thread resumed across a new app-server process with its root ID 
 This is the companion half of the paired repair. `4ce5432` is a combined commit (29 files); it carries the `require_escalated` handling in `codescout-companion/hooks/pre-tool-guard.mjs` and `tests/test-native-escalation.sh`, and `git log -S"require_escalated"` over `codescout-companion/hooks` finds only this commit. The patch-id covers the whole commit. `f8a73ee` is the separate delivery of release-script outputs, not the fix.
 
 The Codex adapter half lives in the Codex repository (`5eedcdc543`, as recorded in this file). I could not resolve that commit from this repository, so it has no SHA line here. The revisions `a335403` and `fe68488` under § Environment and revision anchors are where the bug was observed, not fixes.
+
+## Now
+
+Verified 2026-11-24 at HEAD: the companion half holds. `guard-rules.mjs:33` (`isSandboxEscalation`) still exempts an explicit `require_escalated`, and `tests/test-native-escalation.sh` passes every fixture.
+
+Open: delivery. Stock CLI 0.169.0 does not send `sandbox_permissions` to the hook, so the guard cannot see the request there (GitHub #15). The 4-file Codex patch is proven only on an isolated host; the installed system CLI and the managed app were not replaced.
+
+Next action: deliver the patch (or its upstream form) to the stock CLI, then repeat the nested `functions.exec` acceptance on a stock install. Related residual: `runtime-residuals` entry `stock-codex-adapter-release-and-install-in-the-six-real`. Close as `fixed` when a stock install passes that acceptance.
