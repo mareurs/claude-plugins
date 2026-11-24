@@ -22,8 +22,8 @@ if jq -e 'has("modules") | not' "$ROOT/codescout-companion/hooks/hooks.json" >/d
 else bad "codescout-companion/hooks/hooks.json" "a modules key was added to the shared file"; fi
 
 # The manifest.
-if jq -e '.name == "codescout-display" and .version == "0.1.0" and .license == "MIT"' "$ROOT/codescout-display/.claude-plugin/plugin.json" >/dev/null 2>&1; then
-  ok "plugin.json names codescout-display, version 0.1.0, license MIT"
+if jq -e '.name == "codescout-display" and (.version | test("^[0-9]+\\.[0-9]+\\.[0-9]+$")) and .license == "MIT"' "$ROOT/codescout-display/.claude-plugin/plugin.json" >/dev/null 2>&1; then
+  ok "plugin.json names codescout-display, a semver version, license MIT"
 else bad "codescout-display/.claude-plugin/plugin.json" "name, version or license is not as the plan says"; fi
 
 # Listed in the marketplace, with no version field (plugin.json is the one source).
@@ -32,9 +32,11 @@ if jq -e '[.plugins[] | select(.name == "codescout-display" and .source == "./co
 else bad "marketplace.json" "no single codescout-display entry, or it carries a version"; fi
 
 # Listed in the README plugin table.
-if grep -q '^| \*\*\[codescout-display\](\./codescout-display/)\*\* | 0\.1\.0 |' "$ROOT/README.md"; then
-  ok "README.md plugin table lists codescout-display 0.1.0"
-else bad "README.md" "no codescout-display row with version 0.1.0 in the plugin table"; fi
+# The version in the row is the one in plugin.json (release.sh bumps both).
+VER="$(jq -r .version "$ROOT/codescout-display/.claude-plugin/plugin.json")"
+if grep -qF "| **[codescout-display](./codescout-display/)** | $VER |" "$ROOT/README.md"; then
+  ok "README.md plugin table lists codescout-display $VER"
+else bad "README.md" "no codescout-display row with version $VER in the plugin table"; fi
 
 # The mod's own tests need the claude binary; skip, say so, where it is absent.
 if command -v claude >/dev/null 2>&1; then
