@@ -334,7 +334,7 @@ esac
 # ...but the route is for a tool that is MISSING. Opus, in a session that had every
 # tool, read a source file through run_command + acknowledge_risk because the footer
 # offered the route without that condition (Setup A/B audit,
-# docs/issues/2026-11-09-companion-hooks-advertise-tools-and-skills-the-session-does-not-have.md).
+# docs/trackers/ledgers/bugs/2026-11-24-companion-hooks-advertise-a-skill-tool-the-cs-arm-lacks-name.md).
 # Pinned: the sentence that sends a session with the named tool back to that tool.
 case "$OUT" in
     *"IS in your tool list, call it"*) check "escape-footer-route-is-for-a-missing-tool-only" "yes" "yes" ;;
@@ -352,7 +352,7 @@ esac
 
 # A subagent cannot ask the user, so the footer's "ask the user to run /mcp" is a dead end for it, and the
 # only sentence that says a retry releases the guard sat at strike 3 (found 2026-11-17, Claude Code 2.1.326,
-# docs/issues/2026-11-17-bash-guard-tells-a-subagent-without-codescout-to-ask-the-user.md). Pinned: from the
+# docs/trackers/ledgers/bugs/2026-11-24-the-bash-guard-tells-a-subagent-with-no-codescout-tool-to.md). Pinned: from the
 # FIRST strike, a call that carries agent_id is told to retry, and is not told to ask the user. The main agent
 # keeps the old advice, because it can ask.
 fire_sub() {  # <session_id> <cmd>  -> raw hook stdout, as a subagent

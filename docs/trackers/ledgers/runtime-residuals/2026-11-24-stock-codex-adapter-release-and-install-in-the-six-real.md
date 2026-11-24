@@ -13,6 +13,6 @@ status_since: 2026-11-24
 
 **Done when:** a release of the adapter, `installPath` of every profile under its own root, and one smoke run per profile.
 
-**From:** docs/issues/2026-10-09-harness-neutral-session-identity-and-provenance.md (closed 2026-11-24).
+**From:** docs/trackers/ledgers/bugs/2026-11-24-harness-neutral-session-identity-and-provenance-are-needed.md (closed 2026-11-24).
 
 **Promoted from:** [[2026-11-24-identity-the-stock-codex-adapter-is-merged-but-not-released]]

@@ -10,7 +10,7 @@ log:
 status_since: 2026-11-24
 ---
 
-Migrated from `docs/issues/2026-10-09-harness-neutral-session-identity-and-provenance.md` on 2026-11-24; opened 2026-10-09; tags codescout-companion, buddy, codex, harness-compatibility, session-identity, provenance, gate.
+Migrated from `docs/issues/2026-10-09-harness-neutral-session-identity-and-provenance.md` on 2026-11-24; opened 2026-10-09; tags codescout-companion, buddy, codex, harness-compatibility, session-identity, provenance, gate; old id 33de9ea8980e85c9.
 
 ## Closure — 2026-11-24
 

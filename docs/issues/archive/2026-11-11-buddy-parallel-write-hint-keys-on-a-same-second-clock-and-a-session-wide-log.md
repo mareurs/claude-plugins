@@ -94,7 +94,7 @@ For Claude Code: about 1 true firing in 286 (0.3 %). The one true firing was the
 - The hint states a risk ("inconsistent state") that did not occur in the one case checked to the server log. It teaches the agent to serialize calls it already serialized.
 - It goes to the agent that made the call, so a subagent spends context on it and the main agent cannot act on it.
 - Cross-agent pairs can fire it for two agents that each issued one write.
-- A prior issue (`2026-11-07-grep-for-concept-heuristic-fires-on-literal-phrase-searches.md`) says this hint "fired correctly 18 of 18 times". That claim was not re-checked here. "Correctly" there means one reader's label; this issue only shows that, for the hit read to the server log, the stated risk did not occur.
+- A prior issue (`2026-11-24-the-buddy-grep-for-concept-heuristic-fires-on-literal-phrasees.md`) says this hint "fired correctly 18 of 18 times". That claim was not re-checked here. "Correctly" there means one reader's label; this issue only shows that, for the hit read to the server log, the stated risk did not occur.
 
 ## Options (not decided)
 

@@ -109,7 +109,7 @@ jobs:
       - name: Full suite
         # No suite is skipped. The five ambient-config suites measured 2026-09-10
         # (empty HOME — see
-        # docs/issues/2026-08-05-test-run-all-pre-existing-failures-under-fresh-wsl.md)
+        # docs/trackers/ledgers/bugs/2026-11-24-tests-run-all-sh-has-16-pre-existing-failing-suites.md)
         # are all hermetic now: four got a .mcp.json whose command matches
         # detect.mjs's /codescout/ regex on 2026-09-13, and pre-tool-guard.test.sh
         # was rewritten around synthetic fixture projects (it used to hardcode the

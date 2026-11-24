@@ -79,7 +79,7 @@ topic: sdd strict layer refactor
 ### Task 2: Constitution hooks find the codescout binary off PATH
 
 **Files:**
-- Create: `docs/issues/2026-11-05-constitution-hooks-cannot-find-codescout-binary.md` (`kind: bug`, `status: open`; evidence from spec § Current state, row "Constitution")
+- Create: `docs/trackers/ledgers/bugs/2026-11-24-constitution-hooks-cannot-find-the-codescout-binary-off-path.md` (`kind: bug`, `status: open`; evidence from spec § Current state, row "Constitution")
 - Modify: `codescout-companion/hooks/lib.mjs` (add `resolveCodescoutBinary`)
 - Modify: `codescout-companion/hooks/goal-stop-hook.mjs:40-62` (delete local `resolveCodescout`, call the lib one)
 - Modify: `codescout-companion/hooks/constitution-guard.mjs:30`, `codescout-companion/hooks/constitution-brief.mjs:49`

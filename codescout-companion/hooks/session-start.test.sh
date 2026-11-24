@@ -410,7 +410,7 @@ fi
 # omits Skill has no such tool (28 of 28 cs-arm runs of the Setup A/B study), so the
 # line can only waste a turn. The hook reads the Claude process's own argv; unreadable
 # or unrecognised argv leaves the block in, which is the behaviour from before.
-# docs/issues/2026-11-09-companion-hooks-advertise-tools-and-skills-the-session-does-not-have.md
+# docs/trackers/ledgers/bugs/2026-11-24-companion-hooks-advertise-a-skill-tool-the-cs-arm-lacks-name.md
 skill_absent() {  # <argv...>: prints yes|no
   node -e 'import(process.argv[1]).then((m) => console.log(m.skillToolAbsentFromArgv(process.argv.slice(2)) ? "yes" : "no"))' \
     -- "$SCRIPT_DIR/lib.mjs" "$@" 2>/dev/null

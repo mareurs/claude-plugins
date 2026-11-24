@@ -16,7 +16,7 @@ entry_high_water_W: 2
 
 # Session Log — harness identification and project migration
 
-> **Purpose:** Frictions (F-N) and wins (W-N) from the work on issue `docs/issues/2026-11-13-no-harness-identification-or-project-migration-tooling-across-harnesses.md`.
+> **Purpose:** Frictions (F-N) and wins (W-N) from the work on issue `docs/trackers/ledgers/bugs/2026-11-24-no-harness-identification-and-no-tooling-to-clean-up-route.md`.
 > Entries are appended with `doc(action="append_entry")`. Do not hand-allocate ids.
 
 ## Index

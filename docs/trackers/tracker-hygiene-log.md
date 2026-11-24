@@ -200,7 +200,7 @@ All 4 archives: `doc(update, patch={status:"archived"})` then `doc(move, new_rel
 
 **D11 (0):** every `promoted-to-permanent-docs` hit in the live trackers is a template or vocabulary line. None is a promotion claim.
 
-**Outside the detectors:** `docs/issues/2026-08-05-test-run-all-pre-existing-failures-under-fresh-wsl.md` had a stale top banner ("kept `zombie`"). Its status `investigating` is correct, because the bug was re-opened 2026-09-10. A supersession banner was added and the status was left alone. An earlier reading in this sweep that the status should become `zombie` was wrong and was not applied. Two `miss` entries were filed: `HY-2` and `HY-3`.
+**Outside the detectors:** `docs/trackers/ledgers/bugs/2026-11-24-tests-run-all-sh-has-16-pre-existing-failing-suites.md` had a stale top banner ("kept `zombie`"). Its status `investigating` is correct, because the bug was re-opened 2026-09-10. A supersession banner was added and the status was left alone. An earlier reading in this sweep that the status should become `zombie` was wrong and was not applied. Two `miss` entries were filed: `HY-2` and `HY-3`.
 
 **Rejects (verbatim reasons):** none.
 

@@ -37,7 +37,7 @@ Provide Claude Code and Codex with comparable ownership protection when they sha
 
 The user approved the conversational design and this written spec on 2026-10-10. The user approved the implementation plan and inline execution with independent final review on 2026-10-10.
 
-Issue: [Harness-neutral session identity and provenance](../../issues/2026-10-09-harness-neutral-session-identity-and-provenance.md), artifact id 33de9ea8980e85c9. Its acceptance criteria remain the release criteria.
+Issue: [Harness-neutral session identity and provenance](../../trackers/ledgers/bugs/2026-11-24-harness-neutral-session-identity-and-provenance-are-needed.md), artifact id 33de9ea8980e85c9. Its acceptance criteria remain the release criteria.
 
 ## Verified baseline and evidence limits
 
@@ -220,7 +220,7 @@ Report context decoding, write-evidence coverage, lifecycle validation and peer-
 
 The initial targets are Claude Code and Codex. Their tested versions are recorded from actual smoke runs; no supported range is invented from the source HEAD or installed CLI version. Additional runners begin as explicit manual-context/check-only users and gain authored-write support only with verified native fixtures and smoke evidence.
 
-Release gates include real Claude and Codex runs, mixed-harness checks, and native approval reachability. The separate [native approval routing issue](../../issues/2026-10-09-companion-routing-blocks-codex-native-escalation.md) remains a dependency for live installation; source fixtures cannot close a live-host blocker.
+Release gates include real Claude and Codex runs, mixed-harness checks, and native approval reachability. The separate [native approval routing issue](../../trackers/ledgers/bugs/2026-11-24-codescout-companion-blocks-codex-native-escalation-before.md) remains a dependency for live installation; source fixtures cannot close a live-host blocker.
 
 If capture tests show insufficient native history, stop authored-support rollout and review the journal alternative. Check-only operation may still be documented with its actual capability result.
 

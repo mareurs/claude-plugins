@@ -414,7 +414,7 @@ The harness's exclusion list for these agent types covers the **native** write t
 
 **Evidence boundary:** Local source transport/hook tests capture metadata. Live raw hook stdin was not captured, but native host approval requests and results plus filesystem effects were observed after verifying all installed package digests. Approval routing is verified; authored provenance is separate.
 
-**Pointer:** docs/issues/2026-10-09-companion-routing-blocks-codex-native-escalation.md.
+**Pointer:** docs/trackers/ledgers/bugs/2026-11-24-codescout-companion-blocks-codex-native-escalation-before.md.
 
 ## F-6 — Native capture runners return success while required tool evidence is unavailable
 
@@ -508,7 +508,7 @@ The capture limitations were narrowed by subsequent actual checks: F-16 fixes au
 
 **Rests on:** Explicit checks of the three named roots, full home-directory enumeration, the companion config.toml section, and the current native hook rejection.
 
-**Pointer:** docs/issues/2026-10-09-companion-routing-blocks-codex-native-escalation.md, Installation attempt — 2026-10-11.
+**Pointer:** docs/trackers/ledgers/bugs/2026-11-24-codescout-companion-blocks-codex-native-escalation-before.md, Installation attempt — 2026-10-11.
 
 ## F-12 — Direct offline Cargo build omitted the verified Codex V8 pair
 
@@ -528,7 +528,7 @@ The capture limitations were narrowed by subsequent actual checks: F-16 fixes au
 
 **Rests on:** Actual failed @bg_0000006e exit 101 and 404 stack trace; complete bodies of both resolver functions; corrected invocation's printed overrides and subsequent compiler output.
 
-**Pointer:** docs/issues/2026-10-09-companion-routing-blocks-codex-native-escalation.md, Installation attempt — 2026-10-11.
+**Pointer:** docs/trackers/ledgers/bugs/2026-11-24-codescout-companion-blocks-codex-native-escalation-before.md, Installation attempt — 2026-10-11.
 
 ## F-13 — Release seeded companion before unrelated marketplace skew blocked the final gate
 
