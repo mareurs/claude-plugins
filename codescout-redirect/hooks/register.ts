@@ -119,6 +119,20 @@ async function describeAdvice($: any, tool: string): Promise<string | null> {
   )
 }
 
+// The codescout tools whose schema goes in the prompt list. Behind ToolSearch a subagent chose Bash
+// first whatever the description said; with the schema in the list it chose the codescout tool.
+const PIN = ['run_command', 'read_file', 'edit_file', 'create_file', 'grep', 'tree', 'symbols', 'edit_code']
+
+// May the schemas be placed in the prompt list? Not when block_reads is false, and not when that
+// cannot be read: placing them changes every request of the session.
+async function pinAllowed($: any): Promise<boolean> {
+  try {
+    return !(await blockReadsOff($, await $.session.cwd()))
+  } catch {
+    return false
+  }
+}
+
 export const register: Register = on => {
   env = undefined
 
@@ -357,6 +371,15 @@ export const register: Register = on => {
       const r = await next(e)
       const advice = await describeAdvice($, tool)
       return advice ? { ...r, description: advice + r.description } : r
+    }).catch(($, e, next) => next(e))
+  }
+
+  // ---- tool.describe -> the codescout tools sit in the prompt list ---------------
+  // Behind ToolSearch the model pays a turn to load a tool, and a subagent does not load it at all.
+  for (const name of PIN) {
+    on('tool.describe', { tool: `mcp__codescout__${name}` }, async ($, e, next) => {
+      const r = await next(e)
+      return (await pinAllowed($)) ? { ...r, isDeferred: false } : r
     }).catch(($, e, next) => next(e))
   }
 

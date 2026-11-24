@@ -21,7 +21,10 @@ type Opts = {
 }
 
 function setup(on: any, o: Opts = {}) {
-  on('session.cwd', () => ({ value: o.cwd ?? '/proj' }))
+  on('session.cwd', () => {
+    if (o.cwd === 'throw') throw new Error('no cwd')
+    return { value: o.cwd ?? '/proj' }
+  })
   on('process.run', () =>
     o.env === false
       ? { value: { exitCode: 1, stdout: '', stderr: 'no node' } }
@@ -297,7 +300,8 @@ function describeSetup(on: any, o: Opts & { pool?: string[] | 'throw' } = {}) {
     if (o.pool === 'throw') throw new Error('no list')
     return { value: (o.pool ?? ALL_POOL).map(name => ({ name, description: '', mcp: true })) }
   })
-  on('tool.describe', () => ({ description: ORIG }))
+  // the engine's own answer: the tool waits behind ToolSearch
+  on('tool.describe', () => ({ description: ORIG, isDeferred: true }))
 }
 
 const describe_ = ($: any, tool: string) =>
@@ -352,4 +356,44 @@ test('describe: a pool that cannot be read leaves the description alone', async 
   const r: any = await describe_($, 'Bash')
 
   expect(r.description).toBe(ORIG)
+})
+
+// ---- tool.describe: the codescout tools sit in the prompt list, not behind ToolSearch --------------
+// Measured 2026-11-24 (subagents, Haiku and Sonnet, n=3): behind ToolSearch a subagent chose Bash first
+// 3 of 3 whatever the description said; with the schemas in the list it chose run_command 5 of 6.
+
+const PINNED = ['run_command', 'read_file', 'edit_file', 'create_file', 'grep', 'tree', 'symbols', 'edit_code']
+
+test('pin: each listed codescout tool is taken out from behind ToolSearch, its text kept', async ($, on) => {
+  describeSetup(on)
+
+  for (const n of PINNED) {
+    const r: any = await describe_($, `mcp__codescout__${n}`)
+    expect(r.isDeferred, n).toBe(false)
+    expect(r.description, n).toBe(ORIG)
+  }
+})
+
+test('pin: a codescout tool that is not listed stays where the engine put it', async ($, on) => {
+  describeSetup(on)
+
+  const r: any = await describe_($, 'mcp__codescout__index')
+
+  expect(r.isDeferred).toBe(true)
+})
+
+test('pin: block_reads false leaves the placement alone', async ($, on) => {
+  describeSetup(on, { config: '{"block_reads": false}' })
+
+  const r: any = await describe_($, 'mcp__codescout__run_command')
+
+  expect(r.isDeferred).toBe(true)
+})
+
+test('pin: a working directory that cannot be read leaves the placement alone', async ($, on) => {
+  describeSetup(on, { cwd: 'throw' })
+
+  const r: any = await describe_($, 'mcp__codescout__run_command')
+
+  expect(r.isDeferred).toBe(true)
 })

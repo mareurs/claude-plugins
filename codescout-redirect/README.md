@@ -25,6 +25,8 @@ The mod stands aside, and the next hook (the guard) decides, when `block_reads` 
 
 The mod also rewrites the description that the model reads for `Bash`, `Read`, `Grep`, `Glob`, `Edit` and `Write` (`tool.describe`). The codescout call that replaces the tool goes in front, with the `ToolSearch` query that loads it, and the native text stays after it. The advice is left out when `block_reads` is `false`, when the session's tool pool has no matching `mcp__codescout__*` tool, or when the pool cannot be read. A change reaches a thread at its start or after a compaction. Measured on Haiku, n=3 per arm: `Bash` was the first choice 3 times of 3 without the advice, and the codescout tool was the first choice 3 of 3 with a probe's advice and 2 of 3 with this text.
 
+The mod also takes eight codescout tools (`run_command`, `read_file`, `edit_file`, `create_file`, `grep`, `tree`, `symbols`, `edit_code`) out from behind ToolSearch and puts their schema in the prompt list (`isDeferred: false`), under the same `block_reads` condition. For a subagent this is what counts: with the tools behind ToolSearch and the advice in the description, a subagent chose `Bash` first 3 of 3 on Haiku and 3 of 3 on Sonnet, although it quotes the advice when asked. With the schemas in the list it chose `run_command` first 3 of 3 on Haiku and 2 of 3 on Sonnet (probe), and 2 of 3 on Haiku with the mod itself. The list costs prompt size; a cost difference was not visible at n=5, but it was not measured as tokens.
+
 ## Needs
 
 - A Claude Code build with hooks modules (`hooks/hooks.json` with `modules`). Measured on 2.1.331.
