@@ -84,6 +84,7 @@ Update this plugin whenever codescout adds features that affect exploration work
 - PreToolUse: hard-blocks Read/Grep/Glob/Bash/Edit on source files (`permissionDecision: "deny"`)
 - Auto-reindexing: checks index staleness at session start, triggers `codescout index` in background
 - Drift warnings: surfaces high-drift files and stale docs/memories
+- **Export feedback** (skill `export-feedback`): writes every box as one redacted Markdown file that a colleague sends to the maintainers. It reads boxes through the codescout CLI, never through folder paths or SQL, so it covers any box. `CS_PRIVACY` (default on, `off` = raw) changes the export only, never recording. Redaction is a blacklist: a new leak class needs a regex and a case in `export-feedback.test.sh`. Design: `docs/superpowers/specs/2026-11-24-export-feedback-design.md`.
 
 **Dependencies:** `jq`, `sqlite3`, `git`, codescout binary on PATH or in MCP config
 
