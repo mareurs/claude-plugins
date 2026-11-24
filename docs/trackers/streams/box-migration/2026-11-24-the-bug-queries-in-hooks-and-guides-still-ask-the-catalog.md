@@ -9,8 +9,8 @@ log:
 status_since: 2026-11-24
 ---
 
-**What happened:** `codescout-companion/hooks/subagent-guidance.mjs` (STEP 3) tells a subagent to run `doc(action="find", kind="bug", ...)`. The codescout readme of the bugs box says that `doc find --kind bug` lists the old files, not the entries of the box. I did not verify this after a reindex: the catalog still showed the deleted files when I looked.
+**What happened:** `codescout-companion/hooks/subagent-guidance.mjs` (STEP 3) tells a subagent to run `doc(action="find", kind="bug", ...)`. The codescout readme of the bugs box says that `doc find --kind bug` lists the old files, not the entries of the box. Measured after the reindex on 2026-11-24: the query with status in open, taken, investigating, zombie returns 0 items. The 3 live bugs are now catalog kind `entry`, with new ids, and `doc find` on the path prefix docs/trackers/ledgers/bugs returns them. So a subagent that follows STEP 3 is told that no bug is open.
 
-**What I did:** Nothing yet.
+**What I did:** Nothing yet. The change is small but it needs a choice: the payload is sent to every project that uses the companion, and a project without a bugs box still keeps its bugs as files with kind bug. The text would have to depend on whether docs/trackers/ledgers/bugs/readme.md exists.
 
 **Worth keeping:** After the reindex, run the query once. If it misses the box, the payload text, `tests/test-subagent-guidance.sh` and the tracker-hygiene skill must name `codescout box bugs list`.
