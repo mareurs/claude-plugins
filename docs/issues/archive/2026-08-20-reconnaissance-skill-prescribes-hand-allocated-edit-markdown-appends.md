@@ -10,7 +10,7 @@ tags:
 - session-log
 - librarian
 closed: 2026-08-20
-unverified: TRACKED cf21be73063a04c2 — No automated check that a skill's prescribed tool calls remain legal against the MCP server it drives; regression relies on manual review + the full test-suite pass (run-all.sh + buddy pytest) only, not a pinned check.
+unverified: RESOLVED 2026-11-24 (the tracked bug cf21be73063a04c2 is fixed, with its skill-call legality test) — No automated check that a skill's prescribed tool calls remain legal against the MCP server it drives; regression relies on manual review + the full test-suite pass (run-all.sh + buddy pytest) only, not a pinned check.
 ---
 
 ## Summary
