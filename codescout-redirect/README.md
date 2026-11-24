@@ -6,6 +6,8 @@ A Claude Code mod that answers a native tool call from codescout, in place of a 
 
 Design, measurements and open points: `docs/superpowers/specs/2026-11-24-codescout-redirect-mod-design.md`.
 
+**Adapter logic only, no UI.** The mod draws nothing: no toast, no card, no status line. What the user sees of a codescout call is the job of the `codescout-display` plugin. What the mod adds for the agent is text: the codescout reply in the result where the native schema has a text field (`Bash` stdout, `Read` content, `Grep` content), and a note that names the real call with its parameters.
+
 ## Scope
 
 | Tool | Answered |

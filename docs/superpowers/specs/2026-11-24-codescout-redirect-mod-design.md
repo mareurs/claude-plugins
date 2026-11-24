@@ -27,7 +27,10 @@ Rules for every hook:
 - **Answer exactly what the guard would deny.** The guard denies every call to these tools except the exemptions in `guard-rules.mjs` (`exemptReason`): for `Read` an image, a skill payload, harness `tool-results/` output or a config dir; for `Edit` and `Write` an image; for `Grep` and `Glob` a config-dir path. A source-file extension never exempts a call. A call the guard allows goes to `next(e)` unchanged.
 - **Fail open to the guard.** A codescout error, a `pending_ack`, an unreadable result or a thrown error calls `next(e)`. The guard then refuses as it does today.
 - **Pass native arguments to codescout unchanged.** codescout already accepts `file_path`, `-i`, `-C`, `-A` and `head_limit` (`src/tools/core/param_alias.rs`, `grep.rs`). The mod maps only the result.
-- **The note states the situation only.** One line: which codescout call answered, and what to use next. No history.
+- **The note states the situation only.** One line: which codescout call ran, with its parameters, and "call it directly". No history.
+- **No UI.** The mod uses no `$.ui` call. Drawing a codescout call for the user is the job of the `codescout-display` plugin.
+- **The agent sees the real call.** The codescout reply goes in the result where the native schema has a text field (`Bash` stdout, `Read` content, `Grep` content). Elsewhere (`Glob`, `Write`, `Edit`) the native result has fixed fields, so the note carries the call and the reply. The tool name cannot change: the engine refuses a rewrite of it.
+- **Every block of a reply is kept.** codescout adds a guide block to the first call of a session. The mod's call consumes it, so the mod passes it on, and it parses the reply from the first block only.
 
 Result mapping (measured, see Results):
 

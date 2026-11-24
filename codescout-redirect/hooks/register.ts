@@ -24,8 +24,24 @@ const ENV_SCRIPT =
 
 type Env = { home: string; configDir: string }
 
-const textOf = (res: { content: Array<{ type: string; text?: string }> }) =>
-  res.content.map(b => (b.type === 'text' ? (b.text ?? '') : '')).join('')
+// codescout may add a block after its reply (a guide, on the first call of a session): the first block
+// is the reply, and every block is what the agent would see.
+const blocksOf = (res: { content: Array<{ type: string; text?: string }> }) =>
+  res.content.map(b => (b.type === 'text' ? (b.text ?? '') : ''))
+const textOf = (res: { content: Array<{ type: string; text?: string }> }) => blocksOf(res).join('\n')
+
+// The codescout call as the agent would write it, with a long string value clipped.
+const clip = (s: string) => (s.length > 80 ? `${s.slice(0, 80)}…(${s.length} chars)` : s)
+function fmtCall(tool: string, args: Record<string, unknown>): string {
+  const parts = Object.entries(args).map(
+    ([k, v]) => `${k}=${typeof v === 'string' ? JSON.stringify(clip(v)) : JSON.stringify(v)}`,
+  )
+  return `${tool}(${parts.join(', ')})`
+}
+
+// What the agent reads about a redirected call: the real call, and the rule.
+const note = (native: string, call: string) =>
+  `[codescout-redirect] native ${native} ran as codescout ${call}. Call it directly: ${native} is not used here.`
 
 // Read once per session and kept: the mod has no env of its own. `register` clears it, so a reload
 // (and each test) starts clean.
@@ -85,7 +101,6 @@ export const register: Register = on => {
 
     const res = await $.mcp.call(SERVER, 'read_file', args)
     if (res.isError) {
-      $.ui.toast(`${$.plugin.name}: read_file failed, native Read goes on`)
       return next(e)
     }
     // codescout puts "N lines" (and, on a range read, one blank line) first. N is the file's real length.
@@ -94,7 +109,6 @@ export const register: Register = on => {
     const head = raw.match(ranged ? /^(\d+) lines?\n\n?/ : /^(\d+) lines?\n/)
     const text = head ? raw.slice(head[0].length) : raw
     const lines = text.split('\n').length
-    $.ui.toast(`${$.plugin.name}: Read answered by codescout read_file`)
     return {
       result: {
         type: 'text',
@@ -107,13 +121,12 @@ export const register: Register = on => {
         },
       },
       context: [
-        `[codescout-redirect] Read answered by codescout read_file. ` +
-          `An "@file_*" buffer reads only through read_file(path="@file_*", start_line, end_line). ` +
-          `Use symbols(path) for an overview, symbols(name, include_body=true) for one body.`,
+        note('Read', fmtCall('read_file', args)) +
+          ` An "@file_*" buffer reads only through read_file(path="@file_*", start_line, end_line).` +
+          ` Use symbols(path) for an overview, symbols(name, include_body=true) for one body.`,
       ],
     }
   }).catch(($, e, next) => {
-    $.ui.toast(`${$.plugin.name}: Read hook failed, native Read goes on`)
     return next(e)
   })
 
@@ -133,11 +146,9 @@ export const register: Register = on => {
 
     const res = await $.mcp.call(SERVER, 'grep', args)
     if (res.isError) {
-      $.ui.toast(`${$.plugin.name}: grep failed, native Grep goes on`)
       return next(e)
     }
     const text = textOf(res)
-    $.ui.toast(`${$.plugin.name}: Grep answered by codescout grep`)
     return {
       result: {
         mode: 'content',
@@ -147,12 +158,11 @@ export const register: Register = on => {
         numLines: text.split('\n').length,
       },
       context: [
-        `[codescout-redirect] Grep answered by codescout grep(${JSON.stringify(args)}). ` +
-          `For callers use references(symbol, path); for a concept use semantic_search(query).`,
+        note('Grep', fmtCall('grep', args)) +
+          ` For callers use references(symbol, path); for a concept use semantic_search(query).`,
       ],
     } as never
   }).catch(($, e, next) => {
-    $.ui.toast(`${$.plugin.name}: Grep hook failed, native Grep goes on`)
     return next(e)
   })
 
@@ -166,7 +176,6 @@ export const register: Register = on => {
 
     const res = await $.mcp.call(SERVER, 'tree', args)
     if (res.isError) {
-      $.ui.toast(`${$.plugin.name}: tree failed, native Glob goes on`)
       return next(e)
     }
     const text = textOf(res)
@@ -174,7 +183,6 @@ export const register: Register = on => {
       .split('\n')
       .map(l => l.trim())
       .filter(l => l && !/^\d+ (files?|matches|entries)/.test(l) && !l.startsWith('['))
-    $.ui.toast(`${$.plugin.name}: Glob answered by codescout tree`)
     return {
       result: {
         durationMs: 0,
@@ -182,13 +190,9 @@ export const register: Register = on => {
         filenames,
         truncated: false,
       },
-      context: [
-        `[codescout-redirect] Glob answered by codescout tree(${JSON.stringify(args)}). ` +
-          `For a symbol use symbols(name=...).`,
-      ],
+      context: [note('Glob', fmtCall('tree', args)) + ` For a symbol use symbols(name=...).`],
     } as never
   }).catch(($, e, next) => {
-    $.ui.toast(`${$.plugin.name}: Glob hook failed, native Glob goes on`)
     return next(e)
   })
 
@@ -209,10 +213,8 @@ export const register: Register = on => {
     const res = await $.mcp.call(SERVER, 'create_file', args)
     const text = textOf(res)
     if (res.isError || /pending_ack|"error"/.test(text)) {
-      $.ui.toast(`${$.plugin.name}: create_file refused, native Write goes on`)
       return next(e)
     }
-    $.ui.toast(`${$.plugin.name}: Write answered by codescout create_file`)
     return {
       result: {
         type: original === null ? 'create' : 'update',
@@ -221,12 +223,9 @@ export const register: Register = on => {
         structuredPatch: [],
         originalFile: original,
       },
-      context: [
-        `[codescout-redirect] Write answered by codescout create_file. Reply: ${text.slice(0, 200)}`,
-      ],
+      context: [`${note('Write', fmtCall('create_file', args))} Reply: ${text.slice(0, 200)}`],
     }
   }).catch(($, e, next) => {
-    $.ui.toast(`${$.plugin.name}: Write hook failed, native Write goes on`)
     return next(e)
   })
 
@@ -248,14 +247,12 @@ export const register: Register = on => {
     const res = await $.mcp.call(SERVER, 'edit_file', args)
     const text = textOf(res)
     if (res.isError || /pending_ack|"error"/.test(text)) {
-      $.ui.toast(`${$.plugin.name}: edit_file refused, native Edit goes on`)
       return next(e)
     }
     const idx = original.indexOf(e.old_string)
     const oldStart = idx < 0 ? 1 : original.slice(0, idx).split('\n').length
     const oldLines = e.old_string.split('\n')
     const newLines = e.new_string.split('\n')
-    $.ui.toast(`${$.plugin.name}: Edit answered by codescout edit_file`)
     return {
       result: {
         filePath: e.file_path,
@@ -274,12 +271,9 @@ export const register: Register = on => {
         userModified: false,
         replaceAll: !!e.replace_all,
       },
-      context: [
-        `[codescout-redirect] Edit answered by codescout edit_file. Reply: ${text.slice(0, 200)}`,
-      ],
+      context: [`${note('Edit', fmtCall('edit_file', args))} Reply: ${text.slice(0, 200)}`],
     }
   }).catch(($, e, next) => {
-    $.ui.toast(`${$.plugin.name}: Edit hook failed, native Edit goes on`)
     return next(e)
   })
 
@@ -295,33 +289,31 @@ export const register: Register = on => {
     const text = textOf(res)
     let out: Record<string, any> | null
     try {
-      out = JSON.parse(text)
+      out = JSON.parse(blocksOf(res)[0] ?? '')
     } catch {
       out = null
     }
     if (res.isError || !out || typeof out.exit_code !== 'number' || /pending_ack/.test(text)) {
-      $.ui.toast(`${$.plugin.name}: run_command gave no plain result, native Bash goes on`)
       return next(e)
     }
     const stdout = String(out.stdout ?? '')
     const stderr = String(out.stderr ?? '')
+    const call = fmtCall('run_command', args)
     if (out.exit_code !== 0) {
       // Native Bash reports a non-zero exit as an error result.
-      return { deny: `Exit code ${out.exit_code}\n${stdout}${stderr}` }
+      return { deny: `[codescout-redirect] codescout ${call} exited ${out.exit_code}\n${stdout}${stderr}` }
     }
-    $.ui.toast(`${$.plugin.name}: Bash answered by codescout run_command`)
+    // stdout carries codescout's own reply, so the agent sees what run_command returns.
     return {
-      result: { stdout, stderr, interrupted: false },
+      result: { stdout: text, stderr: '', interrupted: false },
       context: [
-        out.output_id
-          ? `[codescout-redirect] Bash output was long, so codescout buffered it as ${out.output_id}; stdout above is an excerpt. ` +
-            `Query it with run_command(command="grep PATTERN ${out.output_id}") or "tail -20 ${out.output_id}".`
-          : `[codescout-redirect] Bash answered by codescout run_command. ` +
-            `Prefer run_command: its output is buffered (@cmd_*) and queryable.`,
+        note('Bash', call) +
+          (out.output_id
+            ? ` Long output is buffered as ${out.output_id}: query it with run_command(command="grep PATTERN ${out.output_id}") or "tail -20 ${out.output_id}".`
+            : ` Its output is buffered (@cmd_*) and queryable.`),
       ],
     }
   }).catch(($, e, next) => {
-    $.ui.toast(`${$.plugin.name}: Bash hook failed, native Bash goes on`)
     return next(e)
   })
 
