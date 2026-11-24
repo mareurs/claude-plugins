@@ -11,12 +11,14 @@ Each box in the view says what it takes.
 
 Committed:
 
-- `memories/`: the codescout memories of this repository. `projects/`: the memories of the other projects of this workspace (the example projects and the crates).
+- `memories/`: the codescout memories of this repository.
 - `scripts/`: the verbs, `scripts/<key>/<verb>.py` for the box `<key>`, `scripts/<verb>.py` for the root.
 - `py/requirements.txt`: the manifest of the Python environment. It is committed when it exists; this repository has none today.
-- `key-space.toml`, `librarian.toml`, `repo.toml`, `requirements.toml`: the configuration.
+- The configuration files (`key-space.toml`, `librarian.toml`, `repo.toml`, `requirements.toml`) are committed when they exist. This repository commits none: `repo.toml`, `project.toml` and `workspace.toml` stay local.
 - `system-prompt.md`: the project text added to the server prompt.
-- `audit/`, `measurements/`: recorded evidence.
+- `audit/`, `measurements/`: recorded evidence, when a repository has any. This one has none.
+
+This repository's `.gitignore` ignores `.codescout/*` and whitelists `memories/`, `scripts/`, `system-prompt.md` and `harness.md`. A new committed path under `.codescout/` needs a whitelist line there.
 
 Regenerable, and not committed: the databases (`*.db`), the logs and the locks, which `.gitignore` names, and `state/<key>/`, the state of the verbs, which holds its own `.gitignore`. The Python environment is outside the checkout, in `<state dir>/codescout/venvs/<project key>/`; `codescout py status` shows it.
 
@@ -38,12 +40,12 @@ A box owns its readme from then on: a change to the template changes no box that
 ## Add a verb
 
 1. Write `.codescout/scripts/<key>/<verb>.py`. The verb's name must not be a core name (the fifteen of the card); `check.py` is the one core-named script that runs, after the core `check`. The first line of its module docstring is the description that `codescout box <key>` prints.
-2. Import `codescout`, the helper module. A verb reads through `codescout.doc.find_iter` and the like, and writes only through the door `codescout.doc.*` (for example `codescout.doc.create`). It opens no file for writing. `tests/test_box_verbs_write_only_through_the_door.py` checks this. A verb is a rule of its box. The store behind the door can change and no verb changes. A verb that takes a JSON object reads it with `codescout.read_input()`, which gives `--text <field> <source>` and `--encoded` to every verb that calls it. A verb that files or changes an entry calls `codescout.box.add`, `now`, `edit` or `close`, which run the core, so it adds its own step and does not copy the core. A Rust verb of the core reads its arguments as `docs/conventions/lenient-box-verbs.md` says; a script verb parses its own.
-3. Add its test under `tests/`, as `tests/test_box_<key>_<verb>.py`.
-4. Run it with `codescout box <key> <verb> [args...]`. The arguments reach the verb as they are. A root verb (`scripts/<verb>.py`, for work that belongs to no one box, such as `repoint`) runs as `codescout box <verb> [args...]` when no box has that key; a box of the same name wins, and a core name never runs a script. It gets no box variable, no state folder and no commit step, and its `call:box` row has a `null` key. `codescout py .codescout/scripts/<verb>.py` runs it too. Its test is `tests/test_box_root_<verb>.py`.
-5. Maintain it. A verb is code that this repository owns, for every box and every template. When the readme of a box changes its fields, statuses or entry kinds, run the verb tests of that box. When a verb has no use left, delete it with its test. A temporary verb (a migration, for example) says so in its docstring and names the event that ends it. `tests/test_box_verbs_have_tests.py` fails for a verb with no test file; it does not check that a verb is still needed.
+2. Import `codescout`, the helper module. A verb reads through `codescout.doc.find_iter` and the like, and writes only through the door `codescout.doc.*` (for example `codescout.doc.create`). It opens no file for writing. The codescout repository checks this with a test; this repository has no such test. A verb is a rule of its box. The store behind the door can change and no verb changes. A verb that takes a JSON object reads it with `codescout.read_input()`, which gives `--text <field> <source>` and `--encoded` to every verb that calls it. A verb that files or changes an entry calls `codescout.box.add`, `now`, `edit` or `close`, which run the core, so it adds its own step and does not copy the core. A script verb parses its own arguments.
+3. Add its test under `tests/`. The test of the `frictions` verbs is `tests/test-frictions-box.sh`; `tests/run-all.sh` runs every `tests/test-*.sh`.
+4. Run it with `codescout box <key> <verb> [args...]`. The arguments reach the verb as they are. A root verb (`scripts/<verb>.py`, for work that belongs to no one box) runs as `codescout box <verb> [args...]` when no box has that key; a box of the same name wins, and a core name never runs a script. It gets no box variable, no state folder and no commit step, and its `call:box` row has a `null` key. `codescout py .codescout/scripts/<verb>.py` runs it too.
+5. Maintain it. A verb is code that this repository owns, for every box and every template. When the readme of a box changes its fields, statuses or entry kinds, run the verb tests of that box. When a verb has no use left, delete it with its test. A temporary verb (a migration, for example) says so in its docstring and names the event that ends it. No test in this repository requires a test file per verb, and none checks that a verb is still needed.
 
-A root script `.codescout/scripts/<verb>.py` runs as `codescout box <verb>` as a root verb (step 4: no ledger needed, nothing is committed), unless a live box has that key. `codescout box runtime <verb>` runs the same file as a verb of the root ledger `runtime`, which commits the entries it creates; use this form for `measure`. There is no `.codescout/scripts/runtime/` folder: `runtime` is the root ledger, and `codescout box check` reports such a folder.
+A root script `.codescout/scripts/<verb>.py` runs as `codescout box <verb>` as a root verb (step 4: no ledger needed, nothing is committed), unless a live box has that key. `codescout box runtime <verb>` runs the same file as a verb of the root ledger `runtime`, which commits the entries it creates. There is no `.codescout/scripts/runtime/` folder: `runtime` is the root ledger, and `codescout box check` reports such a folder.
 
 ## Commit, check
 
@@ -53,7 +55,7 @@ A root script `.codescout/scripts/<verb>.py` runs as `codescout box <verb>` as a
 
 ## Platforms
 
-`codescout box` is supported on Unix. It is not supported on Windows for now. The commit step runs `git` as a process and quotes each path as one word of a POSIX shell command line (`quote_path` in `src/cli/boxes/commit.rs`). The tests of that step that need a symbolic link, a unix file mode or raw file-name bytes are `#[cfg(unix)]`, so they do not run on Windows. No run of `codescout py`, `codescout call doc` or `codescout box` on Windows has been made. Revisit this line when that run is made.
+`codescout box` is supported on Unix. It is not supported on Windows for now. The commit step runs `git` as a process and quotes each path as one word of a POSIX shell command line (`quote_path` in the codescout source, `src/cli/boxes/commit.rs`). In the codescout source, the tests of that step that need a symbolic link, a unix file mode or raw file-name bytes are `#[cfg(unix)]`, so they do not run on Windows. No run of `codescout py`, `codescout call doc` or `codescout box` on Windows has been made. Revisit this line when that run is made.
 
 ## Safety
 
