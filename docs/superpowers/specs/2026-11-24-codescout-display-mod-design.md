@@ -144,6 +144,8 @@ Instrument: the dev mod `codescout-display-probe`, hot-reloaded in a live sessio
 | Replace the row | A `tree` card (round cyan border, 8 lines, `… N more hidden`) drew in place of the engine row. |
 | Rewrite `output` | A `read_file` result drew as a one-line summary in place of 40 lines. |
 | Add under the row | An `edit_file` colored diff drew under the engine row, with syntax colors. |
+| Test kit (plan Task 1) | `$.ui.mount({ plugin, surface, component: 'ToolUse', props })` mounts the hook. `ui.keepsBeneath()` is true when the hook kept the engine node and false when it replaced the row. A `*.test.ts` may import `../hooks/cards`. |
+| Open control, hook level (plan Task 1) | A `Button` with an `atom` (`read`, `update`, one array of opened `tool_use_id`s) flips on `ui.press({ key })` in a mounted `ToolUse`. State needs `types/index.d.ts` that exports only types, named in `plugin.json`. A live press by the person is pending (plan Task 5). |
 
 The three rows above come from the person's report of their screen ("1. yes. 2. yes 3 yes"), not from an automated check. The log proves only that the hooks received complete input and output.
 
