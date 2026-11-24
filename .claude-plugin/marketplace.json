@@ -106,6 +106,17 @@
       "license": "MIT",
       "keywords": ["codescout", "mod", "hooks", "redirect"],
       "category": "infrastructure"
+    },
+    {
+      "name": "codescout-display",
+      "source": "./codescout-display",
+      "description": "Claude Code mod: draws each codescout tool call as one compact card in verbose mode, with a colored diff for edits and a fold for long results.",
+      "author": {
+        "name": "Marius"
+      },
+      "license": "MIT",
+      "keywords": ["codescout", "mod", "display", "verbose"],
+      "category": "infrastructure"
     }
   ]
 }
