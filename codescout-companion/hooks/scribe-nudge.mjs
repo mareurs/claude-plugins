@@ -11,13 +11,18 @@
 // Claude Code only. CS_SCRIBE_NUDGE=false turns it off. Fail open: an error, a missing field or
 // a marker that cannot be written lets the call through (lib.mjs FAIL-OPEN CONTRACT).
 // Test knobs: CS_SCRIBE_STATE_DIR (marker directory) and CS_SCRIBE_WINDOW_MS.
-import { statSync, writeFileSync } from 'node:fs';
+import { statSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readInput, denyPreToolUse, sanitizeSessionId, shortHash } from './lib.mjs';
-import { boxWriteVerb, SCRIBE_MESSAGE } from './scribe-rules.mjs';
+import { boxWriteVerb, COMPLEX_VERBS, MESSAGE_NO_EXIT, MESSAGE_THRESHOLD, SCRIBE_MESSAGE } from './scribe-rules.mjs';
 
-const WINDOW_MS = 30 * 60 * 1000;
+// One refusal per session in practice: the replay of real sessions showed that a refusal after the
+// agent has chosen to work inline buys nothing. The knob lets a test shorten it.
+const WINDOW_MS = 24 * 60 * 60 * 1000;
+// Experiment arms, CS_SCRIBE_VARIANT: a (default) the repeat exit; b no exit for complex verbs,
+// standing down after this many refusals; c the exit with the threshold quoted.
+const STAND_DOWN_AFTER = 3;
 
 function main() {
   const input = readInput();
@@ -25,10 +30,29 @@ function main() {
   if (process.env.CS_SCRIBE_NUDGE === 'false') return;
   if (input.tool_name !== 'Bash' && input.tool_name !== 'mcp__codescout__run_command') return;
   if (input.agent_id) return;
-  if (!boxWriteVerb(input.tool_input && input.tool_input.command)) return;
+  const verb = boxWriteVerb(input.tool_input && input.tool_input.command);
+  if (!verb) return;
 
   const dir = process.env.CS_SCRIBE_STATE_DIR || tmpdir();
-  const marker = join(dir, `cs-scribe-${shortHash(sanitizeSessionId(input.session_id || ''))}`);
+  const key = shortHash(sanitizeSessionId(input.session_id || ''));
+  const variant = process.env.CS_SCRIBE_VARIANT || 'a';
+
+  if (variant === 'b' && COMPLEX_VERBS.includes(verb)) {
+    // No repeat exit for a complex verb. Count the refusals so a harness without a fork is not stuck.
+    const counter = join(dir, `cs-scribe-n-${key}`);
+    let n = 0;
+    try {
+      n = Number(readFileSync(counter, 'utf8')) || 0;
+    } catch {
+      // no counter yet
+    }
+    if (n >= STAND_DOWN_AFTER) return;
+    writeFileSync(counter, String(n + 1));
+    denyPreToolUse(MESSAGE_NO_EXIT);
+    return;
+  }
+
+  const marker = join(dir, `cs-scribe-${key}`);
   const windowMs = Number(process.env.CS_SCRIBE_WINDOW_MS) || WINDOW_MS;
   try {
     if (Date.now() - statSync(marker).mtimeMs < windowMs) return;
@@ -36,7 +60,7 @@ function main() {
     // no marker yet: this is the first box write of the window
   }
   writeFileSync(marker, '');
-  denyPreToolUse(SCRIBE_MESSAGE);
+  denyPreToolUse(variant === 'c' ? MESSAGE_THRESHOLD : SCRIBE_MESSAGE);
 }
 
 try {

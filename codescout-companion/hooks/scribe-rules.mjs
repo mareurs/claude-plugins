@@ -18,6 +18,20 @@ export const SCRIBE_MESSAGE =
   'Agent(subagent_type="fork", prompt="Scribe: <what to file, which box>. Read get_guide(\'scribe\')."). ' +
   'For a one-line note, repeat this call: it passes.';
 
+// Experiment arms (CS_SCRIBE_VARIANT in scribe-nudge.mjs); the arms that lose are deleted.
+// Arm c: the same exit, with the guide's threshold quoted.
+export const MESSAGE_THRESHOLD =
+  'A scribe fork can file this tracker edit while you keep working: ' +
+  'Agent(subagent_type="fork", prompt="Scribe: <what to file, which box>. Read get_guide(\'scribe\')."). ' +
+  'Fork when the edit takes more than about two calls or needs judgment from this conversation. ' +
+  'For a one-line note, repeat this call: it passes.';
+// Arm b, complex verbs: no repeat exit.
+export const MESSAGE_NO_EXIT =
+  'File this tracker edit through a scribe fork, so you keep working: ' +
+  'Agent(subagent_type="fork", prompt="Scribe: <what to file, which box>. Read get_guide(\'scribe\').").';
+// The verbs that are never a one-line note.
+export const COMPLEX_VERBS = WRITE_VERBS.filter((v) => v !== 'add' && v !== 'note');
+
 // Copies `s` with every quoted character and every heredoc body line replaced by `_`, so a
 // later search for `codescout box` sees only text at an unquoted position. Quote characters and
 // newlines stay, which keeps the structure and the length.
