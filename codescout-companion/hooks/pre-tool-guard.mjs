@@ -253,7 +253,7 @@ if (toolName === 'Bash') {
   let hint;
   if (/^(grep|rg) /.test(cmd)) {
     hint = `  grep(pattern="PATTERN")              — indexed regex, structured results
-  symbols(query="NAME")                  — locate symbol by name (much faster)
+  symbols(name="NAME")                  — locate symbol by name (much faster)
   semantic_search(query="CONCEPT")       — find code by meaning, not just text`;
   } else if (/^cat .*\.(rs|ts|tsx|js|jsx|py|go|kt|kts|java|cs|rb|swift|cpp|c|h|hpp|sh|bash)/.test(cmd)) {
     const m = cmd.match(/[^ ]+\.(rs|ts|tsx|js|jsx|py|go|kt|kts|java|cs|rb|swift|cpp|c|h|hpp|sh|bash)/);
@@ -262,7 +262,7 @@ if (toolName === 'Bash') {
   symbols(name=NAME, include_body=true)  — read one specific symbol body`;
   } else if (/^find /.test(cmd)) {
     hint = `  tree(glob="*.pattern")                 — indexed file discovery, instant
-  symbols(query="NAME")                  — locate a symbol by name across all files`;
+  symbols(name="NAME")                  — locate a symbol by name across all files`;
   } else {
     hint = `  run_command(command="${cmd}")          — same command with smart summaries + @ref buffers`;
   }
@@ -296,7 +296,7 @@ if (toolName === 'Grep') {
 NOTE: This path is inside ~/.cargo/registry — for crate '${crateName}'.
 Once the crate is registered, codescout can search it via scope:
 
-  symbols(query="${pattern}", scope="lib:${crateName}")   — search only within this crate
+  symbols(name="${pattern}", scope="lib:${crateName}")   — search only within this crate
   symbols(scope="lib:${crateName}")                         — browse crate symbols
 `;
   }
@@ -306,7 +306,7 @@ Native Grep scans files line-by-line and dumps raw matches into context.
 codescout uses the index and returns structured, token-efficient results:
 
   grep(pattern="${pattern}")              — regex search, returns matching lines with optional context_lines
-  symbols(query="${pattern}")             — locate symbol by name (faster than text search)
+  symbols(name="${pattern}")             — locate symbol by name (faster than text search)
   semantic_search(query="${pattern}")     — concept-level search when the name is unknown`);
 }
 
@@ -320,7 +320,7 @@ if (toolName === 'Glob') {
 codescout already knows every file in the project. Use the index directly:
 
   tree(glob="${pattern}")         — glob-style file discovery via codescout index
-  symbols(query="${stem}") — find a symbol by name if you know what you are after`);
+  symbols(name="${stem}") — find a symbol by name if you know what you are after`);
 }
 
 if (toolName === 'Read') {
@@ -358,7 +358,7 @@ NOTE: This file is from crate '${crateName}' in ~/.cargo/registry.
 If the crate is registered, codescout symbol tools work via scope:
 
   symbols(scope="lib:${crateName}")                       — browse all symbols
-  symbols(query="SYMBOL", scope="lib:${crateName}")      — find a specific symbol
+  symbols(name="SYMBOL", scope="lib:${crateName}")      — find a specific symbol
   symbol_at(path=PATH, line=LINE)                            — jump to definition from usage site
 `;
       }

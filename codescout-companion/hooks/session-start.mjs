@@ -199,7 +199,7 @@ let msg = '';
 const BOOTSTRAP_SUPPRESSED_SOURCES = new Set(['compact', 'resume', 'clear']);
 if (!inWorktree && !BOOTSTRAP_SUPPRESSED_SOURCES.has(source) && cwd) {
   msg += `PROJECT BOOTSTRAP: As your FIRST codescout action, call
-workspace(action="activate", path="${cwd}") (the activate_project tool) to
+workspace(action="activate", path="${cwd}") to
 bootstrap this project — it prewarms LSP, auto-registers dependencies, and
 returns project_hints (primary language, entry points, build commands).
 
@@ -370,7 +370,7 @@ if (hotView && source !== 'resume') {
 
 // Connectivity note.
 msg += `codescout: Detected in config (${d.CS_SERVER_NAME}).
-Tools load automatically — no ToolSearch or setup step needed.
+If the tools are deferred, load them with ToolSearch (select:mcp__codescout__<tool>).
 If tools are unavailable, the MCP server failed to connect (check \`claude mcp list\`).
 
 `;
@@ -420,11 +420,6 @@ msg += `CODESCOUT RULES (compression-resilient reminder):
 • Never pipe unbounded run_command output — run bare, query @cmd_* buffer (bounded LHS like ls, cat, awk, sed, find -maxdepth N is OK)
 
 `;
-
-// Tool guide.
-msg += `NEVER USE BASH AGENTS FOR CODE WORK.
-Bash agents have no codescout tools. Use general-purpose, Plan, or Explore
-agents for any task involving code reading, writing, or navigation.`;
 
 emit({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: msg } });
 process.exit(0);
