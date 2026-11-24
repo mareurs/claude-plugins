@@ -10,6 +10,8 @@
 #   CODESCOUT_BIN  the codescout binary that serves MCP and the box CLI (default: codescout on PATH)
 #   ACC_DIR        where scratch repos and streams go (default: $HOME/.cache/scribe-acc);
 #                  must NOT be under the system temp dir: `box new` refuses a temp-rooted artifact
+#   SCRIBE_HOOK    path of a scribe-nudge.mjs to load for this run through --settings (default: none).
+#                  The installed companion plugin may not carry the hook yet.
 # The stream is saved as $ACC_DIR/out/run<scenario><n>.jsonl; score it with score.py.
 set -uo pipefail
 scen="$1"; n="$2"
@@ -52,7 +54,12 @@ case "$scen" in
 esac
 
 printf '{"mcpServers":{"codescout":{"command":"%s","args":["start"]}}}' "$bin" > "$out/mcp.json"
+extra=()
+if [ -n "${SCRIBE_HOOK:-}" ]; then
+  extra=(--settings "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash|mcp__codescout__run_command\",\"hooks\":[{\"type\":\"command\",\"command\":\"node $SCRIBE_HOOK\"}]}]}}")
+fi
 CLAUDE_CODE_FORK_SUBAGENT=1 timeout 900 claude -p "$task" \
+  "${extra[@]}" \
   --mcp-config "$out/mcp.json" --strict-mcp-config \
   --permission-mode acceptEdits \
   --allowedTools "mcp__codescout" "Agent" "SendMessage" "Read" "Edit" "Write" "Bash(codescout:*)" "Bash(git:*)" "Bash(python3:*)" "Bash(pytest:*)" "Bash(python:*)" \
