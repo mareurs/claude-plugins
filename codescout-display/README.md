@@ -24,6 +24,15 @@ Design, measurements and open points: `docs/superpowers/specs/2026-11-24-codesco
 
 A result longer than 12 lines ends with `… N more lines hidden`, and a button, `open (N more lines)`, shows the whole text. A second press folds it. A JSON reply whose line left something out (a long or multi-line value, more than 6 fields, a nested value) gets the same button. Notes are the blocks after the reply: a hook's note, or one that codescout appends itself. A closed card shows each as one dim line, and an open card shows it whole. The `Buffer: …` footer of a `read_file` reply that the output budget cut is a note too.
 
+## The token estimate
+
+The last row of every finished card, on the right, is one dim line: `in ~42 · out ~3.4k`.
+
+- **in:** the tokens of the call the model wrote (its arguments).
+- **out:** the tokens of everything the model read back: the whole reply, not the folded head, and the notes that hooks added.
+- **An estimate:** the mod has no tokenizer, so it counts 4 characters to a token and shows `~`. Under 1000 it shows the number, then `1.2k`, then whole thousands (`125k`). The count can differ from the real one, mostly for text that is not English or code.
+- **Not shown:** on the frame of a call that has not ended, and on the engine's own row (an error, an interrupted call).
+
 ## The header
 
 The title says what the call does: `◆ <tool> · <verb>  <subject>`.

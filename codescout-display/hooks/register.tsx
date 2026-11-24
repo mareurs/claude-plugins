@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import { PREFIX, buildCard, pendingCard } from './cards'
+import { PREFIX, buildCard, pendingCard, tokenLine } from './cards'
 import type { Card } from './cards'
 
 const ACCENT = 'suggestion' // a theme key: the card follows the person's theme
@@ -85,6 +85,14 @@ function drawCard(els: any, card: Card, isOpen: boolean, toggle?: () => unknown,
             ? 'open (full reply)'
             : 'open notes'
     children.push(<Button key="toggle" label={isOpen ? 'fold' : closed} onPress={toggle} />)
+  }
+
+  if (card.tokens) {
+    children.push(
+      <Box justifyContent="flex-end">
+        <Text dimColor>{tokenLine(card.tokens)}</Text>
+      </Box>,
+    )
   }
 
   return (

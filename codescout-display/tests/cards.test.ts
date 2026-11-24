@@ -13,6 +13,7 @@ import {
   pendingCard,
   replyOf,
   stripControl,
+  tokenLine,
 } from '../hooks/cards'
 
 const lines = (n: number) => Array.from({ length: n }, (_, i) => `l${i + 1}`).join('\n')
@@ -587,4 +588,31 @@ test('symbols: the language of a body comes from the file line of its group, not
   const rows = (sym(BODIES, { path: 'codescout-display/', include_body: true })?.body as any).all
 
   expect(rows.find((r: any) => r.type === 'code').path).toBe('codescout-display/hooks/cards.ts')
+})
+
+// ---- tokens -----------------------------------------------------------------------------------
+
+test('tokenLine: plain below 1000, one decimal to 10k, whole thousands above', () => {
+  expect(tokenLine({ input: 3, output: 12 })).toBe('in ~3 · out ~12')
+  expect(tokenLine({ input: 999, output: 1000 })).toBe('in ~999 · out ~1k')
+  expect(tokenLine({ input: 1234, output: 9949 })).toBe('in ~1.2k · out ~9.9k')
+  expect(tokenLine({ input: 10400, output: 125000 })).toBe('in ~10k · out ~125k')
+})
+
+test('a card carries an estimate of the tokens of the call and of everything the model read back, notes included', () => {
+  const input = { path: 'a' }
+  const out = [{ type: 'text', text: 'x'.repeat(40) }, { type: 'text', text: 'y'.repeat(40) }]
+  const card = buildCard('mcp__codescout__tree', input, out)
+
+  expect(card?.tokens).toEqual({ input: Math.ceil(JSON.stringify(input).length / 4), output: 20 })
+})
+
+test('the output estimate counts the whole reply, not the folded head', () => {
+  const card = buildCard('mcp__codescout__tree', {}, [{ type: 'text', text: 'z'.repeat(4000) }])
+
+  expect(card?.tokens?.output).toBe(1000)
+})
+
+test('a pending card has no token estimate', () => {
+  expect(pendingCard('mcp__codescout__tree', { path: '.' }).tokens).toBeUndefined()
 })

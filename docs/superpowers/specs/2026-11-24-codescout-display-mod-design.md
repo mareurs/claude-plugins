@@ -165,6 +165,15 @@ The person asked that `symbols` use code highlighting where it can, because a sy
 - **Fallback**: a reply that does not parse (no file line, no symbol line) keeps the generic card.
 - **Costs against the six rules**: one more body kind in `Card` and one parser. It is a human-facing surface, so the model reads the same bytes. The parser reads the reply format of `symbols` (measured 2026-11-24 on codescout 0.15.0); a format change makes the card fall back to plain text, never to a wrong card.
 
+## Token estimate (added 2026-11-24)
+
+The person asked for the number of input and output tokens of each card, in the last row, on the right.
+
+- **Row:** `in ~N · out ~M`, dim, in a `Box` with `justifyContent: flex-end`, after the open control. A finished card only: the pending frame has the input but not the output, and the engine's own row is left alone.
+- **in** is the size of `JSON.stringify(input)`. **out** is the size of block 0 and of every note block, which is what the model reads; the folded head does not change it.
+- **Estimate:** 4 characters to a token, shown with `~`. A `ToolUse` hook gets no usage figures and no tokenizer (the props are listed above), so an exact count is not reachable here. A tokenizer would add a dependency and a version to keep in step with the model's.
+- **Cost against the six rules:** none for the model. One more row on a human-facing surface, and a figure that can be wrong by a margin that the `~` admits.
+
 ## Not decided here
 
 - **The open control.** The builder verifies `Button` plus state in a `ToolUse` row first, as the first task and a gate. Decided 2026-11-24: if it cannot work, the card folds anyway (see Decision). The plan treats the control as the main path.

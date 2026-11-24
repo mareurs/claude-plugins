@@ -32,6 +32,38 @@ export function replyOf(output: unknown): Reply | undefined {
   return { text: texts[0] ?? '', notes: texts.slice(1) }
 }
 
+// ---- tokens -----------------------------------------------------------------------------------
+// The mod has no tokenizer, so a count is an estimate: 4 characters to a token, the rule of thumb for English and code.
+// `input` is the call the model wrote; `output` is everything the model reads back, hook notes included.
+
+export type Tokens = { input: number; output: number }
+
+const CHARS_PER_TOKEN = 4
+
+const estimate = (chars: number): number => Math.ceil(chars / CHARS_PER_TOKEN)
+
+function sizeOf(value: unknown): number {
+  try {
+    return JSON.stringify(value)?.length ?? 0
+  } catch {
+    return 0
+  }
+}
+
+function tokensOf(input: unknown, reply: Reply): Tokens {
+  return { input: estimate(sizeOf(input)), output: estimate([reply.text, ...reply.notes].reduce((n, text) => n + text.length, 0)) }
+}
+
+const compact = (n: number): string => {
+  if (n < 1000) return String(n)
+  if (n < 10000) return `${(Math.floor(n / 100) / 10).toFixed(1)}k`.replace('.0k', 'k')
+
+  return `${Math.round(n / 1000)}k`
+}
+
+export const tokenLine = (t: Tokens): string => `in ~${compact(t.input)} · out ~${compact(t.output)}`
+
+
 // The argument that names what the call is about, for the card's header.
 export function mainArg(input: unknown): string {
   const key = subjectKey(input)
@@ -286,6 +318,8 @@ export type Card = {
   notes: string[]
   full: string
   command?: CommandView
+  // An estimate of the tokens of the call and of its reply; absent on the frame of a call that has not ended.
+  tokens?: Tokens
   // The line of a `fields` card left something out (see summarize).
   isCut: boolean
   // The card has something to open: hidden lines, notes, more command lines, or a cut fields line.
@@ -424,7 +458,7 @@ function draft(tool: string, input: unknown, output: unknown): Omit<Card, 'opena
   const header = headerOf(name, input, command)
   if (reply.text.trim() === '' && reply.notes.length === 0 && !command) return undefined
 
-  const base = { ...header, notes: reply.notes, full: cap(reply.text), isCut: false, ...(command ? { command } : {}) }
+  const base = { ...header, notes: reply.notes, full: cap(reply.text), isCut: false, tokens: tokensOf(input, reply), ...(command ? { command } : {}) }
 
   if (name === 'read_file') {
     const file = fileBody(reply.text, input)

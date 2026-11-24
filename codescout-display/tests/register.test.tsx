@@ -396,3 +396,21 @@ test('a long symbols reply folds at 12 lines and the open control draws the whol
   expect((await ui.find({ type: 'Code' }))?.text).toContain('l30')
   await ui.unmount()
 })
+
+test('a finished card ends with a right-aligned row of the token estimate, below the open button', async $ => {
+  const ui = await mount($, { output: text(rows(40)) })
+  const card = await ui.find({ type: 'Box' })
+  const last = card?.children.at(-1)
+
+  expect(last?.props.justifyContent).toBe('flex-end')
+  expect(await ui.find({ type: 'Text', text: /^in ~\d+ · out ~\d+$/ })).toBeDefined()
+  expect(card?.children.some((c: any) => c.type === 'Button')).toBe(true)
+  await ui.unmount()
+})
+
+test('a pending frame has no token row', async $ => {
+  const ui = await mount($, { isRunning: true, output: undefined })
+
+  expect(await ui.find({ type: 'Text', text: /^in ~/ })).toBeUndefined()
+  await ui.unmount()
+})
