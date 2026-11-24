@@ -27,7 +27,7 @@ export function replyOf(output: unknown): Reply | undefined {
     if (typeof text === 'string') texts.push(stripControl(text))
   }
 
-  return { text: texts[0], notes: texts.slice(1) }
+  return { text: texts[0] ?? '', notes: texts.slice(1) }
 }
 
 // The argument that names what the call is about, for the card's header.

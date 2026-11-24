@@ -191,7 +191,7 @@ test('a single 100000-character line is cut so no head line exceeds 400 characte
   const card = buildCard(`${P}grep`, { pattern: 'y' }, text('y'.repeat(100000)))
 
   expect(LINE_CUT).toBe(400)
-  expect(card?.body.kind === 'text' && card.body.head[0].length).toBe(400)
+  expect(card?.body.kind === 'text' && card.body.head[0]?.length).toBe(400)
 })
 
 test('notes ride along: output with two blocks gives notes of length 1', () => {
