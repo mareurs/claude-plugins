@@ -38,8 +38,8 @@ CLAUDEMD="$ROOT/CLAUDE.md"
 #    Assert the WORKING form. `in` on a tag array matches nothing (measured 2026-08-27:
 #    0 hits against 5 live tagged passovers) and returns a clean zero that reads like
 #    "no handoffs" — so this marker must never revert to `{"tags":{"in":["passover"]}}`.
-#    That broken form still appears in CLAUDE.md prose, deliberately, as the cautionary
-#    note — which is why this greps for the fix rather than against the defect.
+#    CLAUDE.md names the broken form in one cautionary sentence ("`contains`, not `in`"),
+#    so this greps for the fix rather than against the defect.
 if grep -qF '{"tags":{"contains":"passover"}}' "$CLAUDEMD"; then
   ok "CLAUDE.md documents the discovery query"
 else

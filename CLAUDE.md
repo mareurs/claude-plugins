@@ -144,7 +144,7 @@ Each step is gated and aborts on the first failure. **The `release.sh` header is
    doc(action="get",    id="cc8cb9e23ab5cc67", full=true)
    ```
    It is the richer cross-check of the sanity loop's two failure classes: a missing cache dir and cross-profile `installPath` drift.
-   design in `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
+   Design: `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 2. **Cold-restart all four Claude Code instances — a `resume` is NOT enough.** CC resolves
    hook commands + `installPath` at process launch and caches them; re-attaching with
@@ -173,7 +173,7 @@ finding nothing wrong.
 
 - Hooks use `jq` for JSON parsing — required dependency
 - Hook scripts use `${CLAUDE_PLUGIN_ROOT}` to reference files within the plugin install directory
-- Test hooks locally: `echo '{"cwd":"/some/path"}' | bash codescout-companion/hooks/session-start.sh`
+- Test hooks locally: `echo '{"cwd":"/some/path"}' | node codescout-companion/hooks/session-start.mjs`
 
 ## Testing
 

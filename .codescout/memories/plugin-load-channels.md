@@ -38,8 +38,9 @@
 
 Claude Code freezes `installPath` + `version` in `~/.claude/plugins/installed_plugins.json`
 at install time. For directory-source plugins (marketplace `source: directory`), the
-`installPath` points to the source folder — but commands and hooks are read from `installPath`,
-so **new components added after initial install are invisible until the record is updated**.
+`installPath` points to the source folder — but commands and skills are read from `installPath`
+(hooks resolve through `CLAUDE_PLUGIN_ROOT`, see the table above), so **new skills or commands
+added after initial install are invisible until the record is updated**.
 
 **After adding a new component type (e.g. `commands/`) or bumping the version, update the
 install record to point at the new cache snapshot:**

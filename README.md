@@ -201,7 +201,7 @@ Add to your project's `.claude/settings.json` so all team members get the plugin
 ```json
 {
   "extraKnownMarketplaces": {
-    "claude-plugins": {
+    "sdd-misc-plugins": {
       "source": {
         "source": "github",
         "repo": "mareurs/claude-plugins"
@@ -209,9 +209,9 @@ Add to your project's `.claude/settings.json` so all team members get the plugin
     }
   },
   "enabledPlugins": {
-    "sdd@claude-plugins": true,
-    "codescout-companion@claude-plugins": true,
-    "buddy@claude-plugins": true
+    "sdd@sdd-misc-plugins": true,
+    "codescout-companion@sdd-misc-plugins": true,
+    "buddy@sdd-misc-plugins": true
   }
 }
 ```
