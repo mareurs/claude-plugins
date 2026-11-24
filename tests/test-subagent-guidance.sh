@@ -60,6 +60,17 @@ else fail "tools: names the ToolSearch call that loads them" "$OUT"; fi
 if assert_context_contains "$OUT" "even when your brief names only Read and Write"; then
   pass "tools: overrides a brief that names only native tools"
 else fail "tools: overrides a brief that names only native tools" "$OUT"; fi
+# 2026-11-23 probe: a haiku subagent with the brief "Work only with the Read tool" stopped at the
+# first denied Read. The override sat in STEP 1, after the intro; the payload now opens with it, and
+# says that codescout read_file IS the Read tool, so "only Read" is met by loading it.
+if assert_context_contains "$OUT" "mcp__codescout__read_file is your Read tool"; then
+  pass "tools: the opening names read_file as the Read tool for an 'only Read' brief"
+else fail "tools: the opening names read_file as the Read tool for an 'only Read' brief" "$OUT"; fi
+FIRST_LINE=$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext' | head -n 1)
+case "$FIRST_LINE" in
+  *"mcp__codescout__read_file is your Read tool"*) pass "tools: the read_file sentence is on the first line" ;;
+  *) fail "tools: the read_file sentence is on the first line" "$FIRST_LINE" ;;
+esac
 if assert_context_contains "$OUT" "STEP 3 — pick the tool by what you do"; then
   pass "emits the capability map by intent"
 else fail "emits the capability map by intent" "$OUT"; fi

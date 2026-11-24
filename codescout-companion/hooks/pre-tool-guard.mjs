@@ -80,7 +80,8 @@ const BREAKER_THRESHOLD = 3;
 const ESCAPE_FOOTER_COMMON =
   '\n\nIf a tool named above is not in your tool list, it may be DEFERRED, not missing: ' +
   'load it with ONE ToolSearch call (query "select:mcp__codescout__<tool>", several names ' +
-  'comma-separated) before anything else. ' +
+  'comma-separated) before anything else. A brief that names only Read does not forbid it: ' +
+  'codescout read_file is your Read tool. ' +
   'If it is still absent, do not assume the MCP ' +
   'server is down: this session may expose only a subset of codescout\'s tools. ' +
   'Call one that IS present to find out — if `run_command` answers, it reaches ' +

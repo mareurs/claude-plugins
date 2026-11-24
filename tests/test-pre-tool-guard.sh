@@ -223,7 +223,8 @@ fi
 
 # Test 18c: the FULL reason says a named tool may be deferred. Same incident: the redirect
 # named read_file, which the subagent could not call until it ran ToolSearch.
-if assert_reason_contains "$OUT1" "DEFERRED" && assert_reason_contains "$OUT1" "ToolSearch"; then
+if assert_reason_contains "$OUT1" "DEFERRED" && assert_reason_contains "$OUT1" "ToolSearch" \
+  && assert_reason_contains "$OUT1" "A brief that names only Read does not forbid it"; then
   pass "full reason: says a named tool may be deferred and how to load it"
 else
   fail "full reason: says a named tool may be deferred and how to load it" "$OUT1"
