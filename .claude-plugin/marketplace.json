@@ -117,6 +117,17 @@
       "license": "MIT",
       "keywords": ["codescout", "mod", "display", "verbose"],
       "category": "infrastructure"
+    },
+    {
+      "name": "session-toast",
+      "source": "./session-toast",
+      "description": "Claude Code mod: shows a toast for each message from another Claude session, a native peer message or a session-bridge notice.",
+      "author": {
+        "name": "Marius"
+      },
+      "license": "MIT",
+      "keywords": ["mod", "toast", "session-bridge", "peer"],
+      "category": "infrastructure"
     }
   ]
 }
