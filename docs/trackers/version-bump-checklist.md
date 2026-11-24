@@ -13,20 +13,20 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
-### Current release verification — 2026-11-24 (buddy 0.12.1)
+### Current release verification — 2026-11-24 (codescout-companion 1.23.4)
 
-_Measured at 7057c25 (after release buddy 0.12.1, commit 7057c25, not pushed). Every element of every install record was read. 39 profile rows. All rows are green._
+_Measured at 0026f95 (after release codescout-companion 1.23.4, commit 0026f95, not pushed). Every element of every install record was read. 39 profile rows. All rows are green._
 
-Changed since the verification of 81cac12: `buddy` 0.12.0 → 0.12.1. **Not pushed:** `main` is 183 commits ahead of `origin/main`.
+Changed since the verification of 7057c25: `codescout-companion` 1.23.3 → 1.23.4. **Not pushed:** the release ran with `NO_PUSH=1`.
 
-**codescout-companion** — canonical `1.23.3` · readme `1.23.3` · marketplace clean ✅
+**codescout-companion** — canonical `1.23.4` · readme `1.23.4` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 1.23.3 ✅ | ✅ | ✅ | `1.23.3` ✅ |
-| `~/.claude-sdd` | 1.23.3 ✅ | ✅ | ✅ | `1.23.3` ✅ |
-| `~/.claude-kat` | 1.23.3 ✅ | ✅ | ✅ | `1.23.3` ✅ |
-| `~/.claude-stef` | 1.23.3 ✅ | ✅ | ✅ | `1.23.3` ✅ |
+| `~/.claude` | 1.23.4 ✅ | ✅ | ✅ | `1.23.4` ✅ |
+| `~/.claude-sdd` | 1.23.4 ✅ | ✅ | ✅ | `1.23.4` ✅ |
+| `~/.claude-kat` | 1.23.4 ✅ | ✅ | ✅ | `1.23.4` ✅ |
+| `~/.claude-stef` | 1.23.4 ✅ | ✅ | ✅ | `1.23.4` ✅ |
 
 **buddy** — canonical `0.12.1` · readme `0.12.1` · marketplace clean ✅
 
