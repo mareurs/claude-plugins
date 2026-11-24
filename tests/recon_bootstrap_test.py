@@ -54,7 +54,7 @@ class Examples(unittest.TestCase):
         self.assertEqual(created['body'], template_body())
         self.assertTrue(created['body'].startswith('# Reconnaissance patterns\n'))
         self.assertEqual(created['extra']['entry_prefix'], 'RP')
-        self.assertEqual(created['extra']['snapshot_anchor'], '| ID | Date | Verdict | Pattern | Evidence (session-log) |')
+        self.assertEqual(created['extra']['snapshot_anchor'], '| ID | Date | Verdict | Pattern | Evidence (recon entry) |')
         self.assertEqual(namespace['tracker_id'], 'fixture-id')
 
     def test_append_uses_selected_prefix_and_atomic_index_row(self):
@@ -71,11 +71,10 @@ class Examples(unittest.TestCase):
         self.assertIn('{id}', calls[0]['index_row'])
         self.assertEqual(calls[0]['anchor_heading'], '## Template for new entries')
 
-    def test_both_evidence_examples_are_qualified(self):
-        self.assertIn('<topic>-session-log:F-<n>', evidence_row())
-        self.assertIn('<topic>-session-log:W-<n>', evidence_row())
-        source = re.search(r'^\*\*Source session log:\*\* (.*)$', TEMPLATE.read_text(), re.M).group(1)
-        self.assertIn('<topic>-session-log:F-<n>', source)
+    def test_both_evidence_examples_cite_a_recon_entry_key(self):
+        self.assertIn('[[<recon entry key>]]', evidence_row())
+        source = re.search(r'^\*\*Source recon entry:\*\* (.*)$', TEMPLATE.read_text(), re.M).group(1)
+        self.assertIn('[[<recon entry key>]]', source)
 
     def test_inventory_binds_only_explicit_example_inputs(self):
         import importlib.util
@@ -240,21 +239,6 @@ class Contracts(unittest.TestCase):
         rows = self.client.doc(action='find', kind='tracker')['items']
         self.assertEqual([(row['kind'], row['status']) for row in rows], [('tracker', 'active')])
 
-    def test_documented_evidence_targets_the_right_session_log(self):
-        for stem in ('alpha-session-log', 'beta-session-log'):
-            self.client.create(stem, '# Log\n\n## F-1 — Friction\n\nEvidence.\n\n## W-1 — Win\n\nEvidence.\n')
-        def render(value):
-            return value.replace('<topic>', 'alpha').replace('<n>', '1')
-        source = re.search(r'^\*\*Source session log:\*\* (.*)$', TEMPLATE.read_text(), re.M).group(1)
-        for evidence in (evidence_row(), source):
-            with self.subTest(evidence=evidence):
-                citer = self.client.create('evidence-citer-' + str(len(evidence)), '# Evidence\n\n' + render(evidence))
-                scan = self.client.scan()
-                self.assertEqual(scan['counts']['ambiguous'], 0)
-                self.assertEqual(scan['counts']['dangling'], 0)
-                graph = self.client.doc(action='graph', id=citer, depth=1)
-                alpha = self.client.doc(action='find', filter={'rel_path': {'eq': 'docs/trackers/alpha-session-log.md'}})['items'][0]['id']
-                self.assertIn({'src': citer, 'dst': alpha, 'rel': 'cites'}, graph['edges'])
     def test_whitespace_filename_does_not_qualify_bare_token(self):
         alpha = self.client.create('alpha-session-log', '# Alpha\n\n## F-1 — Friction\n\nEvidence.\n')
         beta = self.client.create('beta-session-log', '# Beta\n\nNo entries yet.\n')

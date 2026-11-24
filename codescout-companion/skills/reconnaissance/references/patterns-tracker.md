@@ -29,7 +29,7 @@ created = doc(action="create", kind="tracker", status="active",
               rel_path="docs/trackers/reconnaissance-patterns.md",
               topic="reconnaissance", tags=["reconnaissance", "skill-meta", "scout"],
               extra={"entry_prefix": prefix,
-                     "snapshot_anchor": "| ID | Date | Verdict | Pattern | Evidence (session-log) |"},
+                     "snapshot_anchor": "| ID | Date | Verdict | Pattern | Evidence (recon entry) |"},
               body=template_body)
 tracker_id = created.get("id") or created["key"]
 ```
@@ -37,8 +37,8 @@ tracker_id = created.get("id") or created["key"]
 This registers the ledger with explicit metadata and reserves its prefix in the
 same call. A prefix already owned by another ledger is refused before the file is
 created; select a free prefix and retry. Use that prefix consistently for entries,
-append calls and the Index. The shared F/W session-log family uses qualified
-citations instead of exclusive ownership.
+append calls and the Index. The entries of the `recon` box are cited by key,
+`[[<entry key>]]`, so they need no prefix.
 
 A literal copy of the template has no leading YAML frontmatter, but current
 codescout can still classify it as an active tracker after `reindex` through its

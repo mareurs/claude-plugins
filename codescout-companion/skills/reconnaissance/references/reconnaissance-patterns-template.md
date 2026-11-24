@@ -53,15 +53,13 @@ produced them. Cross-project lessons graduate via the sync flow.
 
 ## Index
 
-| ID | Date | Verdict | Pattern | Evidence (session-log) |
+| ID | Date | Verdict | Pattern | Evidence (recon entry) |
 |----|------|---------|---------|------------------------|
-| R-<n> | YYYY-MM-DD | hit / miss / proposal | <one-line pattern> | <topic>-session-log:F-<n>, <topic>-session-log:W-<n> |
+| R-<n> | YYYY-MM-DD | hit / miss / proposal | <one-line pattern> | [[<recon entry key>]], [[<recon entry key>]] |
 
-**Cite session-log entries in the qualified form** — `<file-stem>:F-<n>`, colon, no
-space, no `.md`. F/W counters are per work stream, so different logs can define the
-same token. Whitespace does not qualify the token: it is still scanned as a bare
-citation and can bind to a different log or become ambiguous when definers compete.
-The qualified form selects the intended source log explicitly.
+**Cite recon entries by key** — `[[<recon entry key>]]`, the key that `box recon add`
+printed (a file stem). A key names one entry in the repository, so it needs no
+qualifier.
 
 ## Status vocabulary
 
@@ -88,7 +86,7 @@ Index header as `snapshot_anchor`, so this row lands at that table's tail:
 entry = doc(action="append_entry", id=tracker_id, id_prefix=prefix,
             anchor_heading="## Template for new entries",
             title=entry_title, body=entry_body,
-            index_row="| {id} | YYYY-MM-DD | hit / miss / proposal | <one-line pattern> | <topic>-session-log:F-<n> |")
+            index_row="| {id} | YYYY-MM-DD | hit / miss / proposal | <one-line pattern> | [[<recon entry key>]] |")
 ```
 
 Fill the row's date, verdict, pattern and evidence for the observation. Keep the
@@ -124,8 +122,7 @@ substrate that earns its way in.
 
 **Observed:** <date, work-stream name>
 
-**Source session log:** <topic>-session-log:F-<n> (qualified to select the intended
-log when work streams reuse a counter).
+**Source recon entry:** [[<recon entry key>]]
 
 **Pattern (or pattern that failed):** <one paragraph — what the scout
 did / didn't do, and why the outcome happened>.

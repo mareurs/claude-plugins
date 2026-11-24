@@ -221,7 +221,7 @@ def run_catalog_examples(cs, skills, ok, bad, info, covered):
                     fixture = cs.call("doc", action="create", kind="tracker", status="active",
                                       title="Recon append fixture", rel_path="docs/contracts/recon-append.md",
                                       extra={"entry_prefix": bindings["prefix"],
-                                             "snapshot_anchor": "| ID | Date | Verdict | Pattern | Evidence (session-log) |"},
+                                             "snapshot_anchor": "| ID | Date | Verdict | Pattern | Evidence (recon entry) |"},
                                       body=bindings["template_body"])
                     if not fixture.ok:
                         raise ValueError(fixture.error or fixture.text[:200])
