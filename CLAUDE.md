@@ -49,6 +49,7 @@ Read a memory topic with `memory(action="read", topic=…)`.
 | The SessionStart or SubagentStart payload: what it holds and why it is capped | `agent-dispatch-hooks` |
 | Write, resume or archive a passover | `session-passover` |
 | Writing a skill whose mechanics differ by harness or OS | `conventions` |
+| A release incident, or how the pre-push parity guard works | `development-commands` |
 
 ## Config Dir Resolution
 
@@ -119,10 +120,7 @@ Lives at `cs-hint-codex/`. The `[cs-hint]` advisories of buddy as one PostToolUs
 
 ## Version Management
 
-**Single source of truth**: each plugin's `.claude-plugin/plugin.json` is the canonical version.
-
-**marketplace.json must NOT contain version fields.** Claude Code reads version from
-plugin.json at install time. Duplicating it in marketplace.json causes drift.
+**Single source of truth**: each plugin's `.claude-plugin/plugin.json` is the canonical version. **marketplace.json must NOT contain version fields**: Claude Code reads the version from plugin.json at install time, and a copy drifts.
 
 ### When bumping a plugin version
 
@@ -134,19 +132,7 @@ plugin.json at install time. Duplicating it in marketplace.json causes drift.
 #   ./scripts/release.sh codescout-companion 1.12.0  → explicit version
 ```
 
-Each step is gated (aborts on first failure): **pre-flight** (working tree clean +
-`./tests/run-all.sh` + buddy pytest green) → bump `plugin.json` + the README version
-table → `check-versions.sh` → commit `chore: bump …` → seed the versioned cache in every
-profile that has the plugin (`bump-cache.sh`; four profiles on this machine) → repoint
-`version` + `installPath` in each install record → **sanity loop** → `git push`. Toggles:
-`NO_PUSH=1` (commit locally, skip push —
-use it to dry-run a release), `SKIP_TESTS=1`. **The script header is the authoritative
-step-by-step** — read/edit it there, not here.
-
-The sanity loop guards the two classic failure classes: a **missing cache dir** — the #1
-cause of "plugin appears installed but hook never fires" (`installed_plugins.json` claims a
-version at a path that isn't on disk) — and **cross-profile `installPath` drift** (a record
-whose `installPath` points at another profile's cache).
+Each step is gated and aborts on the first failure. **The `release.sh` header is the authoritative step-by-step**, with the toggles (`NO_PUSH=1` dry-runs a release, `SKIP_TESTS=1`) and the sanity loop: read and edit it there, not here.
 
 **Two steps the script CANNOT do — you must do them after it finishes:**
 
@@ -156,7 +142,7 @@ whose `installPath` points at another profile's cache).
    doc(action="update", id="cc8cb9e23ab5cc67", commit_refresh=true)   # update params + body for the new version
    doc(action="get",    id="cc8cb9e23ab5cc67", full=true)
    ```
-   It is the richer cross-check of the same two failure classes the bash sanity loop covers;
+   It is the richer cross-check of the sanity loop's two failure classes: a missing cache dir and cross-profile `installPath` drift.
    design in `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 2. **Cold-restart all four Claude Code instances — a `resume` is NOT enough.** CC resolves
@@ -167,27 +153,8 @@ whose `installPath` points at another profile's cache).
    re-attach reports `source=resume`. (This is the trap behind "I bumped + restarted but the
    fix still isn't live.")
 
-**Never bump a version inline in a feature commit — use `release.sh`.** Doing it by hand
-gets you the *number* without any of the machinery the number promises, and nothing
-outside a release notices: `check-versions.sh` compares `plugin.json` to the README and
-never reads an install record, and `check-profile-parity.sh` runs only *inside*
-`release.sh`. Measured 2026-08-28 — `1.19.5` was bumped this way inside `80ed23f`
-(a `feat(hooks)` commit), and `~/.claude-kat` sat stranded at `1.19.4` with no cache dir
-for nine hours while every automated gate stayed green. The drift was invisible precisely
-because the step that catches it is the step that was skipped.
+**Never bump a version inline in a feature commit — use `release.sh`.** `check-versions.sh` never reads an install record, and `check-profile-parity.sh` runs only *inside* `release.sh`, so a hand bump can strand a profile with every gate green. `scripts/pre-push-guard.sh` blocks a pushed version change while parity fails; install it once per clone with `./scripts/install-hooks.sh`. The incident and the guard detail are in memory `development-commands`.
 
-Closed 2026-08-28 by a second guard in `scripts/pre-push-guard.sh`: when a pushed range
-touches a `<plugin>/.claude-plugin/plugin.json`, parity must pass for that plugin.
-**Opt-in per clone — `./scripts/install-hooks.sh`** (git hooks are local, never synced).
-It fires only on a version change, so ordinary pushes are never gated on local profile
-state; it is a no-op during a real release, which has already repaired and verified parity
-at step 6.5 before it pushes at step 7; and a machine with no profiles passes, because
-`check-profile-parity.sh` reports "not installed in any profile" and exits 0. Override
-with `SKIP_PARITY_CHECK=1`. Covered by `tests/test-pre-push-guard.sh`.
-
-It deliberately does **not** live in `tests/run-all.sh`: `release.sh` runs that at step 0,
-*before* seeding caches and repointing records, so gating there would abort the release on
-exactly the drift the release exists to repair.
 ## Development
 
 **First thing in a fresh clone — install the local git hooks:**
@@ -259,14 +226,7 @@ A skill or command edit is committed, not live, until `release.sh` seeds a new c
 
 ## Installing
 
-```
-/plugin marketplace add mareurs/claude-plugins
-/plugin install codescout-companion@sdd-misc-plugins
-/plugin install sdd@sdd-misc-plugins
-```
-
-Verified 2026-11-09 on a clean profile: `/plugin install buddy@claude-plugins` fails with
-`Plugin "buddy" not found in marketplace "claude-plugins"`; `@sdd-misc-plugins` installs.
+The install commands are in `README.md`. The marketplace key is `sdd-misc-plugins`; `@claude-plugins` fails with "not found in marketplace" (verified 2026-11-09 on a clean profile).
 
 For project-level setup, add to `.claude/settings.json`:
 

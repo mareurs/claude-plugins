@@ -75,3 +75,25 @@ README and never looks at install records, and `check-profile-parity.sh` runs on
 *inside* `release.sh`. Measured 2026-08-28 — `1.19.5` was bumped this way and left
 `~/.claude-kat` stranded at `1.19.4` with no cache dir for nine hours, with every
 automated gate green throughout. See the 1.19.6 entry in the version-bump-checklist.
+
+### Sanity loop and the pre-push parity guard
+
+Detail moved out of the repo `CLAUDE.md` § Version Management; the short form there points here.
+
+The sanity loop guards the two classic failure classes: a **missing cache dir** — the #1
+cause of "plugin appears installed but hook never fires" (`installed_plugins.json` claims a
+version at a path that isn't on disk) — and **cross-profile `installPath` drift** (a record
+whose `installPath` points at another profile's cache).
+
+Closed 2026-08-28 by a second guard in `scripts/pre-push-guard.sh`: when a pushed range
+touches a `<plugin>/.claude-plugin/plugin.json`, parity must pass for that plugin.
+**Opt-in per clone — `./scripts/install-hooks.sh`** (git hooks are local, never synced).
+It fires only on a version change, so ordinary pushes are never gated on local profile
+state; it is a no-op during a real release, which has already repaired and verified parity
+at step 6.5 before it pushes at step 7; and a machine with no profiles passes, because
+`check-profile-parity.sh` reports "not installed in any profile" and exits 0. Override
+with `SKIP_PARITY_CHECK=1`. Covered by `tests/test-pre-push-guard.sh`.
+
+It deliberately does **not** live in `tests/run-all.sh`: `release.sh` runs that at step 0,
+*before* seeding caches and repointing records, so gating there would abort the release on
+exactly the drift the release exists to repair.
