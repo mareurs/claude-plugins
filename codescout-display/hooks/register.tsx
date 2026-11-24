@@ -17,7 +17,8 @@ const firstLine = (note: string): string => note.split('\n').find(l => l.trim() 
 // `status` is one dim line under the body: "running…" on the frame of a call that has not ended.
 function drawCard(els: any, card: Card, isOpen: boolean, toggle?: () => unknown, status?: string): any {
   const { Box, Text, Code, Markdown, Button } = els
-  const children: any[] = [<Text bold color={ACCENT}>{card.title}</Text>]
+  const children: any[] = [<Text bold color={card.isMutating ? 'warning' : ACCENT}>{card.title}</Text>]
+  if (card.params !== '') children.push(<Text dimColor wrap="truncate-end">{card.params}</Text>)
   const { body, command } = card
 
   if (command) {
@@ -46,6 +47,7 @@ function drawCard(els: any, card: Card, isOpen: boolean, toggle?: () => unknown,
     }
   }
 
+  if (card.result) children.push(<Text dimColor>{card.result}</Text>)
   if (status) children.push(<Text dimColor>{status}</Text>)
   if (!isOpen && card.hidden > 0) children.push(<Text dimColor>{`… ${card.hidden} more lines hidden`}</Text>)
   for (const note of card.notes) {

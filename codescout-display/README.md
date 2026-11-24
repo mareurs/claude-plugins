@@ -15,12 +15,36 @@ Design, measurements and open points: `docs/superpowers/specs/2026-11-24-codesco
 | `read_file` | The first 12 lines in a code view with a line gutter and syntax colors. A `.md` path draws as markdown. |
 | `edit_file` | A colored diff built from the call's `old_string` and `new_string`, only when codescout says the edit applied. |
 | `create_file` | The first 12 lines of the new content. |
+| `memory` write, add, now, close | The written text as markdown (first 12 lines, folded), and one dim line for the result (`status: ok`). |
+| `memory` edit | A colored diff of `old_string` and `new_string`. |
+| `doc` create, append_entry, update | The body (for update, `patch.body`) as markdown. |
 | `run_command` | A full-width card. The command shows in up to 5 lines with shell colors, the rest counted and the whole command on open. The result is drawn as for any other tool. |
 | Any other codescout tool | A JSON reply as one line of its scalar fields (`status: ok · replaced: 1`); a plain reply as its first 12 lines. |
 
 A result longer than 12 lines ends with `… N more lines hidden`, and a button, `open (N more lines)`, shows the whole text. A second press folds it. A JSON reply whose line left something out (a long or multi-line value, more than 6 fields, a nested value) gets the same button. Notes are the blocks after the reply: a hook's note, or one that codescout appends itself. A closed card shows each as one dim line, and an open card shows it whole. The `Buffer: …` footer of a `read_file` reply that the output budget cut is a note too.
 
-These keep Claude Code's own row: an error, including a result that codescout reports as `{"ok": false, …}`; a running or interrupted call; a blank result; and any tool that is not codescout.
+## The header
+
+The title says what the call does: `◆ <tool> · <verb>  <subject>`.
+
+- **Verb:** the `action` of the call (`read`, `write`, `find`, `update`, …), or `direction` for `call_graph`.
+- **Subject:** the first of `topic`, `box`, `id`, `symbol`, `query`, `path`, `pattern`, `name`, `command` that is set. A `run_command` card shows its command in the body instead.
+- **Parameters:** one dim line of `key=value` under the title: up to 4, then `+N more`. Each value is cut at 40 characters; an object shows as compact JSON. `workspace`, empty values, `false`, the text of a write and the command are left out.
+- **Warning color:** a verb that changes something (`write`, `add`, `edit`, `drop`, `delete`, `close`, `now`, `create`, `update`, `move`, `append_entry`, `update_entry`, `event_create`, `register`, `build`) draws the title in the warning color.
+
+```
+◆ memory · read  architecture
+◆ memory · write  scratch                    ← warning color
+  private=true
+◆ doc · find
+  kind=tracker status=open
+◆ call_graph · callers  Config/load
+  path=src/a.rs max_depth=3
+```
+
+The frame draws from the first render of a call, with `running…` under the header, and the body fills in when the tool ends.
+
+These keep Claude Code's own row: an error, including a result that codescout reports as `{"ok": false, …}`; an interrupted call; a blank result; and any tool that is not codescout.
 
 ## Needs
 

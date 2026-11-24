@@ -283,3 +283,81 @@ test('the frame of a running call and the frame of its finished card are the sam
   await running.unmount()
   await done.unmount()
 })
+
+// Verbs, parameters and written text on the card (2026-11-24).
+
+const okReply = text('{"status":"ok","wrote_to":"/home/x/repo"}')
+
+test('a read draws the title in the accent color; a write draws it in the warning color', async $ => {
+  const read = await mount($, { tool_use_id: 'v-1', tool: 'mcp__codescout__memory', input: { action: 'read', topic: 'architecture' }, output: text('# A') })
+  const write = await mount($, { tool_use_id: 'v-2', tool: 'mcp__codescout__memory', input: { action: 'write', topic: 'scratch', content: '# T' }, output: okReply })
+
+  const readTitle = await read.find({ type: 'Text', text: /^◆ memory/ })
+  const writeTitle = await write.find({ type: 'Text', text: /^◆ memory/ })
+
+  expect(readTitle?.text).toBe('◆ memory · read  architecture')
+  expect(readTitle?.props.color).toBe('suggestion')
+  expect(writeTitle?.text).toBe('◆ memory · write  scratch')
+  expect(writeTitle?.props.color).toBe('warning')
+  await read.unmount()
+  await write.unmount()
+})
+
+test('the other parameters draw as one dim line under the title; no parameters, no line', async $ => {
+  const some = await mount($, {
+    tool_use_id: 'v-3',
+    tool: 'mcp__codescout__doc',
+    input: { action: 'find', kind: 'tracker', status: 'open' },
+    output: text('{"rows":[]}'),
+  })
+  const none = await mount($, { tool_use_id: 'v-4', tool: 'mcp__codescout__memory', input: { action: 'read', topic: 'a' }, output: text('# A') })
+
+  const line = await some.find({ type: 'Text', text: 'kind=tracker status=open' })
+  expect(line?.props.dimColor).toBe(true)
+  expect(await none.find({ type: 'Text', text: /=/ })).toBeUndefined()
+  await some.unmount()
+  await none.unmount()
+})
+
+test('a memory write draws its content as markdown and the result as one dim line', async $ => {
+  const ui = await mount($, {
+    tool_use_id: 'v-5',
+    tool: 'mcp__codescout__memory',
+    input: { action: 'write', topic: 'scratch', content: '# Title\n\nbody text' },
+    output: okReply,
+  })
+
+  expect((await ui.find({ type: 'Markdown' }))?.props.text).toBe('# Title\n\nbody text')
+  expect((await ui.find({ type: 'Text', text: 'status: ok' }))?.props.dimColor).toBe(true)
+  await ui.unmount()
+})
+
+test('a long memory write folds, and its button opens the whole text', async $ => {
+  const content = rows(40)
+  const ui = await mount($, {
+    tool_use_id: 'v-6',
+    tool: 'mcp__codescout__memory',
+    input: { action: 'write', topic: 'scratch', content },
+    output: okReply,
+  })
+
+  expect((await ui.find({ type: 'Button' }))?.props.label).toBe('open (28 more lines)')
+  await ui.press({ key: 'toggle' })
+  expect((await ui.find({ type: 'Markdown' }))?.props.text).toBe(content)
+  await ui.unmount()
+})
+
+test('the frame of a pending write is already in the warning color, with its parameters', async $ => {
+  const ui = await mount($, {
+    tool_use_id: 'v-7',
+    tool: 'mcp__codescout__memory',
+    input: { action: 'write', topic: 'scratch', content: 'x', private: true },
+    isRunning: true,
+    output: undefined,
+  })
+
+  expect((await ui.find({ type: 'Text', text: /^◆ memory/ }))?.props.color).toBe('warning')
+  expect(await ui.find({ type: 'Text', text: 'private=true' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'running…' })).toBeDefined()
+  await ui.unmount()
+})

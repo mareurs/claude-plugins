@@ -34,15 +34,18 @@ export function replyOf(output: unknown): Reply | undefined {
 
 // The argument that names what the call is about, for the card's header.
 export function mainArg(input: unknown): string {
-  if (typeof input !== 'object' || input === null) return ''
-  const fields = input as Record<string, unknown>
+  const key = subjectKey(input)
 
-  for (const key of ['path', 'pattern', 'name', 'command']) {
-    const value = fields[key]
-    if (typeof value === 'string' && value !== '') return stripControl(value).slice(0, ARG_CUT)
-  }
+  return key === undefined ? '' : stripControl(String(recordOf(input)[key])).slice(0, ARG_CUT)
+}
 
-  return ''
+// The keys that name what a call is about, in the order the header takes the first one that is set.
+const SUBJECT_KEYS = ['topic', 'box', 'id', 'symbol', 'query', 'path', 'pattern', 'name', 'command']
+
+function subjectKey(input: unknown): string | undefined {
+  const fields = recordOf(input)
+
+  return SUBJECT_KEYS.find(key => typeof fields[key] === 'string' && fields[key] !== '')
 }
 
 export type Fold = { head: string[]; hidden: number }
@@ -175,6 +178,12 @@ export type CommandView = { source: string; extra: number; full: string }
 
 export type Card = {
   title: string
+  // The other parameters of the call as one dim line of key=value; "" when there are none.
+  params: string
+  // The verb of the call changes something (write, delete, update, …): the title draws in the warning color.
+  isMutating: boolean
+  // One line for the reply of a write whose body is the text that was written.
+  result?: string
   body:
     | { kind: 'text'; head: string[] }
     | { kind: 'fields'; line: string }
@@ -217,9 +226,79 @@ export function buildCard(tool: string, input: unknown, output: unknown): Card |
   return { ...card, openable: card.hidden > 0 || card.notes.length > 0 || (card.command?.extra ?? 0) > 0 || card.isCut }
 }
 
-// The header of a card: the tool and what it is about. A run_command card shows its command in the body instead.
-function titleOf(name: string, input: unknown, command: CommandView | undefined): string {
-  return `◆ ${name}  ${command ? '' : mainArg(input)}`.trimEnd()
+// Verbs that change something. The title of such a card draws in the warning color.
+const MUTATING = new Set(['write', 'add', 'edit', 'drop', 'delete', 'close', 'now', 'create', 'update', 'move', 'append_entry', 'update_entry', 'event_create', 'register', 'build'])
+// Parameters the header leaves out: the text of a write and the command show as the body, the rest is noise.
+const NOT_PARAMS = new Set(['workspace', 'content', 'body', 'old_string', 'new_string', 'command'])
+const MAX_PARAMS = 4
+const PARAM_CUT = 40
+
+function paramValue(value: unknown): string | undefined {
+  if (typeof value === 'string') return value === '' ? undefined : value
+  if (typeof value === 'number') return String(value)
+  if (value === true) return 'true'
+  if (value === false || value === null || value === undefined) return undefined
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return undefined
+  }
+}
+
+// The header of a card: the tool, the verb (`action`, or `direction`), what it is about, and the other parameters.
+// A run_command card shows its command in the body instead of the subject.
+function headerOf(name: string, input: unknown, command: CommandView | undefined): { title: string; params: string; isMutating: boolean } {
+  const fields = recordOf(input)
+  const verbKey = ['action', 'direction'].find(key => typeof fields[key] === 'string' && fields[key] !== '')
+  const verb = verbKey === undefined ? undefined : stripControl(String(fields[verbKey])).slice(0, 24)
+  const subject = command ? '' : mainArg(input)
+  const used = new Set([verbKey, subjectKey(input)])
+
+  const shown: string[] = []
+  for (const [key, raw] of Object.entries(fields)) {
+    if (used.has(key) || NOT_PARAMS.has(key)) continue
+    const value = paramValue(raw)
+    if (value === undefined) continue
+    const flat = stripControl(value).replace(/\s+/g, ' ')
+    shown.push(`${stripControl(key)}=${flat.length > PARAM_CUT ? `${flat.slice(0, PARAM_CUT - 1)}…` : flat}`)
+  }
+  const rest = shown.length - MAX_PARAMS
+
+  return {
+    title: `◆ ${name}${verb ? ` · ${verb}` : ''}  ${subject}`.trimEnd(),
+    params: shown.slice(0, MAX_PARAMS).join(' ') + (rest > 0 ? ` +${rest} more` : ''),
+    isMutating: verb !== undefined && MUTATING.has(verb),
+  }
+}
+
+// The text a memory or doc write carries. The reply of such a write is only a status, so the text is the body.
+function writtenText(name: string, fields: Record<string, unknown>): string | undefined {
+  const text = (value: unknown): string | undefined => (typeof value === 'string' && value.trim() !== '' ? value : undefined)
+  if (name === 'memory' && ['write', 'add', 'now', 'close'].includes(String(fields.action))) return text(fields.content)
+  if (name === 'doc' && ['create', 'append_entry'].includes(String(fields.action))) return text(fields.body)
+  if (name === 'doc' && fields.action === 'update') return text(recordOf(fields.patch).body)
+
+  return undefined
+}
+
+// One line for the reply of a write: `status: ok`. The project path codescout adds (`wrote_to`) is left out.
+function resultOf(text: string): string | undefined {
+  try {
+    const value: unknown = JSON.parse(text)
+    if (typeof value === 'string') return stripControl(value).slice(0, 120) || undefined
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      const parts = Object.entries(value)
+        .filter(([key, field]) => key !== 'wrote_to' && ['string', 'number', 'boolean'].includes(typeof field))
+        .slice(0, FIELD_LIMIT)
+        .map(([key, field]) => `${stripControl(key)}: ${(stripControl(String(field)).split('\n')[0] ?? '').slice(0, VALUE_LIMIT)}`)
+
+      return parts.length > 0 ? parts.join(' · ') : undefined
+    }
+  } catch {
+    // not JSON: its first line stands in
+  }
+
+  return stripControl(text).split('\n').find(line => line.trim() !== '')?.slice(0, 120)
 }
 
 // The frame of a call whose output does not exist yet: the header and the command are known from the input alone.
@@ -230,7 +309,7 @@ export function pendingCard(tool: string, input: unknown): Card {
   const command = name === 'run_command' ? commandOf(recordOf(input).command) : undefined
 
   return {
-    title: titleOf(name, input, command),
+    ...headerOf(name, input, command),
     body: { kind: 'text', head: [] },
     hidden: 0,
     notes: [],
@@ -249,10 +328,10 @@ function draft(tool: string, input: unknown, output: unknown): Omit<Card, 'opena
   const fields = recordOf(input)
   const path = typeof fields.path === 'string' ? stripControl(fields.path) : undefined
   const command = name === 'run_command' ? commandOf(fields.command) : undefined
-  const title = titleOf(name, input, command)
+  const header = headerOf(name, input, command)
   if (reply.text.trim() === '' && reply.notes.length === 0 && !command) return undefined
 
-  const base = { title, notes: reply.notes, full: cap(reply.text), isCut: false, ...(command ? { command } : {}) }
+  const base = { ...header, notes: reply.notes, full: cap(reply.text), isCut: false, ...(command ? { command } : {}) }
 
   if (name === 'read_file') {
     const file = fileBody(reply.text, input)
@@ -266,15 +345,32 @@ function draft(tool: string, input: unknown, output: unknown): Omit<Card, 'opena
     }
   }
 
-  if (name === 'edit_file' && editApplied(reply.text) && typeof fields.old_string === 'string' && fields.old_string !== '' && typeof fields.new_string === 'string') {
-    const oldText = stripControl(fields.old_string)
-    const newText = stripControl(fields.new_string)
+  const hasDiff = typeof fields.old_string === 'string' && fields.old_string !== '' && typeof fields.new_string === 'string'
+  if (hasDiff && ((name === 'edit_file' && editApplied(reply.text)) || (name === 'memory' && fields.action === 'edit'))) {
+    const oldText = stripControl(String(fields.old_string))
+    const newText = stripControl(String(fields.new_string))
     const a = oldText.split('\n')
     const b = newText.split('\n')
     const hidden = Math.max(0, a.length - DIFF_SIDE) + Math.max(0, b.length - DIFF_SIDE)
     const source = diffOf(a.slice(0, DIFF_SIDE).map(cut).join('\n'), b.slice(0, DIFF_SIDE).map(cut).join('\n'))
+    const diffPath = path ?? (typeof fields.topic === 'string' ? `${stripControl(fields.topic)}.md` : '')
 
-    return { ...base, body: { kind: 'diff', source, path: path ?? '' }, hidden, full: cap(diffOf(oldText, newText)) }
+    return { ...base, body: { kind: 'diff', source, path: diffPath }, hidden, full: cap(diffOf(oldText, newText)) }
+  }
+
+  const written = writtenText(name, fields)
+  if (written !== undefined) {
+    const text = stripControl(written)
+    const f = fold(text)
+    const result = resultOf(reply.text)
+
+    return {
+      ...base,
+      body: { kind: 'code', source: f.head.map(cut).join('\n'), isMarkdown: true },
+      hidden: f.hidden,
+      full: cap(text),
+      ...(result !== undefined ? { result } : {}),
+    }
   }
 
   if (name === 'create_file' && editApplied(reply.text) && typeof fields.content === 'string') {

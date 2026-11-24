@@ -177,3 +177,12 @@ The user saw two things: a lag between the engine's row and the card, and border
 - **Cause of the swap.** The card needed the output, so the engine's row showed while the tool ran, and the card replaced it at the end: a change of frame, not slow code.
 - **Fix, option 1.** `pendingCard(tool, input)` gives the frame from the input alone. The hook draws it for a codescout call with no output yet, with no state read. A running call adds `running…`. An error or an interrupted call keeps the engine's row.
 - **Not measured.** The terminal's paint time, and whether an identical tree repaints. The atom `read` is still the largest cost of a draw and grows with the number of cards in the transcript. Option 2 (an engine-side hover reveal in place of the button) is not built.
+
+## Verbs, parameters and written text in the header (2026-11-24)
+
+The user asked to see which operation and which parameters a call has: memories, the verbs of `doc`, `librarian`, `workspace`. `mainArg` knew only `path`, `pattern`, `name` and `command`, so `memory(action=…, topic=…)` drew as `◆ memory`. The schemas of eleven codescout tools were read (`memory`, `doc`, `librarian`, `library`, `index`, `workspace`, `references`, `call_graph`, `symbol_at`, `semantic_search`, `get_guide`).
+
+- **Decision (the user).** A write also draws the text it wrote: the body of `memory` write/add/now/close and `doc` create/append_entry/update as markdown, with the fold and the open button of the other cards.
+- **Measured.** The reply of a `memory` write is `{"status":"ok","wrote_to":"<project root>"}`: a status and nothing the user wrote. So the body comes from the input, and the result is one dim line without `wrote_to`.
+- **Header.** Title `◆ <tool> · <verb>  <subject>`; one dim line of up to 4 other parameters (`key=value`, each cut at 40, then `+N more`); the title in the `warning` theme key when the verb changes something. The pending frame has the same header, because the input is known before the output.
+- **Not done.** The `librarian` and `workspace` verbs have no body of their own: their replies draw as before. No per-tool table of subjects; one ordered key list serves all tools.

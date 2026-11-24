@@ -377,3 +377,122 @@ test('a pending run_command card carries the command view the finished card has'
 test('control characters in the input of a pending card are removed', () => {
   expect(pendingCard(`${P}read_file`, { path: 'a\u001b[31m\u0007b' }).title).toBe('◆ read_file  ab')
 })
+
+// Verbs, subjects and parameters in the header (2026-11-24): the card says what the call does.
+
+const ok = text('{"status":"ok","wrote_to":"/home/x/repo"}')
+
+test('mainArg finds the subject of a tool that has no path: topic, box, id, symbol, query', () => {
+  expect(mainArg({ action: 'read', topic: 'architecture' })).toBe('architecture')
+  expect(mainArg({ action: 'list', box: 'residuals' })).toBe('residuals')
+  expect(mainArg({ action: 'get', id: 'cc8cb9e23ab5cc67' })).toBe('cc8cb9e23ab5cc67')
+  expect(mainArg({ symbol: 'Config/load', path: 'src/a.rs' })).toBe('Config/load')
+  expect(mainArg({ query: 'where is the guard' })).toBe('where is the guard')
+  expect(mainArg({ pattern: 'x', path: 'src' })).toBe('src')
+})
+
+test('the title carries the verb of a tool with an action, and the subject after it', () => {
+  const read = buildCard(`${P}memory`, { action: 'read', topic: 'architecture' }, text('# Architecture'))
+  expect(read?.title).toBe('◆ memory · read  architecture')
+  expect(read?.params).toBe('')
+  expect(buildCard(`${P}doc`, { action: 'find', kind: 'tracker', status: 'open' }, text('{"rows":[]}'))?.title).toBe('◆ doc · find')
+  expect(buildCard(`${P}call_graph`, { symbol: 'Config/load', path: 'src/a.rs', direction: 'callers' }, text('x'))?.title).toBe('◆ call_graph · callers  Config/load')
+})
+
+test('the other parameters are one dim line of key=value, without the subject, the verb or noise', () => {
+  const card = buildCard(
+    `${P}doc`,
+    { action: 'find', kind: 'tracker', status: 'open', workspace: '/w', force: false, include_archived: true, empty: '' },
+    text('x'),
+  )
+  expect(card?.params).toBe('kind=tracker status=open include_archived=true')
+
+  const graph = buildCard(`${P}call_graph`, { symbol: 'Config/load', path: 'src/a.rs', direction: 'callees', max_depth: 3 }, text('x'))
+  expect(graph?.params).toBe('path=src/a.rs max_depth=3')
+})
+
+test('parameters: at most 4, then "+N more"; a value is cut at 40; an object is compact JSON; control characters are removed', () => {
+  const many = buildCard(`${P}doc`, { action: 'find', a: 1, b: 2, c: 3, d: 4, e: 5, f: 6 }, text('x'))
+  expect(many?.params).toBe('a=1 b=2 c=3 d=4 +2 more')
+
+  const long = buildCard(`${P}doc`, { action: 'find', topic: 't', note: 'n'.repeat(60) }, text('x'))
+  expect(long?.params).toBe(`note=${'n'.repeat(39)}…`)
+
+  const obj = buildCard(`${P}doc`, { action: 'find', filter: { kind: { eq: 'spec' } } }, text('x'))
+  expect(obj?.params).toBe('filter={"kind":{"eq":"spec"}}')
+
+  const ctl = buildCard(`${P}doc`, { action: 'find', kind: 'a\u001b[31m\u0007b' }, text('x'))
+  expect(ctl?.params).toBe('kind=ab')
+})
+
+test('the content of a write, the old and new string and the command are not parameters', () => {
+  const card = buildCard(`${P}memory`, { action: 'write', topic: 't', content: 'c', private: true }, ok)
+  expect(card?.params).toBe('private=true')
+  expect(buildCard(`${P}run_command`, { command: 'ls', timeout_secs: 300 }, text('{"exit_code":0}'))?.params).toBe('timeout_secs=300')
+})
+
+test('a verb that changes something marks the card; a read does not', () => {
+  const m = (action: string) => buildCard(`${P}memory`, { action, topic: 't' }, ok)?.isMutating
+  for (const verb of ['write', 'add', 'edit', 'delete', 'drop', 'now', 'close']) expect(m(verb)).toBe(true)
+  for (const verb of ['read', 'list', 'reviewed']) expect(m(verb)).toBe(false)
+  expect(buildCard(`${P}doc`, { action: 'update', id: 'x' }, ok)?.isMutating).toBe(true)
+  expect(buildCard(`${P}doc`, { action: 'find' }, text('x'))?.isMutating).toBe(false)
+  expect(buildCard(`${P}grep`, { pattern: 'x' }, text('x'))?.isMutating).toBe(false)
+})
+
+test('a memory write draws the content as markdown, folded, and the result as one line', () => {
+  const content = ['# Title', ...Array.from({ length: 20 }, (_, i) => `line ${i}`)].join('\n')
+  const card = buildCard(`${P}memory`, { action: 'write', topic: 'scratch', content }, ok)
+
+  expect(card?.title).toBe('◆ memory · write  scratch')
+  expect(card?.body.kind).toBe('code')
+  expect(card?.body.kind === 'code' && card.body.isMarkdown).toBe(true)
+  expect(card?.body.kind === 'code' && card.body.source.split('\n')).toHaveLength(12)
+  expect(card?.hidden).toBe(9)
+  expect(card?.full).toBe(content)
+  expect(card?.result).toBe('status: ok')
+  expect(card?.openable).toBe(true)
+})
+
+test('a memory edit draws a diff, like edit_file', () => {
+  const card = buildCard(`${P}memory`, { action: 'edit', topic: 'gotchas', subject: 'Locks', old_string: 'old', new_string: 'new' }, ok)
+
+  expect(card?.body.kind).toBe('diff')
+  expect(card?.body.kind === 'diff' && card.body.source).toBe(diffOf('old', 'new'))
+  expect(card?.params).toBe('subject=Locks')
+})
+
+test('memory add, now and close draw the content; a write with no content text draws the reply', () => {
+  for (const action of ['add', 'now', 'close']) {
+    const card = buildCard(`${P}memory`, { action, topic: 't', content: 'some text' }, ok)
+    expect(card?.body.kind === 'code' && card.body.source).toBe('some text')
+  }
+  const none = buildCard(`${P}memory`, { action: 'write', topic: 't' }, ok)
+  expect(none?.body.kind).toBe('fields')
+  expect(none?.result).toBeUndefined()
+})
+
+test('doc create and append_entry draw their body as markdown; doc update draws patch.body', () => {
+  expect(buildCard(`${P}doc`, { action: 'create', title: 'T', body: '# T\n\ntext' }, ok)?.full).toBe('# T\n\ntext')
+  const entry = buildCard(`${P}doc`, { action: 'append_entry', id: 'x', title: 'E', body: 'entry text' }, ok)
+  expect(entry?.body.kind === 'code' && entry.body.isMarkdown).toBe(true)
+  const update = buildCard(`${P}doc`, { action: 'update', id: 'x', patch: { body: 'new body' } }, ok)
+  expect(update?.body.kind === 'code' && update.body.source).toBe('new body')
+  expect(update?.params).toBe('patch={"body":"new body"}')
+})
+
+test('a write that codescout refused keeps the engine row', () => {
+  expect(buildCard(`${P}memory`, { action: 'write', topic: 't', content: 'x' }, text('{"ok":false,"error":"shrink guard"}'))).toBeUndefined()
+})
+
+test('a pending card has the verb, the subject, the parameters and the mutating mark of the finished card', () => {
+  const input = { action: 'write', topic: 'scratch', content: 'x', private: true }
+  const pending = pendingCard(`${P}memory`, input)
+  const done = buildCard(`${P}memory`, input, ok)
+
+  expect(pending.title).toBe('◆ memory · write  scratch')
+  expect(pending.params).toBe('private=true')
+  expect(pending.isMutating).toBe(true)
+  expect(pending.title).toBe(done?.title)
+  expect(pending.params).toBe(done?.params)
+})
