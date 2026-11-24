@@ -21,3 +21,12 @@ Instrument: dev mod `codescout-display-probe` in `~/.claude/dev-mods/2a73eae7-77
 ## Open
 - `Button` press and stored state in a `ToolUse` row; the `Markdown` element; desktop and VS Code surfaces; compact view; images; very large results.
 - How a redirected native call reaches `ToolUse` (the `[codescout-redirect]` note).
+
+## Built, live-checked, and what the review found
+
+- The mod is built (plugin `codescout-display` 0.1.0, 75 tests) and live-checked by the person: tree card with fold, `read_file` gutter and colors, markdown read, `edit_file` diff, the open and fold button, and a full-width `run_command` card with a 5-line command.
+- **codescout reports a recoverable error as a normal result** with the body `{"ok": false, "error": …, "hint": …}`, so `isErrored` is false. A display mod must treat `ok: false` as an error and leave the engine row. Found by the whole-branch review, then confirmed in this session's own replies.
+- A truncated `read_file` reply ends with `Buffer: @file_…`, `[N of M lines shown]`, `Next: …`. The header `N lines` is the file's total, not the shown count. A `json_path`, `toml_key` or `heading` read has the same header, but its lines are not lines 1..N of the file.
+- Decoded JSON strings can hold ESC and CR even when the raw text was stripped. Strip after `JSON.parse`, and strip whole ANSI sequences, or the engine refuses the tree.
+- A review brief must not tell a read-only subagent to call `workspace(activate)`: it flips the shared project to read-only for every caller. Use `workspace=` per call.
+- Plan and design: `docs/superpowers/plans/2026-11-24-codescout-display-mod.md`, `docs/superpowers/specs/2026-11-24-codescout-display-mod-design.md`.

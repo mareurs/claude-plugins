@@ -3,4 +3,8 @@
 
 [[anchors]]
 path = "docs/superpowers/specs/2026-11-24-codescout-display-mod-design.md"
-hash = "fe9a837e01abda814c487bb32c7e1f50565e0d726206a968c5fe7fe903c4e762"
+hash = "80e93832f1df05ffda81f6cca51e3d0799457adda66061df158861e275900b67"
+
+[[anchors]]
+path = "docs/superpowers/plans/2026-11-24-codescout-display-mod.md"
+hash = "35e60110eaf1fcd8f292b3dc0a62890407807a4779c6f3f087dc44451e34f83a"
