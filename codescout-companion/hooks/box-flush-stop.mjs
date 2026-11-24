@@ -1,8 +1,11 @@
 // Stop hook: flush the batched box writes of this session at the end of a turn.
 //
 // A box with `commit: batched` records each write in the batched folder of the checkout that
-// wrote it, `<checkout>/.codescout/state/batched/<session>.jsonl` (the main checkout or a linked
-// worktree), and commits nothing; `codescout box flush` commits the session's entries of one
+// wrote it, `<checkout>/.codescout/box/state/batched/<session>.jsonl` (the main checkout or a
+// linked worktree), and commits nothing. The old folder `<checkout>/.codescout/state/batched` is
+// read too, for a checkout whose codescout binary has no box folder yet; that read goes when no
+// installed codescout binary writes `.codescout/state/batched` any more (BATCHED_DIRS below).
+// `codescout box flush` commits the session's entries of one
 // checkout in one commit on that checkout's branch. This hook runs it when the turn ends, once
 // for each checkout of the repository whose folder holds a record file that belongs to the
 // session, so a turn that wrote no batched entry starts no process.
@@ -36,6 +39,8 @@ const DEFAULT_WAIT_MS = 4000;
 const MAX_RECORD_BYTES = 4 * 1024 * 1024;
 const OUT_KEEP_MS = 24 * 3600 * 1000;
 const MESSAGE_MAX = 400;
+// The batched folders of a checkout, relative to it, the box folder first.
+const BATCHED_DIRS = [['.codescout', 'box', 'state', 'batched'], ['.codescout', 'state', 'batched']];
 
 function waitMs() {
   const n = Number.parseInt(process.env.BOX_FLUSH_STOP_WAIT_MS || '', 10);
@@ -200,7 +205,7 @@ async function main() {
     log(`no checkout found from ${cwd}: no flush`);
     return null;
   }
-  const holding = roots.filter((root) => hasSessionRecords(join(root, '.codescout', 'state', 'batched'), sid));
+  const holding = roots.filter((root) => BATCHED_DIRS.some((dir) => hasSessionRecords(join(root, ...dir), sid)));
   if (holding.length === 0) return null;
 
   const outDir = join(stateHome(process.env.HOME || process.env.USERPROFILE || homedir()), 'codescout-companion', 'box-flush');

@@ -42,6 +42,9 @@ git init -q "$REPO" && git -C "$REPO" commit -q --allow-empty -m init
 git -C "$REPO" worktree add -q "$WT" -b wt-branch 2>/dev/null
 BATCH="$REPO/.codescout/state/batched"
 WTBATCH="$WT/.codescout/state/batched"
+# The batched folders under the box folder, read first; the two above are read too.
+NBATCH="$REPO/.codescout/box/state/batched"
+NWTBATCH="$WT/.codescout/box/state/batched"
 
 run() { # run <json-input> -> stdout in $OUT, wall ms in $MS
   local t0 t1
@@ -51,7 +54,7 @@ run() { # run <json-input> -> stdout in $OUT, wall ms in $MS
 }
 input() { printf '{"hook_event_name":"Stop","session_id":"%s","cwd":"%s","stop_hook_active":false}' "$1" "$2"; }
 calls() { [ -f "$FAKE_LOG" ] && grep -c '^ARGV:' "$FAKE_LOG" || echo 0; }
-reset() { rm -f "$FAKE_LOG"; rm -rf "$BATCH" "$WTBATCH"; unset FAKE_MODE; }
+reset() { rm -f "$FAKE_LOG"; rm -rf "$BATCH" "$WTBATCH" "$NBATCH" "$NWTBATCH"; unset FAKE_MODE; }
 logfile() { echo "$1/.claude/codescout-companion.log"; }
 
 # 1. no batched folder: codescout is not run.
@@ -62,6 +65,39 @@ reset; run "$(input sess-a "$REPO")"
 reset; mkdir -p "$BATCH"; printf '%s\n' '{"session":"other","pid":null}' >"$BATCH/other.jsonl"
 run "$(input sess-a "$REPO")"
 [ "$OUT" = '{"continue":true}' ] && [ "$(calls)" = 0 ] && pass "record file of another session: fake not run" || fail "other session's file" "out=$OUT calls=$(calls)"
+
+# 1c. the box folder: a record file of the session there is flushed; of another session, not.
+reset; mkdir -p "$NBATCH"; printf '%s\n' '{"session":"sess-a","pid":null}' >"$NBATCH/sess-a.jsonl"
+run "$(input sess-a "$REPO")"
+[ "$OUT" = '{"continue":true}' ] && [ "$(calls)" = 1 ] && [ "$(grep '^ARGV:' "$FAKE_LOG")" = "ARGV: box flush --project $REPO --session sess-a --json" ] && pass "records only in the box folder: one flush" || fail "box folder" "out=$OUT log=$(cat "$FAKE_LOG" 2>/dev/null)"
+reset; mkdir -p "$NBATCH"; printf '%s\n' '{"session":"other","pid":null}' >"$NBATCH/other.jsonl"
+run "$(input sess-a "$REPO")"
+[ "$OUT" = '{"continue":true}' ] && [ "$(calls)" = 0 ] && pass "box folder, record file of another session: fake not run" || fail "box folder other session" "out=$OUT calls=$(calls)"
+
+# 1d. the old folder alone: a record file of the session is flushed; of another session, not.
+reset; mkdir -p "$BATCH"; printf '%s\n' '{"session":"sess-a","pid":null}' >"$BATCH/sess-a.jsonl"
+run "$(input sess-a "$REPO")"
+[ "$(calls)" = 1 ] && [ "$(grep '^ARGV:' "$FAKE_LOG")" = "ARGV: box flush --project $REPO --session sess-a --json" ] && pass "records only in the old folder: one flush" || fail "old folder" "log=$(cat "$FAKE_LOG" 2>/dev/null)"
+reset; mkdir -p "$BATCH" "$NBATCH"
+printf '%s\n' '{"session":"other","pid":null}' >"$BATCH/other.jsonl"
+printf '%s\n' '{"session":"other","pid":null}' >"$NBATCH/other.jsonl"
+run "$(input sess-a "$REPO")"
+[ "$OUT" = '{"continue":true}' ] && [ "$(calls)" = 0 ] && pass "both folders hold another session only: fake not run" || fail "both folders other session" "out=$OUT calls=$(calls)"
+
+# 1e. records in both folders of one checkout: one flush of that checkout, not two.
+reset; mkdir -p "$BATCH" "$NBATCH"
+printf '%s\n' '{"session":"sess-a","pid":null}' >"$BATCH/sess-a.jsonl"
+printf '%s\n' '{"session":"sess-a","pid":null}' >"$NBATCH/sess-a.jsonl"
+run "$(input sess-a "$REPO")"
+[ "$(calls)" = 1 ] && pass "records in both folders of one checkout: one flush" || fail "both folders one flush" "calls=$(calls)"
+
+# 1f. the pid rule holds in the box folder too.
+reset; mkdir -p "$NBATCH" "$HOME/.claude/sessions"
+printf '%s\n' '{"session":"old-id","pid":4242}' >"$NBATCH/old-id.jsonl"
+printf '%s' '{"pid":4242,"sessionId":"sess-a","cwd":"/x"}' >"$HOME/.claude/sessions/4242.json"
+run "$(input sess-a "$REPO")"
+[ "$(calls)" = 1 ] && pass "box folder: record of another id with the session's pid: one flush" || fail "box folder pid rule" "calls=$(calls)"
+rm -rf "$HOME/.claude"
 
 # 2. a record file named for the session: one call, --project before --session, env id set.
 reset; mkdir -p "$BATCH"; printf '%s\n' '{"session":"sess-a","pid":null}' >"$BATCH/sess-a.jsonl"
@@ -86,6 +122,11 @@ run "$(input sess-a "$WT")"
 reset; mkdir -p "$WTBATCH"; printf '%s\n' '{"session":"sess-a","pid":null}' >"$WTBATCH/sess-a.jsonl"
 run "$(input sess-a "$REPO")"
 [ "$(calls)" = 1 ] && [ "$(grep '^ARGV:' "$FAKE_LOG")" = "ARGV: box flush --project $WT --session sess-a --json" ] && pass "records in a worktree, cwd main: one flush of the worktree" || fail "worktree records" "$(cat "$FAKE_LOG" 2>/dev/null)"
+
+# 3b2. the same for the box folder of the worktree.
+reset; mkdir -p "$NWTBATCH"; printf '%s\n' '{"session":"sess-a","pid":null}' >"$NWTBATCH/sess-a.jsonl"
+run "$(input sess-a "$REPO")"
+[ "$(calls)" = 1 ] && [ "$(grep '^ARGV:' "$FAKE_LOG")" = "ARGV: box flush --project $WT --session sess-a --json" ] && pass "records in the box folder of a worktree, cwd main: one flush of the worktree" || fail "worktree box records" "$(cat "$FAKE_LOG" 2>/dev/null)"
 
 # 3c. records in both checkouts: two flushes, the main checkout first, whatever the cwd.
 reset; mkdir -p "$BATCH" "$WTBATCH"
