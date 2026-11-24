@@ -49,6 +49,7 @@ Read a memory topic with `memory(action="read", topic=…)`.
 | The SessionStart or SubagentStart payload: what it holds and why it is capped | `agent-dispatch-hooks` |
 | Write, resume or archive a passover | `session-passover` |
 | Writing a skill whose mechanics differ by harness or OS | `conventions` |
+| Where to put an instruction an agent must act on (system prompt, not tool output or a hook message) | `where-agents-listen` |
 | A release incident, or how the pre-push parity guard works | `development-commands` |
 | Open leftovers, decisions and questions of this repository | `codescout box` (the root view; ledgers `runtime` and `runtime-residuals`) |
 
