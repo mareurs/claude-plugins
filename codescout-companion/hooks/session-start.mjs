@@ -215,9 +215,17 @@ and generates exploration memories that help every subsequent session.
 `;
 }
 
-// Memory hint.
+// Memory hint. Top-level topics by name; namespaced ones (research/…, infra/…) as a count per
+// namespace, since memory(action="list") names them all. The subagent block keeps the full list:
+// a subagent gets it in place of that call.
 if (d.HAS_CS_MEMORIES === 'true') {
-  msg += `codescout MEMORIES: ${d.CS_MEMORY_NAMES}
+  const names = (d.CS_MEMORY_NAMES || '').trim().split(/\s+/).filter(Boolean);
+  const nested = {};
+  for (const n of names) {
+    if (n.includes('/')) nested[n.split('/')[0]] = (nested[n.split('/')[0]] || 0) + 1;
+  }
+  const more = Object.entries(nested).map(([ns, c]) => `${ns}/ ${c}`).join(', ');
+  msg += `codescout MEMORIES: ${names.filter((n) => !n.includes('/')).join(' ')}${more ? ` (+ ${more}; memory(action="list") names them)` : ''}
 → Read relevant memories before exploring code (memory(action="read", topic="architecture"), etc.)
 
 `;
