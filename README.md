@@ -50,6 +50,7 @@ opencode service restart                   # the background service caches plugi
 | **[hint-echo](./hint-echo/)** | 0.1.0 | Mod that shows you the `additionalContext` tool hooks hand to the model (such as `[cs-hint]`) as a dim transcript row. Read-only: the model gets the same context. |
 | **[cs-hint-codex](./cs-hint-codex/)** | 0.1.1 | Codex only: the `[cs-hint]` advisories of buddy as one PostToolUse hook in a deliberately small plugin root (Codex hashes the whole root for hook trust), so one approval covers it and survives edits to docs, skills and tests. Design: `docs/superpowers/specs/2026-11-09-cs-hint-codex-bundle-design.md`. |
 | **[codescout-redirect](./codescout-redirect/)** | 0.1.0 | Claude Code mod: answers a native `Read`, `Grep`, `Glob`, `Write`, `Edit` or `Bash` call from codescout, with a one-line note, in place of a refusal. `Read`, `Grep` and `Glob` for every call the guard denies; `Write`, `Edit` and `Bash` stay narrow. Design: `docs/superpowers/specs/2026-11-24-codescout-redirect-mod-design.md`. |
+| **[codescout-display](./codescout-display/)** | 0.1.0 | Claude Code mod: draws each codescout tool call as one compact card in verbose mode, with a colored diff for edits and a fold for long results. Screen only: the model reads the same result. Design: `docs/superpowers/specs/2026-11-24-codescout-display-mod-design.md`. |
 ## Requirements
 
 - [Claude Code](https://claude.com/claude-code) CLI
