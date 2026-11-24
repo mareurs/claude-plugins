@@ -1,7 +1,7 @@
 ---
 id: c8182c062a19ce1b
 kind: bug
-status: open
+status: mitigated
 title: A haiku subagent with a brief that says "only Read" stops at the first denied Read instead of loading the codescout tools, although the 1.23.1 payload and deny text tell it how
 owners:
 - marius
@@ -12,6 +12,7 @@ tags:
 - subagent-guidance
 - pre-tool-guard
 - later
+closed: 2026-11-24
 opened: 2026-11-23
 ---
 
@@ -56,6 +57,13 @@ Not established. Hypotheses, none verified:
 - Measure first. The codescout horizon entry `2026-11-23-a-prompting-surface-sorted-by-intent-serve-each-kind-of` asks for the share of real subagents whose first tool call is a denied native call. There is no baseline yet.
 
 Done when: the haiku probe above makes at most 1 denied `Read` and returns the correct answer, in at least 5 of 5 runs, and the sonnet control still passes. Pin any new wording in `tests/test-subagent-guidance.sh` and `tests/test-pre-tool-guard.sh`. Keep the opening words of the deny footer (`If a tool named above is not in your tool list`): the OpenCode adapter cuts there.
+
+## Fix provenance
+
+- **SHA:** `e5568378045a48ea05cdaffd01ccd1c656ead04c` (`main`)
+- **patch-id:** `e7d62723b1a549b277f60f064d91a0cf2cf21e3e`
+
+The codescout-redirect mod puts eight codescout tools in the prompt list, so a subagent with an "only Read" brief no longer meets a deferred tool on Claude Code. Five haiku probes on 2026-11-24 passed (0 denied Reads), but the mod answered each Read, so they do not measure the deny text. The deny path still serves Codex and builds without the mod API; it is not measured there. A text change for that path (`25e63b9`) was reverted (`afb6647`): one method for the job.
 
 ## Related
 
