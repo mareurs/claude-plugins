@@ -29,3 +29,17 @@ M "delegated" for repeat and hold counts batch 1 (text names `Agent`) and batch 
 
 ## Not measured
 Other models, Sonnet, a real session, a real fork (the stub never needed one), an `ack` handle read by the fork, wording variants of the `ack` exit, a refusal as `{result}` instead of `{deny}`.
+
+## Batch 4: task F, the content is on disk (added 2026-11-24, pre-registered in PREREG.md Addendum 2)
+Prompt: "the four findings are in findings.md; file each with ./boxw add". A fork brief would be a few words; inline needs the agent to read the file and write four bodies. Arms `repeat` and `advise`, `Task` named in the text, n=3 each.
+
+| arm | delegated | real notes filed | command bytes written (all tool calls) | output tokens |
+|---|---|---|---|---|
+| repeat | 0/3 | 4, 4, 4 | 6085, 3738, 6602 (mean 5475) | 3485, 2096, 5565 (mean 3715) |
+| advise | 0/3 | 4, 4, 4 | 827, 3111, 3334 (mean 2424) | 1181, 1536, 1963 (mean 1560) |
+
+- The prediction (advise delegates 2 of 3 or more) failed. The cost hypothesis, "agents do not delegate because the fork brief costs more", is not supported: no agent delegated even when the content was on disk. Delegation is 0 of 21 runs over tasks M and F.
+- advise-F-1 solved the task with one loop command of 299 bytes (`for n in 1 2 3 4; do ... awk ... | ./boxw add ...; done`). The better "otherwise" the agent found was a script, not a fork. One run; the other five wrote the bodies.
+- advise wrote fewer tokens than repeat on every task: S 512 against 1241, M 1454 against 1814, F 1560 against 3715. n=3 each, large spread (F repeat 2096 to 5565).
+- Artifacts: the stub filed a 0-byte entry on `./boxw --help` in 3 runs (advise-F-1, advise-F-3, repeat-F-1); the table counts real notes only. advise-F-3 listed the `mod` directory in the working dir (names only, no source read). The mod sits in the run directory, which is a leak channel for a longer probe.
+- Not measured: why no agent forks (the fork text may read as optional; `subagent_type="fork"` may not exist in the headless build; the stub task may be too small to need one).
