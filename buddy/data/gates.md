@@ -25,11 +25,9 @@ load — canonical wins on any disagreement):
    follow-up. Bounded LHS (`ls`, `cat`, `awk`, `sed`, `find -maxdepth N`) is OK.
    Shell on source files is blocked.
 4. Markdown reads → `read_file`, heading-addressed (`heading=` / `headings=`);
-   `force=true` for raw lines. (`read_markdown` was retired in the 2026-09-02
-   tool collapse — it no longer exists.)
+   `force=true` for raw lines.
 5. Markdown edits → `edit_file`, heading+action (batchable via `edits[]`); a
-   librarian-managed tracker goes through `doc` instead. (`edit_markdown` was
-   retired in the same collapse.)
+   librarian-managed tracker goes through `doc` instead.
 6. Subagents see only what you brief them with. Name the guides they must
    fetch themselves, prior results, paths, symbols — at every spawn.
 
