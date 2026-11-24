@@ -47,6 +47,8 @@ Read a memory topic with `memory(action="read", topic=…)`.
 | A claim about a Windows work box | `machine-windows` (another host, not this machine) |
 | Why a hook edit is live and a skill edit is not; the measurement behind the table | `plugin-load-channels` |
 | The SessionStart or SubagentStart payload: what it holds and why it is capped | `agent-dispatch-hooks` |
+| Write, resume or archive a passover | `session-passover` |
+| Writing a skill whose mechanics differ by harness or OS | `conventions` |
 
 ## Config Dir Resolution
 
@@ -231,57 +233,18 @@ Write trackers, issues, memories, prompts and every other text of this repositor
 
 ## Skill layout — core in `SKILL.md`, harness specifics in `references/`
 
-A skill whose mechanics differ by harness (Claude Code, Codex, OpenCode) or by operating system (Linux, macOS, Windows) keeps what holds everywhere in `SKILL.md`. Each measured pair of harness and operating system gets its own file, `references/<harness>-<os>.md`. This is progressive disclosure: a session loads the core, then reads only the file for its own pair. `reconnaissance` and `tracker-hygiene` already split their detail this way by topic, with a pointer that says when to read each file.
-
-- `SKILL.md` holds the rules, the decision steps, and how a session tells which harness and operating system it runs in. It holds one pointer per measured pair: "on Codex on Linux, read `references/codex-linux.md` before Step N". One last pointer sends every unmeasured pair to `references/unmeasured.md`.
-- A core rule never names one harness's tool or path, except inside a pointer. A pair file never repeats a core rule.
-- A session reads the file for its own pair only. Do not inline another pair's mechanics "for completeness".
-- **Add a pair file only after you measure that pair.** A guessed macOS or Windows block is worse than none: a block that finds nothing looks like a true zero. `references/unmeasured.md` says "stop and ask the operator" until a measured file exists.
-- **Split only when a skill has real harness or OS content.** Measured 2026-11-10 over 22 skills: the peer-session skill of this repository had the most (67 harness lines, 21 tool-name lines, `/proc` and `/run/user` paths). It was retired on 2026-11-17: `session-bridge`'s own tools list the live sessions, so its replacement, `coordinating-sessions`, holds no per-harness mechanics. `sdd-flow` already splits by harness: `references/opencode.md` holds the OpenCode command names. Every other skill has 5 or fewer such lines, and those name plugin paths such as `CLAUDE.md`, or one 2-row dispatch table in `research-subagent`. Re-measure before you split another skill, and measure after `git pull`: a first measurement here ran on a checkout that lacked the OpenCode work on `origin`.
-- No skill is split by operating system now. `sdd-flow` splits by harness only. `session-bridge/skills/coordinating-sessions` splits by topic: `references/commit-backup.md` holds the backup rules, and `tests/test-session-bridge-skill.sh` pins its facts.
+A skill whose mechanics differ by harness or operating system keeps the shared rules in `SKILL.md` and each measured pair in `references/<harness>-<os>.md`. Add a pair file only after you measure that pair. Detail: memory `conventions`.
 
 ## Session Passover
 
-Hand a live work thread to a fresh session (e.g. after compaction, or one of several
-parallel threads on this repo). **Manual and selective** — write one only when a session is
-worth resuming; a finished session needs none.
-
-**Author (outgoing session):** create it as a catalog artifact so the discovery query finds it —
-`doc(action="create", kind="tracker", tags=["passover"], topic="<thread>", time_scope="dated:YYYY-MM-DD", extra={"origin_session_id":"<id>","branch":"<branch>"}, title=…, rel_path="docs/trackers/passover-<topic>-YYYY-MM-DD.md", body=…)`,
-filling State / Next actions / Working state / Anti-goals from the `docs/templates/passover-template.md`
-skeleton. Get the session id from `cat .codescout/cc_session_id` (or `.buddy/.current_session_id`);
-omit `extra`/`origin_session_id` if absent. (`time_scope` + the `extra` custom-frontmatter passthrough
-require codescout ≥ the build that fixed bug `13164fb35d6f71ed`; on older builds keep those keys in a
-body-level block.)
+Hand a live work thread to a fresh session. Manual and selective: write one only when a session is worth resuming. The author, resume and consume steps are in memory `session-passover`; the skeleton is `docs/templates/passover-template.md`.
 
 **Discover (incoming session):** run, early in the session —
 
     doc(action="find", kind="tracker",
         filter={"and":[{"tags":{"contains":"passover"}}, {"status":{"eq":"active"}}]})
 
-**`contains`, not `in` — `in` on a tag array silently matches nothing.** Measured 2026-08-27:
-`{"tags":{"in":["passover"]}}` returned 0 against 5 live tagged passovers; swapping the op to
-`contains` returned all of them. `contains` is the documented array-membership op; `in` means
-scalar-field-is-one-of. This query carried `in` from the day it was written, inherited from the
-librarian guide's own leaf example (`{"tags": {"in": ["foo","bar"]}}` — wrong upstream too). A
-zero here reads exactly like "no handoffs", so the broken op hid every live thread instead of
-failing loudly.
-
-**Zero results → run a positive control before proceeding, not instead of it.** The `in`-vs-
-`contains` bug above is exactly the failure mode a zero result cannot distinguish from "no
-handoffs": a silently-broken query and a genuinely empty corpus read identically. Re-run the
-same query shape against a tag known to exist in this repo's trackers (e.g.
-`{"tags":{"contains":"session-log"}}` — this repo always has several) with no status filter.
-If THAT also returns zero, the query mechanism itself is broken — stop and investigate before
-trusting any "no handoffs" result. If it returns rows, the passover zero was a real zero;
-proceed normally. (`repo-remediation-backlog:RM-23`.)
-
-One → resume it (auto-confirm if your own session id equals
-`origin_session_id`, which holds on `--resume`). Multiple → pick by `topic`/`branch`.
-Always run Next-actions step 1 (verify state) before acting.
-
-**Consume:** when done, flip `status: archived`, append `## Consumed — YYYY-MM-DD`, and
-`doc(action="move", …)` into `docs/trackers/archive/` (never bare `git mv`).
+**`contains`, not `in` — `in` on a tag array silently matches nothing.** A zero result needs a positive control before you trust it (memory `session-passover`).
 
 ## Plugin Install Path (directory-source gotcha)
 
