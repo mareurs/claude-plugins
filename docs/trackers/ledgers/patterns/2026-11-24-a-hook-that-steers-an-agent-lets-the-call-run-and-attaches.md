@@ -24,10 +24,10 @@ status_since: 2026-11-24
 | S | run and note | 512 | 1088 |
 | M, four notes in the prompt | refuse and repeat | 1814 | 3400 |
 | M | run and note | 1454 | 2750 |
-| F, four notes in a file | refuse and repeat | 3715 | 6000 |
+| F, four notes in a file | refuse and repeat | 3715 | 5475 |
 | F | run and note | 1560 | 2424 |
 
-Output tokens come from the `result` event. The spread is large at n=3 (F, repeat: 2096 to 5565); the direction is the same on all three tasks.
+Output tokens come from the `result` event. Bytes: S and M count the `./boxw add` commands the agent wrote; F counts every tool call, because the agent read the file and sometimes used a loop. The spread is large at n=3 (F, repeat: 2096 to 5565); the direction is the same on all three tasks.
 
 **Alternatives considered:**
 - Refuse once and let a repeat pass (today). Lost: the agent writes the call twice. Every agent in every `repeat` run repeated the whole call.
