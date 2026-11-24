@@ -261,3 +261,29 @@ test('create_file: control characters are stripped from the content', () => {
   expect(card?.body.kind === 'code' && card.body.source).toBe('ab')
   expect(card?.full).toBe('ab')
 })
+
+// run_command: the card shows the command, up to COMMAND_LINES lines.
+
+test('run_command: the command is shown in up to 5 lines and the rest is counted', () => {
+  const card = buildCard(`${P}run_command`, { command: lines(7) }, text('{"exit_code":0}'))
+
+  expect(card?.command).toMatchObject({ source: 'l1\nl2\nl3\nl4\nl5', extra: 2 })
+  expect(card?.title).toBe('◆ run_command')
+})
+
+test('run_command: a 3-line command has nothing counted, a long line is cut at LINE_CUT', () => {
+  expect(buildCard(`${P}run_command`, { command: lines(3) }, text('{"exit_code":0}'))?.command).toMatchObject({ source: 'l1\nl2\nl3', extra: 0 })
+  expect(buildCard(`${P}run_command`, { command: 'x'.repeat(1000) }, text('{"exit_code":0}'))?.command?.source).toHaveLength(400)
+})
+
+test('run_command: control characters are stripped from the command', () => {
+  expect(buildCard(`${P}run_command`, { command: 'ls\u001b[0m' }, text('{"exit_code":0}'))?.command?.source).toBe('ls[0m')
+})
+
+test('run_command: the whole command is kept for the opened card', () => {
+  expect(buildCard(`${P}run_command`, { command: lines(7) }, text('{"exit_code":0}'))?.command?.full).toBe(lines(7))
+})
+
+test('another tool has no command block', () => {
+  expect(buildCard(`${P}tree`, { path: '.' }, text('a'))?.command).toBeUndefined()
+})

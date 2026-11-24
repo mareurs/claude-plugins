@@ -87,6 +87,8 @@ export const PREFIX = 'mcp__codescout__'
 export const LINE_CUT = 400
 // A diff keeps this many lines of each side. The rest is counted, not drawn.
 const DIFF_SIDE = 40
+// A run_command card shows this many lines of the command.
+export const COMMAND_LINES = 5
 // An opened card draws at most this many characters: the limit of one `Code` element.
 export const FULL_CAP = 100000
 
@@ -125,6 +127,10 @@ export function editApplied(text: string): boolean {
   return value === 'ok' || (typeof value === 'object' && value !== null && (value as { status?: unknown }).status === 'ok')
 }
 
+// The command of a run_command call, shown on the card: the first COMMAND_LINES lines, the count of the rest,
+// and the whole command for an opened card.
+export type CommandView = { source: string; extra: number; full: string }
+
 export type Card = {
   title: string
   body:
@@ -135,6 +141,7 @@ export type Card = {
   hidden: number
   notes: string[]
   full: string
+  command?: CommandView
 }
 
 function recordOf(input: unknown): Record<string, unknown> {
@@ -143,6 +150,14 @@ function recordOf(input: unknown): Record<string, unknown> {
 
 const cut = (line: string): string => (line.length > LINE_CUT ? line.slice(0, LINE_CUT) : line)
 const cap = (text: string): string => (text.length > FULL_CAP ? text.slice(0, FULL_CAP) : text)
+
+function commandOf(value: unknown): CommandView | undefined {
+  if (typeof value !== 'string' || value === '') return undefined
+  const text = stripControl(value)
+  const f = foldLines(linesOf(text), COMMAND_LINES)
+
+  return { source: f.head.map(cut).join('\n'), extra: f.hidden, full: cap(text) }
+}
 
 // What to draw for one finished codescout call, or undefined to leave the engine's row.
 // `full` is what an opened card draws in place of its head: the whole file body, the whole diff,
@@ -154,7 +169,9 @@ export function buildCard(tool: string, input: unknown, output: unknown): Card |
   const name = tool.startsWith(PREFIX) ? tool.slice(PREFIX.length) : tool
   const fields = recordOf(input)
   const path = typeof fields.path === 'string' ? stripControl(fields.path) : undefined
-  const base = { title: `◆ ${name}  ${mainArg(input)}`.trimEnd(), notes: reply.notes, full: cap(reply.text) }
+  const command = name === 'run_command' ? commandOf(fields.command) : undefined
+  const title = `◆ ${name}  ${command ? '' : mainArg(input)}`.trimEnd()
+  const base = { title, notes: reply.notes, full: cap(reply.text), ...(command ? { command } : {}) }
 
   if (name === 'read_file') {
     const file = fileBody(reply.text, input)

@@ -163,3 +163,51 @@ test('notes only: a button opens the whole note', async $ => {
   expect(await ui.find({ type: 'Text', text: /line two/ })).toBeDefined()
   await ui.unmount()
 })
+
+// run_command: a wider card that shows the command in up to 5 lines.
+
+test('a run_command card shows the command in a bash Code, at most 5 lines, and counts the rest', async $ => {
+  const ui = await mount($, {
+    tool_use_id: 'cmd-1',
+    tool: 'mcp__codescout__run_command',
+    input: { command: rows(7) },
+    output: text('{"exit_code":0,"stdout":"ok"}'),
+  })
+  const code = await ui.find({ type: 'Code' })
+
+  expect(code?.props.language).toBe('bash')
+  expect(code?.text).toBe('l1\nl2\nl3\nl4\nl5')
+  expect(await ui.find({ type: 'Text', text: '… 2 more command lines' })).toBeDefined()
+  expect((await ui.find({ type: 'Button' }))?.props.label).toBe('open (2 more command lines)')
+  await ui.unmount()
+})
+
+test('opening a run_command card shows the whole command', async $ => {
+  const ui = await mount($, {
+    tool_use_id: 'cmd-2',
+    tool: 'mcp__codescout__run_command',
+    input: { command: rows(7) },
+    output: text('{"exit_code":0}'),
+  })
+
+  await ui.press({ key: 'toggle' })
+
+  expect((await ui.find({ type: 'Code' }))?.text).toBe(rows(7))
+  expect(await ui.find({ type: 'Text', text: /more command lines/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('a run_command card is full width; another tool card is not', async $ => {
+  const cmd = await mount($, {
+    tool_use_id: 'cmd-3',
+    tool: 'mcp__codescout__run_command',
+    input: { command: 'ls' },
+    output: text('{"exit_code":0}'),
+  })
+  const tree = await mount($, { tool_use_id: 'cmd-4', output: text('a') })
+
+  expect((await cmd.find({ type: 'Box' }))?.props.width).toBe('100%')
+  expect((await tree.find({ type: 'Box' }))?.props.width).toBeUndefined()
+  await cmd.unmount()
+  await tree.unmount()
+})

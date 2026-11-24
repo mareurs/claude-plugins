@@ -66,6 +66,7 @@ A result is `[{ type: "text", text }, ...]`. Block 0 is codescout's reply. Later
 | `read_file` | The head in a `Code` element with a line gutter; a `.md` path uses `Markdown`. Details below. |
 | `edit_file` | A `Code` element with `format: "diff"`, built from `input.old_string` and `input.new_string`, only when the edit applied. Details below. |
 | `create_file` | A `Code` element with the head of `input.content`, when the reply says `status: ok`. |
+| `run_command` | A full-width card (`width: "100%"`). The command shows in a `Code` element with `language: "bash"`, up to 5 lines (`COMMAND_LINES`), then `… N more command lines`; the open control shows the whole command. The reply is drawn as for any other tool. *(Added at the person's request, 2026-11-24.)* |
 | Any other codescout tool | The generic card above. |
 
 Details, all *builder-check calls*:

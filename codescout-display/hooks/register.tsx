@@ -17,7 +17,12 @@ const firstLine = (note: string): string => note.split('\n').find(l => l.trim() 
 function drawCard(els: any, card: Card, isOpen: boolean, toggle?: () => unknown): any {
   const { Box, Text, Code, Markdown, Button } = els
   const children: any[] = [<Text bold color={ACCENT}>{card.title}</Text>]
-  const { body } = card
+  const { body, command } = card
+
+  if (command) {
+    children.push(<Code source={isOpen ? command.full : command.source} language="bash" />)
+    if (!isOpen && command.extra > 0) children.push(<Text dimColor>{`… ${command.extra} more command lines`}</Text>)
+  }
 
   if (isOpen && (body.kind === 'text' || body.kind === 'fields')) {
     children.push(<Code source={card.full} />)
@@ -50,12 +55,13 @@ function drawCard(els: any, card: Card, isOpen: boolean, toggle?: () => unknown)
   }
 
   if (toggle) {
-    const closed = card.hidden > 0 ? `open (${card.hidden} more lines)` : 'open notes'
+    const extra = command?.extra ?? 0
+    const closed = card.hidden > 0 ? `open (${card.hidden} more lines)` : extra > 0 ? `open (${extra} more command lines)` : 'open notes'
     children.push(<Button key="toggle" label={isOpen ? 'fold' : closed} onPress={toggle} />)
   }
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={ACCENT} paddingX={1}>
+    <Box flexDirection="column" borderStyle="round" borderColor={ACCENT} paddingX={1} {...(command ? { width: '100%' } : {})}>
       {children}
     </Box>
   )
@@ -70,7 +76,7 @@ export const register: Register = on => {
     const card = buildCard(p.tool, p.input, p.output)
     if (!card) return next(e)
 
-    const isFoldable = card.hidden > 0 || card.notes.length > 0
+    const isFoldable = card.hidden > 0 || card.notes.length > 0 || (card.command?.extra ?? 0) > 0
     if (!isFoldable) return drawCard($.ui.resolve(e), card, false)
 
     const isOpen = (await read($, open)).includes(p.tool_use_id)
