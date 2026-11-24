@@ -37,6 +37,15 @@ hint-echo/                         -- Claude Code mod: shows hook additionalCont
 scripts/check-versions.sh       -- version consistency validator
 ```
 
+## Where things live
+
+Read a memory topic with `memory(action="read", topic=…)`.
+
+| Need | Read |
+|---|---|
+| Release, profile or Codex work on this machine | `machine-linux` |
+| A claim about a Windows work box | `machine-windows` (another host, not this machine) |
+
 ## Config Dir Resolution
 
 CC sets `CLAUDE_CONFIG_DIR` per profile. Plugin code must resolve config paths via `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` — never bare `$HOME/.claude`.
@@ -48,123 +57,6 @@ Same shape works for both. Hardcoding `$HOME/.claude` writes to the wrong profil
 
 For `.claude.json` (the file): single-profile users have it at `~/.claude.json`; multi-profile users have it inside the profile dir as `<profile>/.claude.json`. When code needs to read it, try `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.claude.json` first, fall back to `$HOME/.claude.json`. See `codescout-companion/scripts/detect.py` for the canonical implementation.
 
-## This Machine — Linux workstation (verified 2026-08-26)
-
-**All four Claude Code profiles are live and in use here** — `~/.claude`, `~/.claude-sdd`,
-`~/.claude-kat`, `~/.claude-stef`. The list is `PROFILES` in `scripts/lib-profiles.sh`, and each
-profile has a `claude-*` alias in `~/.bashrc`. Measured 2026-08-26 (the first three) and
-2026-11-12 (all four):
-
-- `claude` is on PATH at `~/.local/bin/claude`. `uname -sr` → `Linux 7.1.9-zen1-2-zen`
-  (Arch zen kernel — **not** WSL, which reports `*-microsoft-standard-WSL2`).
-- `~/.claude` (657 project dirs), `~/.claude-sdd` (183), `~/.claude-kat` (110),
-  `~/.claude-stef` (26) — all four carry real session history, and `.claude-kat` is a routine
-  working profile. (The 2026-08-26 counts for the first three were 256, 49 and 18.)
-- **`release.sh`'s Claude-Code-side steps are real here, not no-ops.** A release seeds a
-  versioned cache in every profile whose install record has the plugin, and repoints that
-  record; a profile without the plugin is skipped. The 1.16.17 release did exactly that, for
-  the three profiles the scripts covered then.
-- **Enabled plugins** (`enabledPlugins` is what actually loads), measured 2026-11-12:
-  `superpowers`, `codescout-companion`, `buddy`, `legible` and `hint-echo` in all four profiles.
-  `~/.claude-sdd` and `~/.claude-stef` additionally enable `hookify` + `andrej-karpathy-skills` —
-  that is profile purpose, not drift. `~/.claude`, `~/.claude-sdd` and `~/.claude-kat` also
-  enable `chrome-devtools-mcp`, `document-skills`, `frontend-design` and `claude-md-management`;
-  `~/.claude` adds `context7`. A project can enable a plugin too: this repo's
-  `.claude/settings.local.json` enables `sdd@sdd-misc-plugins`. Other installed plugins are
-  enabled nowhere and load nothing.
-- **The marketplace key is `sdd-misc-plugins`** (the `name` in `.claude-plugin/marketplace.json`),
-  which is what every install record, `release.sh` and the install lines in § Installing use.
-- **Native Linux git. The cross-shell CRLF advice in the Windows section below does not
-  apply** — `core.autocrlf` is not in play and the working tree does not go pseudo-dirty.
-- **Cross-profile parity is checked, not assumed:** `./scripts/check-profile-parity.sh`
-  verifies every *array element* of each record **and** every marketplace registration
-  (see its header for the seven drift classes and why `[0]`-only checks missed one).
-  `release.sh` runs it at step 6.5 and refuses to push on failure.
-- **Our HOOKS load from the REPO WORKING TREE, not from a versioned cache dir.**
-  `known_marketplaces.json` records `sdd-misc-plugins` as
-  `{"source": "directory", "path": "/home/marius/work/claude/claude-plugins"}` with
-  `installLocation` set to that same repo path. Confirmed at runtime, not inferred:
-  `.buddy/.session-start-trace.log` shows every hook invocation resolving
-  `plugin_root=/home/marius/work/claude/claude-plugins/buddy`, including entries written
-  after a release repointed `installPath` at a cache dir. **So a HOOK edit in `buddy/` or
-  `codescout-companion/` is live in the working tree immediately.**
-  **This holds for hooks and is FALSE for skills and commands** — those are read from
-  `installPath`, the versioned cache dir, so a skill edit reaches nobody until a release
-  seeds a new cache and repoints the records. Measured 2026-09-01: a skill cut 44,375 →
-  13,680 B was still served at its old 44,673 B from
-  `…/codescout-companion/1.19.11/skills/reconnaissance/SKILL.md`, exactly where that
-  profile's `installPath` points. **So `bump-cache.sh` seeding and the `installPath`
-  repointing are the load path for skills and commands, and belt-and-braces only for
-  hooks** — and a skill edit is `committed`, not `live`, until a release runs. The editing
-  session is the least representative observer of that. What a restart/reload buys you on
-  top is *registration* — which hooks, skills and commands exist — resolved at process
-  launch. See § *Plugin Install Path* for the per-channel table, and
-  `docs/trackers/skill-loading-session-log.md` F-5 for the measurement. Third-party
-  github-source marketplaces load everything from `<profile>/plugins/marketplaces/…`.
-- **Marketplace registrations drifted for months in two files nothing checked** (fixed
-  2026-08-26). `~/.claude-kat/plugins/known_marketplaces.json` pointed five of six
-  marketplaces at `~/.claude/plugins/marketplaces/…`, and
-  `~/.claude-sdd/plugins/marketplaces/caveman` was a *symlink* into `~/.claude`. The
-  pointer was also **hiding** a second fault: kat's own `superpowers` clone had rotted to
-  `91cb319` (2026-05-06) while the other two profiles ran `1ab7b8e` (2026-08-12), so
-  repointing without refreshing first would have silently downgraded an enabled plugin by
-  three months. **Refresh the local copy, then repoint — never the reverse.**
-
-## Codex on this machine (verified 2026-11-09)
-
-- Only `~/.codex` exists. Marketplace `sdd-misc-plugins` is the LOCAL path of this checkout (`[marketplaces.sdd-misc-plugins] source_type = "local"`), so `codex plugin marketplace upgrade` does nothing for it; `codex plugin add <plugin>@sdd-misc-plugins` re-copies a plugin into `~/.codex/plugins/cache/` byte-identical with the working tree.
-- Installed and approved: `cs-hint-codex`, `buddy`, `codescout-companion`. `buddy`'s PostToolUse hook is switched off there (`[hooks.state."buddy@sdd-misc-plugins:hooks/hooks.json:post_tool_use:0:0"] enabled = false`) because it would double the advisories.
-- Every `codex plugin add` that changes content cancels that plugin's approvals (`trustStatus: modified`, runs fail with `plugin contents changed; hook approval required`; in the one case measured a failing PostToolUse hook did not stop its tool call, PreToolUse guard hooks were not measured). The repair writes the content half of `currentHash` (`declaration/content`) from `hooks/list` into `trusted_content_hash` of each hook-state record. Record, method and backups: codescout memories `codex-hook-content-trust-20261107` and `research/hint-visibility-channels-20261109`, both stored in the sibling `codescout` repo (`/home/marius/work/claude/codescout/.codescout/memories/`), not in this one. Later Codex measurements (stamp hook failure and positional hook keys on 0.167.1, the wake daemon `userAgent` prefix) are in this repo: `research/codex-hook-measurements-20261111`.
-- Nothing writes into `~/.codex/plugins/cache/` from this repo's scripts: do not edit files there by hand.
-
-## The Windows work box (verified 2026-08-05 — NOT the machine above)
-
-> **Scope note, added 2026-08-26.** Everything in this section describes a *different,
-> Windows* host. It was written without a machine label, and its claims are false on the
-> Linux workstation above — it asserts there is no `claude` binary, that "zero active
-> Claude Code profiles exist", that `~/.claude-sdd` and `~/.claude-kat` "each contain a
-> single empty scaffold entry and were never actually used", and that `release.sh`'s
-> profile steps are no-ops. All four are contradicted by direct measurement here. Read it
-> as Windows-only history; do not reason about profile state from it.
-
-- **Git Bash is installed**, but not at the usual `C:\Program Files\Git`: it's a
-  per-user install at `%LOCALAPPDATA%\Programs\Git\bin\bash.exe` (also
-  `...\usr\bin\bash.exe`). The bare `bash` on PATH resolves to Windows' WSL
-  launcher stub instead, which fails (`WSL ... Relay ... execvpe failed`) —
-  this machine's WSL previously had no Linux distro installed (only a stopped
-  `docker-desktop` entry); an Ubuntu distro has since been added. Invoke Git
-  Bash by full path, don't rely on bare `bash`/`bash.exe` resolving correctly
-  in a plain PowerShell terminal.
-- **Claude Code CLI was genuinely installed and used here, then uninstalled**
-  — it turned out not to be a company-accepted app. `~/.claude` has real usage
-  artifacts (`daemon.log`, `sessions/`, `projects/`, `telemetry/`, a populated
-  `settings.json` with `enabledPlugins` for `codescout-companion`/`buddy`/
-  `sdd`, last touched 2026-06-17) proving it wasn't a dead scaffold — but
-  today there is no `claude` binary on PATH, no install under `Program Files`,
-  `LOCALAPPDATA\Programs`, or the global npm prefix. **Zero active Claude Code
-  profiles exist now — GitHub Copilot Chat in VS Code is the only agent
-  surface on this machine.**
-- **The plugins are still needed and actively used** — just exclusively
-  through Copilot's own loader now (`.copilot/installed-plugins/`, a separate
-  install mechanism from Claude Code's cache; see `INSTALL-COPILOT.md`).
-  Uninstalling Claude Code did NOT retire `codescout-companion`/`buddy`/`sdd`
-  — don't treat "no Claude Code" as "no plugins in use" when reasoning about
-  this repo's relevance.
-- Of the three Claude Code profile dirs `release.sh` seeds
-  (`~/.claude`/`~/.claude-sdd`/`~/.claude-kat`), only `~/.claude` was ever the
-  real one in use; `~/.claude-sdd` and `~/.claude-kat` each contain a single
-  empty scaffold entry and were never actually used. All three are now
-  entirely inert since Claude Code itself is uninstalled — `release.sh`'s
-  Claude-Code-side steps (cache-seeding 3 profiles, cold-restarting 3
-  instances) are no-ops here; only the Copilot half (`sync-copilot.sh`) has
-  any real effect on this box.
-- **Cross-shell git gotcha**: WSL's git and Git Bash's git can disagree wildly
-  on file state for this repo. WSL's git has no `core.autocrlf` set, so it sees
-  hundreds of files as "modified" purely from CRLF/LF normalization vs. the
-  Windows-native checkout (which has `core.autocrlf=true`) — do NOT run
-  `git add`/`git commit` from WSL against this repo; use Git Bash (or native
-  PowerShell git) for anything that touches the index, so the working tree
-  view matches what's actually committed.
 ## Active Development Focus
 
 **When "the plugin" is mentioned without qualification, it refers to `codescout-companion`.**
