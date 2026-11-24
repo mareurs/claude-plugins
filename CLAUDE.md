@@ -50,7 +50,7 @@ Read a memory topic with `memory(action="read", topic=…)`.
 | Write, resume or archive a passover | `session-passover` |
 | Writing a skill whose mechanics differ by harness or OS | `conventions` |
 | A release incident, or how the pre-push parity guard works | `development-commands` |
-| Open leftovers, decisions and questions of this repository | `codescout box` (the root view; ledger `runtime`) |
+| Open leftovers, decisions and questions of this repository | `codescout box` (the root view; ledgers `runtime` and `runtime-residuals`) |
 
 ## Config Dir Resolution
 

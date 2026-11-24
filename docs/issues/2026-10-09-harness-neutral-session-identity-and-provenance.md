@@ -48,10 +48,10 @@ unverified: Stock adapter source is implemented, reviewed, verified and integrat
 The maintainer closed this issue on 2026-11-24 with the source work delivered and four items open. I did not re-run any test for this closure; the evidence is the records below.
 
 - **Delivered:** the versioned context, the Claude and Codex adapters, the Codex-aware commit guards (`a6d175ee0`, `2cdf4fca7`, `8939ee5ec`, `af0c22f2d` in codescout) and the stock-Codex observations (plugin `6e3036a`, codescout `f6d96e59f`). No Codex patch is needed.
-- **Open, moved to the `runtime` ledger:**
-  - `2026-11-24-identity-the-stock-codex-adapter-is-merged-but-not-released`: release and install in the six profiles.
-  - `2026-11-24-identity-effect-inventory-exclusive-formatter-authorization`: effect inventory, exclusive formatter authorization and dispatch overlap.
-  - `2026-11-24-identity-the-kat-profile-authenticated-smoke-run-was-never`: the Kat smoke run.
+- **Open, moved to the `runtime-residuals` ledger:**
+  - `2026-11-24-stock-codex-adapter-release-and-install-in-the-six-real`: release and install in the six profiles.
+  - `2026-11-24-stock-codex-hooks-effect-inventory-formatter-exclusivity-and`: effect inventory, exclusive formatter authorization and dispatch overlap.
+  - `2026-11-24-kat-profile-authenticated-smoke-run-for-claude-code-and`: the Kat smoke run.
 - **Not claimed:** the acceptance criterion on install checks for all six profiles. The shared-MCP usage misattribution lives in codescout (`docs/issues/2026-11-09-shared-mcp-usage-misattributes-observation-work.md`).
 
 ## Stock adapter design — 2026-11-09
