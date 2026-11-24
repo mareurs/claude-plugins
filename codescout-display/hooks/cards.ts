@@ -68,6 +68,98 @@ export function fold(text: string, max: number = HEAD_LINES): Fold {
 
 type Summary = { line: string; isCut: boolean }
 
+// ---- symbols ----------------------------------------------------------------------------------
+// A `symbols` reply is a list of file groups. A group opens with `path (N)` or `path — N symbols` at column 0.
+// With bodies, a symbol is `  Kind  134-153  name` and its body follows, indented 6 more spaces. Without bodies,
+// a symbol is `  Kind   name   L18-79` and a child is indented further. The body of a symbol starts at its doc
+// comment, before the declaration line the range names, so no row carries a line number for a gutter.
+
+export type SymbolRow =
+  | { type: 'file'; path: string }
+  | { type: 'label'; kind: string; name: string; range: string; indent: number }
+  | { type: 'code'; source: string; path?: string }
+  | { type: 'note'; text: string }
+
+const FILE_LINE = /^(\S.*?)(?: \(\d+\)| — \d+ symbols?)$/
+const BODY_LABEL = /^  (\w+)\s+(\d+(?:-\d+)?)\s+(\S.*)$/
+const OUTLINE_LABEL = /^(\s+)(\w+)\s+(\S.*?)\s+L(\d+(?:-\d+)?)\s*$/
+const BODY_INDENT = 6
+const LABEL_INDENT = 2
+
+// Rows for a symbols reply, or undefined when no line of it is a symbol line (the generic card then draws it).
+function symbolRows(text: string, fallbackPath: string | undefined): SymbolRow[] | undefined {
+  const lines = linesOf(text)
+  const hasBodies = lines.some(line => BODY_LABEL.test(line))
+  const rows: SymbolRow[] = []
+  let path = fallbackPath
+  let code: string[] | undefined
+
+  const flush = () => {
+    if (!code) return
+    while (code.length > 0 && code[code.length - 1]!.trim() === '') code.pop()
+    if (code.length > 0) rows.push({ type: 'code', source: code.map(cut).join('\n'), ...(path ? { path } : {}) })
+    code = undefined
+  }
+
+  for (const line of lines) {
+    const file = line.match(FILE_LINE)
+    const body = hasBodies ? line.match(BODY_LABEL) : null
+    const outline = hasBodies ? null : line.match(OUTLINE_LABEL)
+
+    if (file) {
+      flush()
+      path = file[1]
+      rows.push({ type: 'file', path: file[1]! })
+    } else if (body) {
+      flush()
+      rows.push({ type: 'label', kind: body[1]!, name: body[3]!, range: body[2]!, indent: 0 })
+      code = []
+    } else if (outline) {
+      rows.push({ type: 'label', kind: outline[2]!, name: outline[3]!, range: outline[4]!, indent: Math.max(0, outline[1]!.length - LABEL_INDENT) })
+    } else if (code && (line === '' || line.startsWith(' '.repeat(BODY_INDENT)))) {
+      code.push(line.slice(BODY_INDENT))
+    } else if (line.trim() !== '') {
+      flush()
+      rows.push({ type: 'note', text: line.trim() })
+    }
+  }
+  flush()
+
+  return rows.some(row => row.type === 'label') ? rows : undefined
+}
+
+// A long outline comes as JSON: the outline is `summary`, and `hint` says how to read the rest.
+function unwrapSymbols(text: string): { text: string; notes: string[] } {
+  try {
+    const value = JSON.parse(text) as { summary?: unknown; hint?: unknown } | null
+    if (typeof value?.summary === 'string') return { text: value.summary, notes: typeof value.hint === 'string' ? [value.hint] : [] }
+  } catch {
+    // not JSON: the reply is the outline
+  }
+
+  return { text, notes: [] }
+}
+
+// The lines a row takes on the screen: a code row takes one per source line.
+const rowLines = (row: SymbolRow): number => (row.type === 'code' ? row.source.split('\n').length : 1)
+
+function foldRows(rows: SymbolRow[], max: number = HEAD_LINES): { head: SymbolRow[]; hidden: number } {
+  const head: SymbolRow[] = []
+  let left = max
+
+  for (const row of rows) {
+    if (left <= 0) break
+    const size = rowLines(row)
+    head.push(row.type === 'code' && size > left ? { ...row, source: row.source.split('\n').slice(0, left).join('\n') } : row)
+    left -= Math.min(size, left)
+  }
+
+  const total = rows.reduce((n, row) => n + rowLines(row), 0)
+
+  return { head, hidden: total - (max - left) }
+}
+
+
 // `status: ok · replaced: 1` for a reply that is a JSON object. `isCut` is true when the line left
 // something out: a nested value, a field past the sixth, a value cut at VALUE_LIMIT or at its first newline.
 function summarize(text: string): Summary | undefined {
@@ -189,6 +281,7 @@ export type Card = {
     | { kind: 'fields'; line: string }
     | { kind: 'code'; source: string; path?: string; startLine?: number; isMarkdown: boolean }
     | { kind: 'diff'; source: string; path: string }
+    | { kind: 'symbols'; head: SymbolRow[]; all: SymbolRow[] }
   hidden: number
   notes: string[]
   full: string
@@ -378,6 +471,16 @@ function draft(tool: string, input: unknown, output: unknown): Omit<Card, 'opena
     const f = fold(content)
 
     return { ...base, body: { kind: 'code', source: f.head.map(cut).join('\n'), path, isMarkdown: false }, hidden: f.hidden, full: cap(content) }
+  }
+
+  if (name === 'symbols') {
+    const { text, notes } = unwrapSymbols(reply.text)
+    const rows = symbolRows(cap(text), path)
+    if (rows) {
+      const f = foldRows(rows)
+
+      return { ...base, notes: [...notes, ...reply.notes], body: { kind: 'symbols', head: f.head, all: rows }, hidden: f.hidden, full: cap(text) }
+    }
   }
 
   const summary = summarize(reply.text)

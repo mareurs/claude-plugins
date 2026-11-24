@@ -74,7 +74,7 @@ Details, all *builder-check calls*:
 
 - **`read_file` reply.** Codescout writes `N lines`, a blank line, then the content. The card strips both lines (`codescout-redirect` strips the same header, measured). The gutter starts at `input.start_line`, else `input.offset`, else 1. The hidden count counts the text the model got, not the file on disk. A reply whose first line is `N lines  @file_…` is an outline of a large file and not file content; it takes the generic card with no gutter.
 - **`edit_file` success.** The reply is the bare string `"ok"` or an object with `status: "ok"` (codescout source, `edit_file/mod.rs`). Any other reply, a missing `old_string` or `new_string` (insert, markdown and heading modes), or a reply that is not JSON takes the generic card. The diff never shows an edit that did not apply.
-- **Language.** It comes from one path: `input.path` of `read_file`, `create_file` and `edit_file`. `grep`, `tree` and `symbols` have no single path and draw plain text, `symbols(include_body=true)` included. A path with no known language draws plain.
+- **Language.** It comes from one path: `input.path` of `read_file`, `create_file` and `edit_file`. `grep` and `tree` have no single path and draw plain text. A `symbols` body takes its language from the file line of its group (see the `symbols` card). A path with no known language draws plain.
 - **JSON reply.** A reply is JSON when block 0 parses to an object. The summary lists at most 6 top-level scalar fields, each value stripped of control characters and cut at 40 characters or at its first newline. An array, a scalar or a parse failure is plain text. When the line left anything out (a nested value, a seventh field, a cut value) the card is openable and the open control shows the whole reply.
 
 The control that opens the full text is a `Button` with a stored flag keyed by `tool_use_id`. **Not measured.** The builder verifies it first, as a gate. If a press does not work inside a `ToolUse` row, the card **folds anyway** (the person's decision, 2026-11-24): it shows the head and the hidden count, an error is never folded, and each hook note is drawn as one dim line (cut with `wrap: 'truncate-end'`) instead of `+N notes`. The full text then stays only in the model's context and the session log, and the README says so.
@@ -154,12 +154,23 @@ The `Replace the row`, `Rewrite output` and `Add under the row` rows above come 
 
 What this does not show: `Button` and stored state in a `ToolUse` row; the `Markdown` element; a replaced row that carries a `Code` element with a gutter; the desktop and VS Code surfaces; a compact (not expanded) view; a result with an image; a result over 100,000 characters; parallel calls; a narrow terminal; the language inferred for a `.mjs` path.
 
+## `symbols` card (added 2026-11-24)
+
+The person asked that `symbols` use code highlighting where it can, because a symbol is code even when the outline of it is an AST.
+
+- **Bodies** (`include_body=true`): each body is one `Code` element. The language comes from the file line that heads its group (`path (N)`), else from `input.path`. A body gets **no line gutter**. The range in the reply counts from the declaration, but the body starts at its doc comment, so a gutter from the range would be off (measured: `fileBody` is `134-153`, its body opens with two comment lines). The label above the body carries the range.
+- **Outline** (no bodies): a colored list, not source. The kind is dim, the name is in the accent color and the range is dim. An outline has no text of the declaration, so drawing `function name` through the highlighter would invent code, and the keyword is wrong in some languages.
+- **Large reply**: codescout answers a long outline as JSON (`output_id`, `summary`, `hint`). The card draws `summary` as the reply and the `hint` as a note. Before this, the card showed one line cut at 40 characters.
+- **Fold**: the head is the first 12 lines counted over labels and bodies together. The open control draws every block.
+- **Fallback**: a reply that does not parse (no file line, no symbol line) keeps the generic card.
+- **Costs against the six rules**: one more body kind in `Card` and one parser. It is a human-facing surface, so the model reads the same bytes. The parser reads the reply format of `symbols` (measured 2026-11-24 on codescout 0.15.0); a format change makes the card fall back to plain text, never to a wrong card.
+
 ## Not decided here
 
 - **The open control.** The builder verifies `Button` plus state in a `ToolUse` row first, as the first task and a gate. Decided 2026-11-24: if it cannot work, the card folds anyway (see Decision). The plan treats the control as the main path.
 - **The mark for a redirected call.** `codescout-redirect` answers a native `Read` with a result and a `[codescout-redirect]` note. How that note appears in the native row's `output` is not measured. It needs a probe before any design.
 - **A diff for `edit_code`.** Its input holds the new body. The old body needs a `tool.call` hook that reads the symbol before the call. A separate design.
-- **More renderers:** `grep` grouped by file, a `symbols` outline, `run_command` with its exit code, a `memory` or `doc` card.
+- **More renderers:** `grep` grouped by file, `run_command` with its exit code, a `memory` or `doc` card.
 - **The head size** (12 lines) and the colors. Prefer theme keys to raw colors, so the card follows the person's theme.
 
 ## Latency and the early frame (2026-11-24)

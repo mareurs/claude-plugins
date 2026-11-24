@@ -361,3 +361,38 @@ test('the frame of a pending write is already in the warning color, with its par
   expect(await ui.find({ type: 'Text', text: 'running…' })).toBeDefined()
   await ui.unmount()
 })
+
+const SYM_BODIES = ['a.ts (1)', '  Function  5-9  fileBody', '      export function fileBody() {', '        return 1', '      }', ''].join('\n')
+const SYM_OUTLINE = ['a.ts — 2 symbols', '', '  Constant   ACCENT     L7', '  Function   drawCard   L18-79', ''].join('\n')
+
+test('a symbols call with bodies draws each body as a Code with its file path and no gutter, under a label', async $ => {
+  const ui = await mount($, { tool: 'mcp__codescout__symbols', input: { path: 'a.ts', include_body: true }, output: text(SYM_BODIES) })
+  const code = await ui.find({ type: 'Code' })
+
+  expect(code?.props.path).toBe('a.ts')
+  expect(code?.props.startLine).toBeUndefined()
+  expect(code?.text).toBe('export function fileBody() {\n  return 1\n}')
+  expect(await ui.find({ type: 'Text', text: 'fileBody' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /5-9/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a symbols outline draws a label per symbol and no Code', async $ => {
+  const ui = await mount($, { tool: 'mcp__codescout__symbols', input: { path: 'a.ts' }, output: text(SYM_OUTLINE) })
+
+  expect(await ui.find({ type: 'Text', text: 'drawCard' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /18-79/ })).toBeDefined()
+  expect(await ui.find({ type: 'Code' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('a long symbols reply folds at 12 lines and the open control draws the whole body', async $ => {
+  const body = Array.from({ length: 30 }, (_, i) => `      l${i + 1}`).join('\n')
+  const ui = await mount($, { tool: 'mcp__codescout__symbols', input: { path: 'a.ts', include_body: true }, output: text(`a.ts (1)\n  Function  1-30  big\n${body}\n`) })
+
+  expect((await ui.find({ type: 'Code' }))?.text).not.toContain('l30')
+  expect((await ui.find({ type: 'Button' }))?.props.label).toBe('open (20 more lines)')
+  await ui.press({ key: 'toggle' })
+  expect((await ui.find({ type: 'Code' }))?.text).toContain('l30')
+  await ui.unmount()
+})

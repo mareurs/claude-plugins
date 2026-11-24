@@ -18,6 +18,7 @@ Design, measurements and open points: `docs/superpowers/specs/2026-11-24-codesco
 | `memory` write, add, now, close | The written text as markdown (first 12 lines, folded), and one dim line for the result (`status: ok`). |
 | `memory` edit | A colored diff of `old_string` and `new_string`. |
 | `doc` create, append_entry, update | The body (for update, `patch.body`) as markdown. |
+| `symbols` | With bodies: a label per symbol (kind, name, line range) and its body in a code view with the colors of the file's language and no gutter. Without bodies: a list of labels. A long outline that codescout sends as JSON draws its `summary`, and the `hint` shows as a note. |
 | `run_command` | A full-width card. The command shows in up to 5 lines with shell colors, the rest counted and the whole command on open. The result is drawn as for any other tool. |
 | Any other codescout tool | A JSON reply as one line of its scalar fields (`status: ok · replaced: 1`); a plain reply as its first 12 lines. |
 

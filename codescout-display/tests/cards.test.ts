@@ -496,3 +496,95 @@ test('a pending card has the verb, the subject, the parameters and the mutating 
   expect(pending.title).toBe(done?.title)
   expect(pending.params).toBe(done?.params)
 })
+
+// ---- symbols ----------------------------------------------------------------------------------
+
+const BODIES = [
+  'codescout-display/hooks/cards.ts (2)',
+  '  Function  134-153  fileBody',
+  '      // a comment',
+  '      export function fileBody() {',
+  '        return 1',
+  '      }',
+  '  Variable  127  FileBody',
+  '      export type FileBody = { a: 1 }',
+  '',
+].join('\n')
+
+const OUTLINE = [
+  'codescout-display/hooks/register.tsx — 5 symbols',
+  '',
+  '  Constant   ACCENT     L7',
+  '  Function   drawCard   L18-79',
+  '       Constant  body      L22',
+  '',
+].join('\n')
+
+const sym = (text: string, input: Record<string, unknown> = { path: 'codescout-display/hooks/cards.ts', include_body: true }) =>
+  buildCard('mcp__codescout__symbols', input, [{ type: 'text', text }])
+
+test('symbols with bodies: a label per symbol, then its body as code with the path of its group and no gutter', () => {
+  const card = sym(BODIES)
+
+  expect(card?.body.kind).toBe('symbols')
+  const rows = (card?.body as any).all
+  expect(rows[0]).toEqual({ type: 'file', path: 'codescout-display/hooks/cards.ts' })
+  expect(rows[1]).toEqual({ type: 'label', kind: 'Function', name: 'fileBody', range: '134-153', indent: 0 })
+  expect(rows[2]).toEqual({
+    type: 'code',
+    path: 'codescout-display/hooks/cards.ts',
+    source: '// a comment\nexport function fileBody() {\n  return 1\n}',
+  })
+  expect(rows[3]).toMatchObject({ type: 'label', kind: 'Variable', name: 'FileBody', range: '127' })
+  expect(rows[4]).toMatchObject({ type: 'code', source: 'export type FileBody = { a: 1 }' })
+  expect(rows.some((r: any) => r.startLine !== undefined)).toBe(false)
+})
+
+test('symbols outline: one label row per symbol, a child keeps its indent, no code', () => {
+  const rows = (sym(OUTLINE, { path: 'codescout-display/hooks/register.tsx' })?.body as any).all
+
+  expect(rows[0]).toEqual({ type: 'file', path: 'codescout-display/hooks/register.tsx' })
+  expect(rows[1]).toEqual({ type: 'label', kind: 'Constant', name: 'ACCENT', range: '7', indent: 0 })
+  expect(rows[2]).toEqual({ type: 'label', kind: 'Function', name: 'drawCard', range: '18-79', indent: 0 })
+  expect(rows[3]).toEqual({ type: 'label', kind: 'Constant', name: 'body', range: '22', indent: 5 })
+  expect(rows.some((r: any) => r.type === 'code')).toBe(false)
+})
+
+test('symbols: a large outline arrives as JSON; the card draws its summary and keeps the hint as a note', () => {
+  const json = JSON.stringify({ output_id: '@tool_1', summary: OUTLINE, hint: 'read_file("@tool_1", …)', buffered_bytes: 9 })
+  const card = sym(json, { path: 'codescout-display/hooks/register.tsx' })
+
+  expect(card?.body.kind).toBe('symbols')
+  expect((card?.body as any).all[2]).toMatchObject({ type: 'label', name: 'drawCard' })
+  expect(card?.notes).toContain('read_file("@tool_1", …)')
+})
+
+test('symbols: a line that is neither a file line nor a symbol line is kept as a note row', () => {
+  const rows = (sym(['a.ts — 9 symbols', '  … showing 2 of 9', '  Function   f   L1'].join('\n'), { path: 'a.ts' })?.body as any).all
+
+  expect(rows[1]).toEqual({ type: 'note', text: '… showing 2 of 9' })
+  expect(rows[2]).toMatchObject({ type: 'label', name: 'f' })
+})
+
+test('symbols: a reply that holds no symbol line keeps the generic card', () => {
+  expect(sym('nothing found')?.body.kind).toBe('text')
+  expect(sym('{"error":"x"}')?.body.kind).toBe('fields')
+})
+
+test('symbols: 12 lines are shown over labels and bodies together, the rest is counted, and open draws all', () => {
+  const body = Array.from({ length: 20 }, (_, i) => `      line${i + 1}`).join('\n')
+  const card = sym(`a.ts (1)\n  Function  1-20  big\n${body}\n`, { path: 'a.ts' })
+  const b = card?.body as any
+  const shown = b.head.reduce((n: number, r: any) => n + (r.type === 'code' ? r.source.split('\n').length : 1), 0)
+
+  expect(shown).toBe(HEAD_LINES)
+  expect(card?.hidden).toBe(22 - HEAD_LINES)
+  expect(card?.openable).toBe(true)
+  expect(b.all[2].source.split('\n')).toHaveLength(20)
+})
+
+test('symbols: the language of a body comes from the file line of its group, not from input.path (a directory or a glob)', () => {
+  const rows = (sym(BODIES, { path: 'codescout-display/', include_body: true })?.body as any).all
+
+  expect(rows.find((r: any) => r.type === 'code').path).toBe('codescout-display/hooks/cards.ts')
+})

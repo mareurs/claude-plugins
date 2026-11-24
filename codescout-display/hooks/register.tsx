@@ -34,6 +34,22 @@ function drawCard(els: any, card: Card, isOpen: boolean, toggle?: () => unknown,
     children.push(<Text dimColor>{body.line}</Text>)
   } else if (body.kind === 'diff') {
     children.push(<Code source={isOpen ? card.full : body.source} format="diff" path={body.path} />)
+  } else if (body.kind === 'symbols') {
+    for (const row of isOpen ? body.all : body.head) {
+      if (row.type === 'code') {
+        children.push(<Code source={row.source} path={row.path} />)
+      } else if (row.type === 'label') {
+        children.push(
+          <Text wrap="truncate-end">
+            <Text dimColor>{`${' '.repeat(row.indent)}${row.kind} `}</Text>
+            <Text bold color={ACCENT}>{row.name}</Text>
+            <Text dimColor>{`  ${row.range}`}</Text>
+          </Text>,
+        )
+      } else {
+        children.push(<Text dimColor wrap="truncate-end">{row.type === 'file' ? row.path : row.text}</Text>)
+      }
+    }
   } else {
     const source = isOpen ? card.full : body.source
     if (source !== '') {
