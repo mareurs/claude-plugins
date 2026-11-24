@@ -35,8 +35,8 @@ export function peerToast(text: string): string | undefined {
     const line = firstLine(t)
     return line === undefined ? undefined : `from another session: ${cut(line)}`
   }
-  const name = FROM_NAME.exec(wrapped[1])?.[1]?.trim() || 'another session'
-  return `from ${name}: ${cut(firstLine(wrapped[2]) ?? '(no text)')}`
+  const name = FROM_NAME.exec(wrapped[1] ?? '')?.[1]?.trim() || 'another session'
+  return `from ${name}: ${cut(firstLine(wrapped[2] ?? '') ?? '(no text)')}`
 }
 
 // The toasts for one `additionalContext` entry: none when it holds no notice, else one per notice.
@@ -50,8 +50,8 @@ export function noticeToasts(entry: string): string[] {
       lines.push(`notice: ${cut(flat(body))}`)
       continue
     }
-    const sender = parsed[2]?.trim() || parsed[1]
-    const rest = parsed[3]
+    const sender = parsed[2]?.trim() || parsed[1] || 'another session'
+    const rest = parsed[3] ?? ''
     const end = rest.search(/ (?:Refs:|To reply:)/)
     lines.push(`notice from ${sender}: ${cut(flat(end >= 0 ? rest.slice(0, end) : rest))}`)
   }
