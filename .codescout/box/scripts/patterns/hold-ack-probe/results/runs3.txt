@@ -1,0 +1,8 @@
+run         choice    ok  adds notes out_tok boxw_bytes  sequence
+advise-M-1  REPEAT    NO     4     4    1625       2717  boxw > boxw > boxw > boxw
+advise-M-2  REPEAT    NO     4     4    1421       2757  boxw > boxw > boxw > boxw
+advise-M-3  REPEAT    NO     4     4    1316       2780  boxw > boxw > boxw > boxw
+advise-S-1  NONE      yes    1     1     533       1083  boxw
+advise-S-2  NONE      yes    1     1     512       1083  boxw
+advise-S-3  NONE      yes    1     1     491       1092  boxw
+

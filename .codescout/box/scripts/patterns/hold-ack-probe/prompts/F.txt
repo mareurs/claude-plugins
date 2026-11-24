@@ -1,0 +1,1 @@
+The four findings of this investigation are in findings.md in the working directory. File each of them as a note in the project box: run one `./boxw add --title '<the heading text>' --text body -` per finding, with the text under that heading on stdin. When all four are filed, reply with the word done.

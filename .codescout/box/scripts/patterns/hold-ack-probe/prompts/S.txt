@@ -1,0 +1,13 @@
+File one note in the project box. Run this command, with the body on stdin as a heredoc, then reply with the title only.
+
+./boxw add --title 'Cache key omits the locale' --text body - <<'EOF'
+The cache key is built from the request path and the query string, and it leaves out the locale header.
+Two users who ask for the same page in different languages therefore read each other's cached copy.
+The bug appears only behind the proxy, because the proxy strips Accept-Language before the cache layer reads it.
+A local run does not show it: the dev server sends the header straight through and the keys differ.
+The fix adds the resolved locale to the key and keeps the old key as a fallback read for one release.
+The regression test requests one page twice with two locales and asserts that the bodies differ.
+Cached entries written before the fix stay valid until their ttl ends, so no purge is needed.
+The metrics dashboard shows the hit rate dropping by about four percent after the key change, as expected.
+A follow-up should move the locale resolution before the cache layer, so the key never depends on a header.
+EOF

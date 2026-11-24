@@ -1,0 +1,5 @@
+{
+  "name": "hold-ack-probe",
+  "description": "Probe: hold a refused call under a handle and replay it with ack.",
+  "version": "0.0.1"
+}

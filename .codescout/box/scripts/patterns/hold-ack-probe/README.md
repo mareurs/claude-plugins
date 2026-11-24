@@ -2,7 +2,20 @@
 
 Question: when a hook refuses a call that the agent must repeat in full, can the refusal hold the call under a handle and let the agent say `ack` instead? Does the agent choose well (short task inline, several edits another way)?
 
-Instrument: a dev mod `hold-ack-probe` (not in the repository; scratchpad of session ce0a6936, `ackprobe/`). Run with `claude -p --setting-sources local --plugin-dir <mod>` so no companion or buddy hook fires. `--bare` needs ANTHROPIC_API_KEY, so it was not usable. Stand-in for `codescout box <key> add`: a stub `./boxw add`. Refusal text = the scribe text of `scribe-rules.mjs`, only the exit differs. Pre-registered in `PREREG.md` before the batch.
+## Files (this folder, `.codescout/box/scripts/patterns/hold-ack-probe/`)
+
+The box `patterns` holds only markdown entries (`codescout box patterns check` refuses any other file in the box folder), so the probe lives in the box's scripts folder, in a subfolder with no `.py` at the top level (a top-level `<name>.py` there would become a verb of the box).
+
+- `mod/`: the dev mod (`hooks/register.ts`, `hooks/hooks.json`, `.claude-plugin/plugin.json`). `config.json` is written per run by `run_one.sh`.
+- `run_one.sh`: one run. `RUNS_DIR=<dir outside the repository> [FORK_TOOL=Task] ./run_one.sh <repeat|hold|advise> <S|M|F> <n>`. It copies `mod/` into the run directory, writes its config, makes the `./boxw` stub and runs `claude -p`.
+- `gen_prompts.py <dir>`: writes the three prompts and `findings.md` (deterministic; the copies in `prompts/` are byte-identical).
+- `analyze.py <parent-dir> <runs-subdir>`: the per-run table by the rules of `PREREG.md`. Its `out_tok` column is the `result` event's total.
+- `PREREG.md`: the criteria, written before the batches.
+- `results/runs.txt`, `runs2.txt`, `runs3.txt`, `runs4.txt`: the analysis of the four batches. The raw streams (about 2 MB) are not kept; the tool-call sequence and the figures of each run are in these files.
+
+Rerun: `RUNS_DIR=$(mktemp -d) FORK_TOOL=Task ./run_one.sh advise S 1`, then `python3 -I analyze.py $RUNS_DIR/.. <name of the runs dir>`. About 0.005 dollars per run on Haiku.
+
+Instrument: the dev mod in `mod/`. Run with `claude -p --setting-sources local --plugin-dir <mod>` so no companion or buddy hook fires. `--bare` needs ANTHROPIC_API_KEY, so it was not usable. Stand-in for `codescout box <key> add`: a stub `./boxw add`. Refusal text = the scribe text of `scribe-rules.mjs`, only the exit differs. Pre-registered in `PREREG.md` before the batch.
 
 ## Mechanics (verified)
 - A mod registers a tool with `$.tool.register({name, description, inputSchema, isDeferred:false})` and answers it in `on('tool.call', {tool:'mcp__<plugin>__<name>'})` with `{result}`. `isDeferred:false` put it in the prompt list (no ToolSearch).

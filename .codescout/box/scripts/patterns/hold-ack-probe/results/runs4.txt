@@ -1,0 +1,9 @@
+run         choice    ok  adds notes out_tok boxw_bytes  sequence
+advise-F-1  NONE      NO     1     5    1181        299  Bash > Bash > boxw
+advise-F-2  NONE      NO     1     4    1536       3013  Bash > boxw
+advise-F-3  NONE      NO     1     5    1963       2951  Read > Bash > Bash > boxw
+repeat-F-1  REPEAT    NO     5     5    3485       5981  Bash > boxw > boxw > boxw > boxw > boxw
+repeat-F-2  OTHER     NO     2     4    2096       3565  Bash > boxw > Bash > boxw
+repeat-F-3  OTHER     NO     2     4    5565       6008  Read > boxw > Bash > Read > boxw > Bash
+
+F repeat  correct 0/3  choices {'REPEAT': 1, 'OTHER': 2}  mean out_tok(result) 3715  mean boxw_bytes 5185  mean notes 4.3

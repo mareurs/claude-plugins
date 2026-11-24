@@ -7,8 +7,9 @@ created: 2026-11-24
 entry_kind: proposal
 log:
 - '2026-11-24 proposed created codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
+- '2026-11-24 edited:source codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
 revisit_by: 2026-12-24
-source: operator, 2026-11-24; probe research/hold-ack-probe-20261124
+source: operator, 2026-11-24; probe in .codescout/box/scripts/patterns/hold-ack-probe/
 status_since: 2026-11-24
 ---
 
@@ -40,6 +41,6 @@ Output tokens come from the `result` event. Bytes: S and M count the `./boxw add
 
 **Rests on:** `CLAUDE.md` § IRON LAW rules 5 (few turns: one call that answers beats a call and a follow-up) and 6 (lenient: do what the agent meant, say what was understood).
 
-**Unanchored:** not built. The probe mod and scripts are in a session scratchpad; the numbers are in the memory topic `research/hold-ack-probe-20261124`.
+**Unanchored:** not built. The probe (mod, scripts, prompts, results and the write-up) is in `.codescout/box/scripts/patterns/hold-ack-probe/`; its `README.md` lists the files and how to rerun it.
 
 **Revisit-when:** `scribe-nudge.mjs` ships this and a replay of real sessions shows how often the agent forks or edits inline afterwards; or the probe is repeated on Sonnet with a task the agent plans itself.

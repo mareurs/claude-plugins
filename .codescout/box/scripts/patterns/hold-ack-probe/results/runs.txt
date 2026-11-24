@@ -1,0 +1,18 @@
+run         choice    ok  adds notes out_tok boxw_bytes  sequence
+hold-M-1    REPEAT    NO     5     4    2105       3451  boxw > boxw > boxw > boxw > boxw
+hold-M-2    REPEAT    NO     5     4    1944       3379  boxw > boxw > boxw > boxw > boxw
+hold-M-3    REPEAT    NO     5     4    1967       3379  boxw > boxw > boxw > boxw > boxw
+hold-S-1    ACK       yes    1     1    1353       1102  boxw > mcp__hold-ack-probe__ack
+hold-S-2    REPEAT    yes    2     1    1559       2166  boxw > boxw
+hold-S-3    REPEAT    yes    2     1    1369       2164  boxw > boxw
+repeat-M-1  REPEAT    NO     5     4    1852       3359  boxw > boxw > boxw > boxw > boxw
+repeat-M-2  REPEAT    NO     5     4    2117       3451  boxw > boxw > boxw > boxw > boxw
+repeat-M-3  REPEAT    NO     5     4    1951       3381  boxw > boxw > boxw > boxw > boxw
+repeat-S-1  REPEAT    yes    2     1    1201       2166  boxw > boxw
+repeat-S-2  REPEAT    yes    2     1    1190       2176  boxw > boxw
+repeat-S-3  REPEAT    yes    2     1    1332       2148  boxw > boxw
+
+S repeat  correct 3/3  choices {'REPEAT': 3}  mean out_tok(result) 1241  mean boxw_bytes 2163  mean notes 1.0
+S hold    correct 3/3  choices {'ACK': 1, 'REPEAT': 2}  mean out_tok(result) 1427  mean boxw_bytes 1811  mean notes 1.0
+M repeat  correct 0/3  choices {'REPEAT': 3}  mean out_tok(result) 1973  mean boxw_bytes 3397  mean notes 4.0
+M hold    correct 0/3  choices {'REPEAT': 3}  mean out_tok(result) 2005  mean boxw_bytes 3403  mean notes 4.0
