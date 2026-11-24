@@ -10,6 +10,7 @@ import {
   fold,
   jsonFields,
   mainArg,
+  pendingCard,
   replyOf,
   stripControl,
 } from '../hooks/cards'
@@ -342,4 +343,37 @@ test('an empty reply with no notes and no command gives undefined', () => {
   expect(buildCard(`${P}tree`, { path: '.' }, text(''))).toBeUndefined()
   expect(buildCard(`${P}tree`, { path: '.' }, text('  \n'))).toBeUndefined()
   expect(buildCard(`${P}tree`, { path: '.' }, text('', 'a note'))).toBeDefined()
+})
+
+// A card frame from the first render: the header (and the command) are known from the input alone.
+
+test('a pending card has the title the finished card will have, and nothing else to draw', () => {
+  const pending = pendingCard(`${P}read_file`, { path: 'src/a.ts' })
+  const done = buildCard(`${P}read_file`, { path: 'src/a.ts' }, text('1 lines\n\nx'))
+
+  expect(pending.title).toBe('◆ read_file  src/a.ts')
+  expect(pending.title).toBe(done?.title)
+  expect(pending.body).toEqual({ kind: 'text', head: [] })
+  expect(pending.openable).toBe(false)
+  expect(pending.hidden).toBe(0)
+  expect(pending.notes).toEqual([])
+})
+
+test('a pending card for a call with no input yet is the bare tool name', () => {
+  expect(pendingCard(`${P}tree`, {}).title).toBe('◆ tree')
+  expect(pendingCard(`${P}tree`, undefined).title).toBe('◆ tree')
+})
+
+test('a pending run_command card carries the command view the finished card has', () => {
+  const input = { command: 'l1\nl2\nl3\nl4\nl5\nl6\nl7' }
+  const pending = pendingCard(`${P}run_command`, input)
+  const done = buildCard(`${P}run_command`, input, text('{"exit_code":0}'))
+
+  expect(pending.command).toEqual(done?.command)
+  expect(pending.command?.extra).toBe(2)
+  expect(pending.title).toBe('◆ run_command')
+})
+
+test('control characters in the input of a pending card are removed', () => {
+  expect(pendingCard(`${P}read_file`, { path: 'a\u001b[31m\u0007b' }).title).toBe('◆ read_file  ab')
 })

@@ -217,6 +217,30 @@ export function buildCard(tool: string, input: unknown, output: unknown): Card |
   return { ...card, openable: card.hidden > 0 || card.notes.length > 0 || (card.command?.extra ?? 0) > 0 || card.isCut }
 }
 
+// The header of a card: the tool and what it is about. A run_command card shows its command in the body instead.
+function titleOf(name: string, input: unknown, command: CommandView | undefined): string {
+  return `◆ ${name}  ${command ? '' : mainArg(input)}`.trimEnd()
+}
+
+// The frame of a call whose output does not exist yet: the header and the command are known from the input alone.
+// Drawing it from the first render keeps the border where it is when the tool ends, so the row does not swap
+// from the engine's row to a card. `input` may be empty (the first render of a call) or absent.
+export function pendingCard(tool: string, input: unknown): Card {
+  const name = tool.startsWith(PREFIX) ? tool.slice(PREFIX.length) : tool
+  const command = name === 'run_command' ? commandOf(recordOf(input).command) : undefined
+
+  return {
+    title: titleOf(name, input, command),
+    body: { kind: 'text', head: [] },
+    hidden: 0,
+    notes: [],
+    full: '',
+    isCut: false,
+    openable: false,
+    ...(command ? { command } : {}),
+  }
+}
+
 function draft(tool: string, input: unknown, output: unknown): Omit<Card, 'openable'> | undefined {
   const reply = replyOf(output)
   if (!reply || isFailure(reply.text)) return undefined
@@ -225,7 +249,7 @@ function draft(tool: string, input: unknown, output: unknown): Omit<Card, 'opena
   const fields = recordOf(input)
   const path = typeof fields.path === 'string' ? stripControl(fields.path) : undefined
   const command = name === 'run_command' ? commandOf(fields.command) : undefined
-  const title = `◆ ${name}  ${command ? '' : mainArg(input)}`.trimEnd()
+  const title = titleOf(name, input, command)
   if (reply.text.trim() === '' && reply.notes.length === 0 && !command) return undefined
 
   const base = { title, notes: reply.notes, full: cap(reply.text), isCut: false, ...(command ? { command } : {}) }

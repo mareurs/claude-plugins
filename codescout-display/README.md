@@ -4,6 +4,8 @@ A Claude Code mod that draws each codescout tool call as one compact card in ver
 
 In verbose mode (`--verbose`, or ctrl+o) Claude Code draws a codescout call with its generic MCP row: the arguments, then the raw result text. This mod replaces that row with a card. The card has a header, a view fitted to the tool, and a fold for a long result. The screen changes and the model does not: the model reads the same result bytes as before.
 
+The frame draws from the first render of a call: the border, the header (tool and main argument) and, for `run_command`, the command. A running call shows `running…` under the header, and the body fills in when the tool ends, so the row does not swap from the engine's row to a card. An error, an interrupted call and a non-codescout tool keep the engine's row.
+
 Design, measurements and open points: `docs/superpowers/specs/2026-11-24-codescout-display-mod-design.md`.
 
 ## What a card shows

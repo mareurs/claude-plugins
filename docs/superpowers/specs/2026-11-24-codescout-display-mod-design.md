@@ -161,3 +161,19 @@ What this does not show: `Button` and stored state in a `ToolUse` row; the `Mark
 - **A diff for `edit_code`.** Its input holds the new body. The old body needs a `tool.call` hook that reads the symbol before the call. A separate design.
 - **More renderers:** `grep` grouped by file, a `symbols` outline, `run_command` with its exit code, a `memory` or `doc` card.
 - **The head size** (12 lines) and the colors. Prefer theme keys to raw colors, so the card follows the person's theme.
+
+## Latency and the early frame (2026-11-24)
+
+The user saw two things: a lag between the engine's row and the card, and borders and text that redraw too much. An instrumented copy of the mod logged every `ui.render` call (47 card draws and 34 pass-through calls in one session).
+
+| Measured | Result |
+|---|---|
+| `buildCard` | mean 0.11 ms, max 0.67 ms (a 200,000-character reply: 0.49 ms, Node benchmark) |
+| A card draw, whole hook | mean 3.2 ms, p50 1.7 ms, p95 6.6 ms, max 41.8 ms |
+| The atom `read` inside it | mean 2.9 ms: 91% of a card draw |
+| The engine's own row through `next(e)` | mean 2.6 ms |
+| Calls per tool call | the engine calls the hook 6 to 12 times; every visible row again on each update (20 rows: 62 ms in one pass) |
+
+- **Cause of the swap.** The card needed the output, so the engine's row showed while the tool ran, and the card replaced it at the end: a change of frame, not slow code.
+- **Fix, option 1.** `pendingCard(tool, input)` gives the frame from the input alone. The hook draws it for a codescout call with no output yet, with no state read. A running call adds `running…`. An error or an interrupted call keeps the engine's row.
+- **Not measured.** The terminal's paint time, and whether an identical tree repaints. The atom `read` is still the largest cost of a draw and grows with the number of cards in the transcript. Option 2 (an engine-side hover reveal in place of the button) is not built.

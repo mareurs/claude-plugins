@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import { PREFIX, buildCard } from './cards'
+import { PREFIX, buildCard, pendingCard } from './cards'
 import type { Card } from './cards'
 
 const ACCENT = 'suggestion' // a theme key: the card follows the person's theme
@@ -14,7 +14,8 @@ const firstLine = (note: string): string => note.split('\n').find(l => l.trim() 
 
 // Maps a Card to elements. `els` is the surface's element table, `$.ui.resolve(e)`: no `$` here.
 // `toggle` is set when the card has something to open: hidden lines or hook notes.
-function drawCard(els: any, card: Card, isOpen: boolean, toggle?: () => unknown): any {
+// `status` is one dim line under the body: "running…" on the frame of a call that has not ended.
+function drawCard(els: any, card: Card, isOpen: boolean, toggle?: () => unknown, status?: string): any {
   const { Box, Text, Code, Markdown, Button } = els
   const children: any[] = [<Text bold color={ACCENT}>{card.title}</Text>]
   const { body, command } = card
@@ -45,6 +46,7 @@ function drawCard(els: any, card: Card, isOpen: boolean, toggle?: () => unknown)
     }
   }
 
+  if (status) children.push(<Text dimColor>{status}</Text>)
   if (!isOpen && card.hidden > 0) children.push(<Text dimColor>{`… ${card.hidden} more lines hidden`}</Text>)
   for (const note of card.notes) {
     if (isOpen) {
@@ -78,7 +80,11 @@ export const register: Register = on => {
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
     const p = e.props
     if (e.surface !== 'terminal' || p.isExpanded !== true) return next(e)
-    if (!p.tool.startsWith(PREFIX) || p.isRunning || p.isErrored || p.isInterrupted || p.output === undefined) return next(e)
+    if (!p.tool.startsWith(PREFIX) || p.isErrored || p.isInterrupted) return next(e)
+
+    // No output yet: the frame, drawn from the first render so the border stays when the tool ends. No state read.
+    if (p.output === undefined) return drawCard($.ui.resolve(e), pendingCard(p.tool, p.input), false, undefined, p.isRunning ? 'running…' : undefined)
+    if (p.isRunning) return next(e)
 
     const card = buildCard(p.tool, p.input, p.output)
     if (!card) return next(e)

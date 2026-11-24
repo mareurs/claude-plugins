@@ -29,9 +29,10 @@ const mount = ($: any, over: Record<string, unknown> = {}, surface = 'terminal')
 const PASS: Array<[string, Record<string, unknown>, string?]> = [
   ['a desktop surface', {}, 'desktop'],
   ['a non-codescout tool', { tool: 'Bash' }],
-  ['a running row', { isRunning: true }],
+  ['a running row with output', { isRunning: true }],
   ['an errored row', { isErrored: true }],
-  ['no output yet', { output: undefined }],
+  ['an errored row with no output', { isErrored: true, output: undefined }],
+  ['an interrupted row with no output', { isInterrupted: true, output: undefined, isRunning: true }],
   ['isExpanded false', { isExpanded: false }],
   ['isExpanded absent', { isExpanded: undefined }],
   ['an interrupted row', { isInterrupted: true }],
@@ -230,4 +231,55 @@ test('a JSON reply that left something out draws an open button; pressing it sho
   const codes = await ui.findAll({ type: 'Code' })
   expect(codes.some((c: { text: string }) => c.text.includes('e'.repeat(100)))).toBe(true)
   await ui.unmount()
+})
+
+// A card frame from the first render: the border and the header draw before the output exists,
+// so the row does not swap from the engine's row to a card when the tool ends.
+
+test('a running codescout call draws a card frame with the header and "running…"', async $ => {
+  const ui = await mount($, { tool_use_id: 'run-1', isRunning: true, output: undefined })
+
+  expect(await ui.keepsBeneath()).toBe(false)
+  expect((await ui.find({ type: 'Box' }))?.props.borderStyle).toBe('round')
+  expect((await ui.find({ type: 'Text', text: /^◆ tree/ }))?.text).toBe('◆ tree  .')
+  expect(await ui.find({ type: 'Text', text: 'running…' })).toBeDefined()
+  expect(await ui.find({ type: 'Button' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('a call that has not started and has no input yet draws the bare frame with no "running…"', async $ => {
+  const ui = await mount($, { tool_use_id: 'run-2', input: {}, isRunning: false, output: undefined })
+
+  expect(await ui.keepsBeneath()).toBe(false)
+  expect((await ui.find({ type: 'Text', text: /^◆ tree/ }))?.text).toBe('◆ tree')
+  expect(await ui.find({ type: 'Text', text: 'running…' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('a running run_command call is already full width and shows its command', async $ => {
+  const ui = await mount($, {
+    tool_use_id: 'run-3',
+    tool: 'mcp__codescout__run_command',
+    input: { command: rows(7) },
+    isRunning: true,
+    output: undefined,
+  })
+  const code = await ui.find({ type: 'Code' })
+
+  expect((await ui.find({ type: 'Box' }))?.props.width).toBe('100%')
+  expect(code?.text).toBe('l1\nl2\nl3\nl4\nl5')
+  expect(await ui.find({ type: 'Text', text: '… 2 more command lines' })).toBeDefined()
+  expect(await ui.find({ type: 'Button' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the frame of a running call and the frame of its finished card are the same Box', async $ => {
+  const running = await mount($, { tool_use_id: 'run-4', isRunning: true, output: undefined })
+  const done = await mount($, { tool_use_id: 'run-5', output: text('a') })
+  const a = (await running.find({ type: 'Box' }))?.props
+  const b = (await done.find({ type: 'Box' }))?.props
+
+  expect({ ...a, children: undefined }).toEqual({ ...b, children: undefined })
+  await running.unmount()
+  await done.unmount()
 })
