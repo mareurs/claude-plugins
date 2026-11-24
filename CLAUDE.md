@@ -180,9 +180,8 @@ Run before any version bump:
 
 ```bash
 ./tests/run-all.sh
-```
-
-**Write tests when you find issues.** If a design review, code review, or debugging session
+cd buddy && pytest
+``` when you find issues.** If a design review, code review, or debugging session
 reveals a bug or edge case — write a test for it before or alongside the fix. Don't rely on
 manual verification for behavior that can be captured as an automated test.
 

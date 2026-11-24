@@ -7,7 +7,7 @@
 - `codescout-companion/hooks/lib.mjs` — `detectFor()`, the detection entry point that the hooks needing codescout detection call (`pre-tool-guard.mjs` calls `detect.mjs` directly)
 - `codescout-companion/hooks/session-start.mjs` — SessionStart orchestrator (injection budget, drift warnings, auto-reindex)
 - `codescout-companion/hooks/pre-tool-guard.mjs` — PreToolUse hard-blocker for native Read/Grep/Glob/Edit/Bash on source
-- `codescout-companion/hooks/subagent-guidance.mjs` — SubagentStart: injects system-prompt verbatim + codescout routing
+- `codescout-companion/hooks/subagent-guidance.mjs` — SubagentStart: sends a pointer (load the codescout tools, enter the project, route by intent); a subagent reads this file by path
 - `codescout-companion/hooks/explore-inject.mjs` — PreToolUse `Agent`: rewrites dispatch prompt via `updatedInput.prompt`
 - `scripts/check-versions.sh`, `scripts/release.sh` — version validator and the one-command release
 
@@ -46,9 +46,7 @@ Avoid: "task" (dispatch tool is `Agent`, not `Task`), "sdd-misc-plugins" as a re
 
 ## Project Rules
 
-- `marketplace.json` must never contain `version` fields; bump only via `./scripts/release.sh`, never inline in a feature commit
+- Version fields, `release.sh`, how hooks and skills load, and the tests to run before a bump: `CLAUDE.md` § Version Management, § Plugin Install Path and § Testing
 - All four profiles' `installed_plugins.json` (`~/.claude`, `~/.claude-sdd`, `~/.claude-kat`, `~/.claude-stef`) update on every bump; `installPath` must start with the owning profile root
-- Hooks load from the repo working tree here; skills and commands load from the versioned cache, so a skill edit is not live until a release
 - PreToolUse matchers for subagent dispatch use `"matcher": "Agent"`, NOT `"Task"`; `PostToolUse:Agent` fires at launch, use `SubagentStop` for completion
 - codescout-companion hooks always exit 0; buddy allows exit 2 only for a hard judge block
-- Run `./tests/run-all.sh` (root) + `cd buddy && pytest` (buddy) before any version bump
