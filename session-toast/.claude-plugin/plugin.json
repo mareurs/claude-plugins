@@ -1,0 +1,16 @@
+{
+  "name": "session-toast",
+  "description": "Shows a toast for each message from another Claude session: a native peer message, and a session-bridge notice.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Marius"
+  },
+  "license": "MIT",
+  "keywords": [
+    "mod",
+    "toast",
+    "session-bridge",
+    "peer",
+    "notice"
+  ]
+}
