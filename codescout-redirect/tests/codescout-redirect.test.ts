@@ -277,3 +277,79 @@ test('Monitor is refused with the fix', async ($, on) => {
 
   expect(r.deny).toContain('run_command(command, run_in_background=true)')
 })
+
+// ---- tool.describe: the native tools' descriptions point at the codescout tool -----------------
+
+const ORIG = 'Native description.'
+const SIG: Record<string, [string, string]> = {
+  Bash: ['run_command', 'run_command(command=...)'],
+  Read: ['read_file', 'read_file(path=...)'],
+  Grep: ['grep', 'grep(pattern=...)'],
+  Glob: ['tree', 'tree(glob=...)'],
+  Edit: ['edit_file', 'edit_file(path, old_string, new_string)'],
+  Write: ['create_file', 'create_file(path, content)'],
+}
+const ALL_POOL = ['run_command', 'read_file', 'grep', 'tree', 'edit_file', 'create_file'].map(n => `mcp__codescout__${n}`)
+
+function describeSetup(on: any, o: Opts & { pool?: string[] | 'throw' } = {}) {
+  setup(on, o)
+  on('tool.list', () => {
+    if (o.pool === 'throw') throw new Error('no list')
+    return { value: (o.pool ?? ALL_POOL).map(name => ({ name, description: '', mcp: true })) }
+  })
+  on('tool.describe', () => ({ description: ORIG }))
+}
+
+const describe_ = ($: any, tool: string) =>
+  $.tool.describe({ tool, description: ORIG, provider: { plugin: 'engine', tier: 'core' } })
+
+test('describe: each native tool gets the codescout call and the loading step in front, its own text kept', async ($, on) => {
+  describeSetup(on)
+
+  for (const [tool, [name, sig]] of Object.entries(SIG)) {
+    const r: any = await describe_($, tool)
+    expect(r.description, tool).toContain(`IN THIS PROJECT call the codescout tool ${sig} instead of this one`)
+    expect(r.description, tool).toContain(`select:mcp__codescout__${name}`)
+    expect(r.description.endsWith(`\n\n${ORIG}`), tool).toBe(true)
+  }
+})
+
+test('describe: a tool without a hook is left alone', async ($, on) => {
+  describeSetup(on)
+
+  const r: any = await describe_($, 'WebFetch')
+
+  expect(r.description).toBe(ORIG)
+})
+
+test('describe: block_reads false leaves the description alone', async ($, on) => {
+  describeSetup(on, { config: '{"block_reads": false}' })
+
+  const r: any = await describe_($, 'Bash')
+
+  expect(r.description).toBe(ORIG)
+})
+
+test('describe: no codescout tool in the pool, no advice', async ($, on) => {
+  describeSetup(on, { pool: ['WebFetch'] })
+
+  const r: any = await describe_($, 'Bash')
+
+  expect(r.description).toBe(ORIG)
+})
+
+test('describe: the advice names a tool the pool has; another codescout tool is not enough', async ($, on) => {
+  describeSetup(on, { pool: ['mcp__codescout__symbols'] })
+
+  const r: any = await describe_($, 'Bash')
+
+  expect(r.description).toBe(ORIG)
+})
+
+test('describe: a pool that cannot be read leaves the description alone', async ($, on) => {
+  describeSetup(on, { pool: 'throw' })
+
+  const r: any = await describe_($, 'Bash')
+
+  expect(r.description).toBe(ORIG)
+})

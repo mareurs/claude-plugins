@@ -29,6 +29,7 @@ Rules for every hook:
 - **Pass native arguments to codescout unchanged.** codescout already accepts `file_path`, `-i`, `-C`, `-A` and `head_limit` (`src/tools/core/param_alias.rs`, `grep.rs`). The mod maps only the result.
 - **The note states the situation only.** One line: which codescout call ran, with its parameters, and "call it directly". No history.
 - **No UI.** The mod uses no `$.ui` call. Drawing a codescout call for the user is the job of the `codescout-display` plugin.
+- **The description comes first.** A `tool.describe` hook puts the codescout call in front of the native tool's description (`Bash`, `Read`, `Grep`, `Glob`, `Edit`, `Write`), so the model chooses the codescout tool and never tries the native one. It stands aside under the same conditions as the redirect, and when the session's tool pool (`$.tool.list()`) has no matching codescout tool. The redirect is the net for the calls that still reach a native tool.
 - **The agent sees the real call.** The codescout reply goes in the result where the native schema has a text field (`Bash` stdout, `Read` content, `Grep` content). Elsewhere (`Glob`, `Write`, `Edit`) the native result has fixed fields, so the note carries the call and the reply. The tool name cannot change: the engine refuses a rewrite of it.
 - **Every block of a reply is kept.** codescout adds a guide block to the first call of a session. The mod's call consumes it, so the mod passes it on, and it parses the reply from the first block only.
 
@@ -101,6 +102,8 @@ Instrument: the dev mod `codescout-redirect-probe`, hot-reloaded in a live sessi
 Widened `Read`, `Grep` and `Glob` (the repository's `codescout-redirect`, loaded with `claude -p --plugin-dir`, Haiku, one run): a `Read` of `harnesses/README.md`, which the guard denies, was answered by `read_file`. Line 1 was `# Other harnesses` and the `[codescout-redirect]` note arrived. The mod's own tests use fakes for `process.run`, `session.cwd` and `fs.read`; this run shows the real engine accepts them. Not run live: `block_reads: false`, a subagent, and a config dir path.
 
 What this does not show:
+
+Description of `Bash` (`tool.describe`, Claude Code 2.1.331, Haiku, headless `claude -p`, prompt "show me the last 2 commits, pick whatever tool you think is right", n=3 per arm, first tool from the raw event stream): without a probe `Bash` was the first choice 3 of 3. With the description replaced by advice, ToolSearch for `run_command` was first 3 of 3; with the advice in front of the native text, 3 of 3. The model quoted the new text, so it sees it. The mod in the repository (softer wording: "If it is not in your tool list, load it") gave 2 of 3, and 1 of 3 went to `Bash`; at this n that cannot be told from 3 of 3. Not measured: other models, subagents, a write prompt, a session after compaction, and `isDeferred: false` on the codescout tools (it would remove the ToolSearch step).
 
 - The `ls` error case has the same text as a native run. The result fits the mod, but no marker proved which path answered.
 - The first buffered `Bash` run fell back to the guard, which matches the plan. The fix was written after that run, and the second run was verified.

@@ -21,6 +21,10 @@ The mod stands aside, and the next hook (the guard) decides, when `block_reads` 
 
 `hooks/guard-rules.mjs` is a byte copy of `codescout-companion/hooks/guard-rules.mjs`. After a change there run `scripts/sync-codescout-redirect.sh`; `tests/test-codescout-redirect.sh` fails while the copy drifts. The mod adds nothing to a file that Codex, Copilot, OpenCode or Pi read.
 
+## Descriptions
+
+The mod also rewrites the description that the model reads for `Bash`, `Read`, `Grep`, `Glob`, `Edit` and `Write` (`tool.describe`). The codescout call that replaces the tool goes in front, with the `ToolSearch` query that loads it, and the native text stays after it. The advice is left out when `block_reads` is `false`, when the session's tool pool has no matching `mcp__codescout__*` tool, or when the pool cannot be read. A change reaches a thread at its start or after a compaction. Measured on Haiku, n=3 per arm: `Bash` was the first choice 3 times of 3 without the advice, and the codescout tool was the first choice 3 of 3 with a probe's advice and 2 of 3 with this text.
+
 ## Needs
 
 - A Claude Code build with hooks modules (`hooks/hooks.json` with `modules`). Measured on 2.1.331.

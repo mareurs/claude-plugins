@@ -88,6 +88,37 @@ async function gate($: any, e: { agentId?: string }): Promise<Env | null> {
   return got
 }
 
+// The native tools whose description points at the codescout tool that replaces them:
+// [the codescout tool's name, the call as the agent writes it].
+const DESCRIBE: Record<string, [string, string]> = {
+  Bash: ['run_command', 'run_command(command=...)'],
+  Read: ['read_file', 'read_file(path=...)'],
+  Grep: ['grep', 'grep(pattern=...)'],
+  Glob: ['tree', 'tree(glob=...)'],
+  Edit: ['edit_file', 'edit_file(path, old_string, new_string)'],
+  Write: ['create_file', 'create_file(path, content)'],
+}
+
+// The advice for one native tool's description, or null when it would be wrong or unsafe to give:
+// the pool has no such codescout tool, block_reads is false, or the pool cannot be read.
+async function describeAdvice($: any, tool: string): Promise<string | null> {
+  const entry = DESCRIBE[tool]
+  if (!entry) return null
+  const [name, call] = entry
+  try {
+    const pool: Array<{ name: string }> = await $.tool.list()
+    if (!pool.some(t => t.name === `mcp__codescout__${name}`)) return null
+    if (await blockReadsOff($, await $.session.cwd())) return null
+  } catch {
+    return null
+  }
+  return (
+    `IN THIS PROJECT call the codescout tool ${call} instead of this one. ` +
+    `If it is not in your tool list, load it with ToolSearch (query "select:mcp__codescout__${name}"). ` +
+    `This native tool is only a fallback.\n\n`
+  )
+}
+
 export const register: Register = on => {
   env = undefined
 
@@ -316,6 +347,18 @@ export const register: Register = on => {
   }).catch(($, e, next) => {
     return next(e)
   })
+
+  // ---- tool.describe -> the native description points at the codescout tool -------
+  // The model reads this when it first sees the tool, so it picks the codescout tool and never tries
+  // the native one. Measured 2026-11-24 (Haiku, n=3 per arm): without it Bash was the first choice
+  // 3 times of 3; with the advice in front, ToolSearch for run_command 3 times of 3.
+  for (const tool of Object.keys(DESCRIBE)) {
+    on('tool.describe', { tool }, async ($, e, next) => {
+      const r = await next(e)
+      const advice = await describeAdvice($, tool)
+      return advice ? { ...r, description: advice + r.description } : r
+    }).catch(($, e, next) => next(e))
+  }
 
   // ---- Monitor -> a refusal that names the fix -------------------------
   on('tool.call', { tool: 'Monitor' }, () => ({
