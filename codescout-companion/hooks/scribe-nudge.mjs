@@ -8,7 +8,9 @@
 // refused. The refusal comes once per session and window: the first call claims a marker file,
 // and a repeat inside the window passes. A one-line note repeats the call; a larger edit forks.
 //
-// Claude Code only. CS_SCRIBE_NUDGE=false turns it off. Fail open: an error, a missing field or
+// Claude Code only. Not registered in hooks.json: the refusal changed no behaviour in 0 of 16
+// measured runs (where-agents-listen). Add a PreToolUse entry for `Bash|mcp__codescout__run_command`
+// to run it. CS_SCRIBE_NUDGE=false turns it off. Fail open: an error, a missing field or
 // a marker that cannot be written lets the call through (lib.mjs FAIL-OPEN CONTRACT).
 // Test knobs: CS_SCRIBE_STATE_DIR (marker directory) and CS_SCRIBE_WINDOW_MS.
 import { statSync, writeFileSync, readFileSync } from 'node:fs';

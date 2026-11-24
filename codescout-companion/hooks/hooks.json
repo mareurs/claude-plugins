@@ -120,15 +120,6 @@
         ]
       },
       {
-        "matcher": "Bash|mcp__codescout__run_command",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/scribe-nudge.mjs"
-          }
-        ]
-      },
-      {
         "matcher": "Agent",
         "hooks": [
           {
