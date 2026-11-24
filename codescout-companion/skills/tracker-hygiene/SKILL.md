@@ -309,6 +309,10 @@ sequence — each mutation is its own Phase-4 gate:
       a release tip. Leave `docs/trackers/archive/**` and superseded session-log
       rounds alone — those are historical snapshots, and `archive_drop` exists so a
       retired document citing a moved path does not gate.
+      When a move removes a surface, repair the **pointers** (prose that tells a reader to
+      consult it) and leave the **records** (prose that narrates what happened): deleting a
+      record falsifies the evidence that the surface existed. Then stat every path your own
+      edit names, because a repair can add a dangling one.
 
 Evidence base: TMR-6 in codescout's `docs/trackers/tracker-management-redesign.md`
 (2026-07-17 survey: session logs were the dominant zombie-active class in all three
