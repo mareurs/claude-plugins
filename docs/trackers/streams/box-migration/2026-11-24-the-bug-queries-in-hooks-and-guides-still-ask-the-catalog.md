@@ -1,11 +1,13 @@
 ---
 kind: entry
-status: open
+status: done
 title: The bug queries in hooks and guides still ask the catalog for `kind="bug"`
+closed: 2026-11-24
 created: 2026-11-24
 entry_kind: residual
 log:
 - '2026-11-24 open created codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
+- '2026-11-24 open -> done codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
 status_since: 2026-11-24
 ---
 
@@ -14,3 +16,7 @@ status_since: 2026-11-24
 **What I did:** Nothing yet. The change is small but it needs a choice: the payload is sent to every project that uses the companion, and a project without a bugs box still keeps its bugs as files with kind bug. The text would have to depend on whether docs/trackers/ledgers/bugs/readme.md exists.
 
 **Worth keeping:** After the reindex, run the query once. If it misses the box, the payload text, `tests/test-subagent-guidance.sh` and the tracker-hygiene skill must name `codescout box bugs list`.
+
+## Closed
+
+Fixed in the SubagentStart payload and pinned by tests/test-subagent-guidance.sh (a project with the bugs box is sent to codescout box bugs list; any other project keeps the doc find query). Not done: the codescout project-activation-bootstrap guide, which the server serves, and the tracker-hygiene skill.
