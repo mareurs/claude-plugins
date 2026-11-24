@@ -194,6 +194,14 @@ corrupted environment and produce false results. The pattern is: write config â†
 remove config. If test N establishes this pattern, make sure test N+1 doesn't silently
 inherit leftover state.
 
+## File on notice
+
+File at once what you notice and will not fix in this session. A note in your reply is lost when the session ends.
+
+- **A bug** goes in the bugs box. Search first: `codescout box bugs find "<words>"`. Then `codescout box bugs add --title "â€¦"`. The box readme holds the entry rules.
+- **A friction** (a hook, deny message, skill or mod that costs an agent calls, work or trust) goes in the frictions box: `codescout box frictions add`.
+- Not here: a typo (the commit message is enough), a feature idea, a dislike.
+
 ## Git Workflow
 
 Commit your own finished work at once; do not ask. Several sessions share this checkout, so staged or uncommitted work is swept into a peer's commit: `git add` explicit paths, never `-A`. Push only when asked. `release.sh` pushes at its last step, so run it with `NO_PUSH=1` unless the operator asked for the push.
