@@ -3,7 +3,7 @@ kind: entry
 status: open
 title: 'CLAUDE.md is sorted by read trigger: rules and a pointer table stay, facts and measurements live in memory topics'
 anchors:
-- CLAUDE.md#Where things live sha256:6ff1fbe420f8ec6874bfb585f663f23aebcd3e9f07a3c50873fa3a75712db942
+- CLAUDE.md#Where things live sha256:18894feab11a63c2f02424a273aea954dd5f5bd0101e08a12fb51015138f633b
 created: 2026-11-24
 entry_kind: decision
 log:
@@ -25,3 +25,5 @@ topics:
 2026-11-24: Added one row for the runtime ledger to the table; the rule is unchanged.
 
 2026-11-24: The table now points to ledger entries for the machine facts; the rule is unchanged.
+
+2026-11-24: Table row for open leftovers now names runtime-residuals; the read-trigger rule is unchanged.
