@@ -18,6 +18,7 @@ test-detect.sh
 !/.codescout/memories/
 !/.codescout/scripts/
 !/.codescout/system-prompt.md
+!/.codescout/harness.md
 /.codescout/private-memories/
 .buddy/
 __pycache__/
