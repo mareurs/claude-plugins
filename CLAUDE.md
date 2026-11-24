@@ -46,6 +46,7 @@ Read a memory topic with `memory(action="read", topic=…)`.
 | Release, profile or Codex work on this machine | `machine-linux` |
 | A claim about a Windows work box | `machine-windows` (another host, not this machine) |
 | Why a hook edit is live and a skill edit is not; the measurement behind the table | `plugin-load-channels` |
+| The SessionStart or SubagentStart payload: what it holds and why it is capped | `agent-dispatch-hooks` |
 
 ## Config Dir Resolution
 
@@ -74,8 +75,8 @@ binary, and references its internal schema (meta table, drift_report table, proj
 Update this plugin whenever codescout adds features that affect exploration workflows.
 
 **What it does:**
-- **SessionStart** (main agent): injects **pointers**, not content — memory-topic names (`CS_MEMORY_NAMES`) + a read-nudge. (It still also injects a system-prompt pointer `memory(action="read", topic="system-prompt")` — **redundant**: codescout already delivers the system-prompt to the main agent via `server_instructions` (`project_status()` → `build_server_instructions`, as a `## Custom Instructions` section; sourced from the root `.codescout/system-prompt.md`, or `project.toml [project].system_prompt` if absent), and that memory topic is defunct post-fix; slated for removal — see `docs/superpowers/specs/2026-06-12-system-prompt-source-consolidation-design.md`.) Verbatim injection on this path was removed in the injection-budget redesign (`docs/superpowers/specs/2026-05-19-injection-budget-design.md`); the model pulls bodies on demand.
-- **SubagentStart** (`subagent-guidance.mjs`): sends a **pointer**, about 3.4 KB, not the system prompt. STEP 1 loads the codescout tools with one `ToolSearch` call (they are deferred in a subagent). STEP 2 enters the project (activate, or pin in a linked worktree). STEP 3 picks the tool by intent: find, read, write, run, know the project. STEP 4 names what to read on demand: `.codescout/system-prompt.md` by path, the memory list by count, the guides by name. **It no longer pushes the system prompt verbatim** (changed 2026-11-23). Subagents still do not receive codescout's `server_instructions` (`claude-code#29655`, closed not-planned), so this hook is the only channel that reaches them before their first tool call. But Claude Code replaces a hook payload of about 10 KB or more with a 2 KB preview and a file path. Measured 2026-11-23 over 1,959 payloads from 10 days: 536 (27%) were cut that way, and the routing rules sat after the cut. A subagent then opened with a native Read and was denied six times. **The payload size must not depend on any user file**; `tests/test-subagent-guidance.sh` pins it (cap 5000 B, and a 20 KB prompt plus 60 memories may move it by under 100 B). Keep the root `.codescout/system-prompt.md` fresh via `onboarding(action="refresh_prompt")`: the subagent reads it by path. The deny text of `pre-tool-guard.mjs` names the `ToolSearch` call too, and `pre-task-hint.mjs` tells the dispatcher to name codescout tools in every brief. Idea for later, filed in the codescout `horizon` ledger: serve the prompting surface by intent (`2026-11-23-a-prompting-surface-sorted-by-intent-serve-each-kind-of`).
+- **SessionStart** (main agent): injects **pointers**, not content: memory-topic names (`CS_MEMORY_NAMES`) and a read-nudge. Design: `docs/superpowers/specs/2026-05-19-injection-budget-design.md`. Detail: memory `agent-dispatch-hooks`.
+- **SubagentStart** (`subagent-guidance.mjs`): sends a **pointer** of about 3.4 KB: load the codescout tools with one `ToolSearch` call, enter the project, pick the tool by intent, read `.codescout/system-prompt.md` by path. Subagents do not receive codescout's `server_instructions` (`claude-code#29655`), so this hook is the only channel before their first tool call. **The payload size must not depend on any user file**: Claude Code cuts a hook payload of about 10 KB or more to a 2 KB preview, and `tests/test-subagent-guidance.sh` pins the cap (5000 B). Detail and measurement: memory `agent-dispatch-hooks`.
 - PreToolUse: hard-blocks Read/Grep/Glob/Bash/Edit on source files (`permissionDecision: "deny"`)
 - Auto-reindexing: checks index staleness at session start, triggers `codescout index` in background
 - Drift warnings: surfaces high-drift files and stale docs/memories
@@ -100,24 +101,18 @@ at module level and `hook_entry.run_session_start` imports from that module ungu
 `yaml` makes SessionStart a *silent* no-op: `hook_dispatch.main()` catches the ImportError and
 returns 0, so nothing crashes and nothing is logged), `requests` (lazy, for judge only)
 
-Measured 2026-09-05: this is why `.github/workflows/cross-platform-hooks.yml` has failed on every
-push since 2026-07-09 — its bare `actions/setup-python@v5` never installs PyYAML, so SessionStart's
-side effect (writing `.buddy/.current_session_id`) never happens on CI, while it passes locally on
-any machine whose system `python3` happens to have PyYAML already. Reproduced by forcing `import
-yaml` to fail via `PYTHONPATH` shadowing: pointer unwritten, no error surfaced. Fix is two-sided —
-guard the import in `run_session_start` (matching every other block there) AND add PyYAML to CI —
-neither alone closes the gap.
+The CI workflow installs PyYAML explicitly in each job; the incident is in memory `gotchas` (buddy CI entry).
 
 **Judge config:** `buddy/hooks/judge.env` is the authoritative source — do NOT put judge config in settings.json.
 ## cs-hint-codex (Codex only)
 
 Lives at `cs-hint-codex/`. The `[cs-hint]` advisories of buddy as one PostToolUse hook for Codex. Design and measurements: `docs/superpowers/specs/2026-11-09-cs-hint-codex-bundle-design.md`.
 
-- **Why it exists.** Codex runs a plugin hook only after the user approves it, installing the plugin does not approve it, and the approval is bound to a hash of the WHOLE plugin root (only `__pycache__`, `.venv`, `*.pyc`, `*.egg-info` are skipped). A new user who installs `buddy` or `codescout-companion` gets 5 or 27 hooks that do not run until approved: headless runs (`codex exec`, app-server) say nothing, the interactive TUI asks at its next start ("Hooks need review", measured 2026-11-10). Here one approval covers one hook.
+- **Why it exists.** Codex runs a plugin hook only after the user approves it, and the approval is bound to a hash of the WHOLE plugin root. Installing `buddy` or `codescout-companion` gives 5 or 27 hooks that do not run until approved. Here one approval covers one hook. Measurements: the design spec above.
 - **The root stays five files**: `.claude-plugin/plugin.json`, `hooks/hooks.json`, `hooks/cs_hint.py`, `scripts/cs_heuristics.py`, `scripts/cs_tool_log.py`. No README, tests or skills inside; any file added or edited there cancels every user's approval. `tests/test-cs-hint-codex.sh` pins the layout. Tests, docs and the sync script live outside the root.
 - **The two `scripts/` files are byte copies of `buddy/scripts/`** (a symlink in the root is an error for Codex). After a change to either buddy file run `scripts/sync-cs-hint-codex.sh`, bump the plugin version, and expect every Codex user to approve again. The test fails while a copy drifts.
 - **Stdlib only.** Unlike `buddy` (PyYAML is a hard dependency of its SessionStart), the hook needs only `python3`.
-- **Do not leave `buddy`'s PostToolUse hook active beside it in Codex**: both emit the same advisories. For new users: install `cs-hint-codex` and not `buddy` (README). On this machine `buddy` is installed too, with that one hook switched off (§ Codex on this machine). Claude Code keeps `buddy`; do not install `cs-hint-codex` there.
+- **Do not leave `buddy`'s PostToolUse hook active beside it in Codex**: both emit the same advisories. For new users: install `cs-hint-codex` and not `buddy` (README). On this machine `buddy` is installed too, with that one hook switched off (memory `machine-linux`). Claude Code keeps `buddy`; do not install `cs-hint-codex` there.
 - Fails silent (no output, exit 0). `CS_HINT_ENABLED=false` disables it. State: `$PLUGIN_DATA/<session>/cs_tool_log.jsonl`.
 
 ## Version Management
