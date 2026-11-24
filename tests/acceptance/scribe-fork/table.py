@@ -31,7 +31,8 @@ def metrics(label):
         except ValueError:
             continue
         if e.get("type") == "result":
-            cost, turns = e.get("total_cost_usd"), e.get("num_turns")
+            cost = e.get("total_cost_usd")  # cumulative over the session, fork included
+            turns = (turns or 0) + (e.get("num_turns") or 0)  # one result per segment of the run
         msg = e.get("message", {})
         if not isinstance(msg.get("content"), list):
             continue
