@@ -17,7 +17,7 @@
 - A hook exits 0 on every path and fails open: an error, a missing field or a failed marker write lets the call through (`lib.mjs` FAIL-OPEN CONTRACT).
 - The message states the current situation only, no history, at most 320 bytes.
 - Claude Code only. `CS_SCRIBE_NUDGE=false` disables the hook.
-- The write verbs are exactly `add`, `now`, `edit`, `close`, `promote`, `end`, `supersede`, `reaffirm`. `new`, `flush`, `list`, `show`, `find`, `check`, `decisions`, `timeline`, `help` and a bare `codescout box` are not writes.
+- The write verbs are exactly `add`, `now`, `edit`, `close`, `promote`, `end`, `supersede`, `reaffirm` and `note` (the verb of the frictions inbox, added after the replay). `new`, `flush`, `list`, `show`, `find`, `check`, `decisions`, `timeline`, `help` and a bare `codescout box` are not writes, and neither is any call with `--help` or `-h`.
 - Do not import `door-shell-guard.mjs`: it reads stdin at load. Its quote rules (`isQuotedAt`, the heredoc opener) are the reference to match.
 - Commit with explicit paths. Run `./tests/run-all.sh` before Task 3 ends, and report every failure by name, including ones that were red before.
 
