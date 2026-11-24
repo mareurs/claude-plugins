@@ -91,6 +91,13 @@ case "$scen" in
      if [ "${n:0:1}" = u ]; then
        printf '%s\n' '# Tracker jobs' 'A tracker job of about ten entries or twenty box writes, with work left for you, goes to a background fork. See get_guide("scribe").' > CLAUDE.md
        git add -- CLAUDE.md && git commit -q -m "claude.md"
+     fi
+     # arm s: the same sentence in the project's .codescout/system-prompt.md, which the server injects
+     # into the main agent's instructions
+     if [ "${n:0:1}" = s ]; then
+       mkdir -p .codescout
+       printf '%s\n' '# Tracker jobs' 'A tracker job of about ten entries or twenty box writes, with work left for you, goes to a background fork. See get_guide("scribe").' > .codescout/system-prompt.md
+       git add -- .codescout/system-prompt.md && git commit -q -m "system prompt"
      fi ;;
 esac
 
