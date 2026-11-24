@@ -45,8 +45,8 @@ test('fold: 5000 lines keep a 12-line head and hidden 4988', () => {
   expect(f.hidden).toBe(4988)
 })
 
-test('stripControl removes ESC and NUL, keeps tab and newline', () => {
-  expect(stripControl('a\u001b[0m\u0000b\tc\nd')).toBe('a[0mb\tc\nd')
+test('stripControl removes ANSI sequences and control characters, keeps tab and newline', () => {
+  expect(stripControl('a\u001b[0m\u0000b\tc\nd')).toBe('ab\tc\nd')
 })
 
 test('replyOf: [], a string, and a block with no text give undefined', () => {
@@ -277,7 +277,7 @@ test('run_command: a 3-line command has nothing counted, a long line is cut at L
 })
 
 test('run_command: control characters are stripped from the command', () => {
-  expect(buildCard(`${P}run_command`, { command: 'ls\u001b[0m' }, text('{"exit_code":0}'))?.command?.source).toBe('ls[0m')
+  expect(buildCard(`${P}run_command`, { command: 'ls\u001b[0m' }, text('{"exit_code":0}'))?.command?.source).toBe('ls')
 })
 
 test('run_command: the whole command is kept for the opened card', () => {
@@ -286,4 +286,60 @@ test('run_command: the whole command is kept for the opened card', () => {
 
 test('another tool has no command block', () => {
   expect(buildCard(`${P}tree`, { path: '.' }, text('a'))?.command).toBeUndefined()
+})
+
+// Fix pass after the whole-branch review.
+
+test('an ok:false reply gives undefined, so the engine row draws the error in full', () => {
+  const err = '{"ok":false,"error":"heading not found","hint":"call read_file(path) for the heading map"}'
+
+  expect(buildCard(`${P}read_file`, { path: 'a.md' }, text(err))).toBeUndefined()
+  expect(buildCard(`${P}edit_file`, { path: 'a.md', old_string: 'a', new_string: 'b' }, text(err))).toBeUndefined()
+})
+
+test('a fields card is openable when its line left something out, and not otherwise', () => {
+  const card = (json: string) => buildCard(`${P}run_command`, { command: 'x' }, text(json))
+
+  expect(card('{"exit_code":0}')?.openable).toBe(false)
+  expect(card(JSON.stringify({ exit_code: 101, stderr: 'e'.repeat(60) }))?.openable).toBe(true)
+  expect(card('{"a":1,"b":2,"c":3,"d":4,"e":5,"f":6,"g":7}')?.openable).toBe(true)
+  expect(card('{"a":{"b":1},"status":"ok"}')?.openable).toBe(true)
+  expect(card('{"stderr":"line one\\nline two"}')?.openable).toBe(true)
+})
+
+test('openable also covers hidden lines, notes and a long command', () => {
+  expect(buildCard(`${P}tree`, {}, text(lines(13)))?.openable).toBe(true)
+  expect(buildCard(`${P}tree`, {}, text('a', 'a note'))?.openable).toBe(true)
+  expect(buildCard(`${P}run_command`, { command: lines(6) }, text('{"exit_code":0}'))?.openable).toBe(true)
+  expect(buildCard(`${P}tree`, {}, text('a\nb'))?.openable).toBe(false)
+})
+
+test('jsonFields: a decoded ANSI sequence is stripped and a value is cut at its first newline', () => {
+  expect(jsonFields('{"k":"a\\u001b[31mb\\nsecond"}')).toBe('k: ab')
+  expect(jsonFields('{"k":"x\\r"}')).toBe('k: x')
+})
+
+test('read_file: json_path, toml_key and heading replies get no gutter', () => {
+  for (const extra of [{ json_path: '$.a' }, { toml_key: 'deps' }, { heading: '## A' }]) {
+    const card = buildCard(`${P}read_file`, { path: 'a.json', ...extra }, text('8 lines\n\n[1, 2]'))
+
+    expect(card?.body.kind === 'code' && card.body.startLine, JSON.stringify(extra)).toBeUndefined()
+  }
+})
+
+test('read_file: the buffer trailer of a truncated reply is a note, not file lines', () => {
+  const trailer = '\n\n  Buffer: @file_0b02\n  [2 of 1817 lines shown]\n  Next: read_file("x", start_line=3, end_line=9)'
+  const card = buildCard(`${P}read_file`, { path: 'a.ts', start_line: 1 }, text(`1817 lines\n\nalpha\nbeta${trailer}`))
+
+  expect(card?.body.kind === 'code' && card.body.source).toBe('alpha\nbeta')
+  expect(card?.hidden).toBe(0)
+  expect(card?.notes[0]).toContain('@file_0b02')
+  expect(card?.notes[0]).toContain('[2 of 1817 lines shown]')
+  expect(card?.full).toBe('alpha\nbeta')
+})
+
+test('an empty reply with no notes and no command gives undefined', () => {
+  expect(buildCard(`${P}tree`, { path: '.' }, text(''))).toBeUndefined()
+  expect(buildCard(`${P}tree`, { path: '.' }, text('  \n'))).toBeUndefined()
+  expect(buildCard(`${P}tree`, { path: '.' }, text('', 'a note'))).toBeDefined()
 })

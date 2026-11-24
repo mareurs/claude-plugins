@@ -56,7 +56,14 @@ function drawCard(els: any, card: Card, isOpen: boolean, toggle?: () => unknown)
 
   if (toggle) {
     const extra = command?.extra ?? 0
-    const closed = card.hidden > 0 ? `open (${card.hidden} more lines)` : extra > 0 ? `open (${extra} more command lines)` : 'open notes'
+    const closed =
+      card.hidden > 0
+        ? `open (${card.hidden} more lines)`
+        : extra > 0
+          ? `open (${extra} more command lines)`
+          : card.isCut
+            ? 'open (full reply)'
+            : 'open notes'
     children.push(<Button key="toggle" label={isOpen ? 'fold' : closed} onPress={toggle} />)
   }
 
@@ -71,13 +78,12 @@ export const register: Register = on => {
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
     const p = e.props
     if (e.surface !== 'terminal' || p.isExpanded !== true) return next(e)
-    if (!p.tool.startsWith(PREFIX) || p.isRunning || p.isErrored || p.output === undefined) return next(e)
+    if (!p.tool.startsWith(PREFIX) || p.isRunning || p.isErrored || p.isInterrupted || p.output === undefined) return next(e)
 
     const card = buildCard(p.tool, p.input, p.output)
     if (!card) return next(e)
 
-    const isFoldable = card.hidden > 0 || card.notes.length > 0 || (card.command?.extra ?? 0) > 0
-    if (!isFoldable) return drawCard($.ui.resolve(e), card, false)
+    if (!card.openable) return drawCard($.ui.resolve(e), card, false)
 
     const isOpen = (await read($, open)).includes(p.tool_use_id)
     const toggle = () => update($, open, ids => (isOpen ? ids.filter(id => id !== p.tool_use_id) : [...ids, p.tool_use_id]))

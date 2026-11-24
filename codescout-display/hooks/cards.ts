@@ -7,9 +7,11 @@ const VALUE_LIMIT = 40
 const ARG_CUT = 80
 // Control characters other than tab and newline: the engine refuses a tree that holds one.
 const CTRL = /[\u0000-\u0008\u000b-\u001f\u007f]/g
+// A whole ANSI CSI sequence (colors, cursor moves): stripping the ESC alone would leave `[31m` on the screen.
+const CSI = /\u001b\[[0-?]*[ -/]*[@-~]/g
 
 export function stripControl(s: string): string {
-  return s.replace(CTRL, '')
+  return s.replace(CSI, '').replace(CTRL, '')
 }
 
 export type Reply = { text: string; notes: string[] }
@@ -61,8 +63,11 @@ export function fold(text: string, max: number = HEAD_LINES): Fold {
   return foldLines(linesOf(text), max)
 }
 
-// `status: ok · replaced: 1` for a reply that is a JSON object; nested values are skipped.
-export function jsonFields(text: string): string | undefined {
+type Summary = { line: string; isCut: boolean }
+
+// `status: ok · replaced: 1` for a reply that is a JSON object. `isCut` is true when the line left
+// something out: a nested value, a field past the sixth, a value cut at VALUE_LIMIT or at its first newline.
+function summarize(text: string): Summary | undefined {
   let value: unknown
   try {
     value = JSON.parse(text)
@@ -72,14 +77,38 @@ export function jsonFields(text: string): string | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
 
   const parts: string[] = []
+  let isCut = false
   for (const [key, field] of Object.entries(value)) {
-    if (typeof field === 'string' || typeof field === 'number' || typeof field === 'boolean') {
-      parts.push(`${key}: ${String(field).slice(0, VALUE_LIMIT)}`)
-      if (parts.length === FIELD_LIMIT) break
+    if (typeof field !== 'string' && typeof field !== 'number' && typeof field !== 'boolean') {
+      isCut = true
+      continue
     }
+    if (parts.length === FIELD_LIMIT) {
+      isCut = true
+      continue
+    }
+    const raw = stripControl(String(field))
+    const first = raw.split('\n')[0] ?? ''
+    if (first.length < raw.length || first.length > VALUE_LIMIT) isCut = true
+    parts.push(`${stripControl(key)}: ${first.slice(0, VALUE_LIMIT)}`)
   }
 
-  return parts.length > 0 ? parts.join(' · ') : undefined
+  return parts.length > 0 ? { line: parts.join(' · '), isCut } : undefined
+}
+
+export function jsonFields(text: string): string | undefined {
+  return summarize(text)?.line
+}
+
+// codescout answers a recoverable error as a success result with the body {"ok": false, "error": …}.
+function isFailure(text: string): boolean {
+  try {
+    const value: unknown = JSON.parse(text)
+
+    return typeof value === 'object' && value !== null && !Array.isArray(value) && (value as { ok?: unknown }).ok === false
+  } catch {
+    return false
+  }
 }
 
 export const PREFIX = 'mcp__codescout__'
@@ -92,7 +121,10 @@ export const COMMAND_LINES = 5
 // An opened card draws at most this many characters: the limit of one `Code` element.
 export const FULL_CAP = 100000
 
-export type FileBody = { lines: string[]; startLine: number }
+export type FileBody = { lines: string[]; startLine: number | undefined; trailer?: string }
+
+// A reply cut by the output budget ends with the buffer footer; it is not file content.
+const TRAILER = /\n\n  Buffer: (@file_\S+)\n  \[(\d+ of \d+ lines shown)\]\n  Next: ([^\n]*)\s*$/
 
 // codescout writes `N lines` and one blank line before the content of a read_file reply (measured on a
 // ranged and an unranged read). An outline of a large file is `N lines  @file_…` and is not content.
@@ -103,8 +135,18 @@ export function fileBody(text: string, input: unknown): FileBody | undefined {
 
   const fields = recordOf(input)
   const start = [fields.start_line, fields.offset].find(v => typeof v === 'number') as number | undefined
+  // The lines of a json_path, toml_key or heading reply are not lines 1..N of the file: no gutter.
+  const isSlice = fields.json_path !== undefined || fields.toml_key !== undefined || fields.heading !== undefined
 
-  return { lines: linesOf(text.slice(header[0].length)), startLine: start ?? 1 }
+  let body = text.slice(header[0].length)
+  const trailer = body.match(TRAILER)
+  if (trailer) body = body.slice(0, trailer.index)
+
+  return {
+    lines: linesOf(body),
+    startLine: isSlice ? undefined : (start ?? 1),
+    ...(trailer ? { trailer: `Buffer: ${trailer[1]} · [${trailer[2]}] · Next: ${trailer[3]}` } : {}),
+  }
 }
 
 // One hunk: every old line as `-`, then every new line as `+`. The start line is unknown, so it is 1.
@@ -142,6 +184,10 @@ export type Card = {
   notes: string[]
   full: string
   command?: CommandView
+  // The line of a `fields` card left something out (see summarize).
+  isCut: boolean
+  // The card has something to open: hidden lines, notes, more command lines, or a cut fields line.
+  openable: boolean
 }
 
 function recordOf(input: unknown): Record<string, unknown> {
@@ -162,16 +208,27 @@ function commandOf(value: unknown): CommandView | undefined {
 // What to draw for one finished codescout call, or undefined to leave the engine's row.
 // `full` is what an opened card draws in place of its head: the whole file body, the whole diff,
 // the whole content, or the whole reply text, cut at FULL_CAP.
+// The engine's row stays for a reply that is not a reply, an error codescout reported as a result
+// ({"ok": false, …}: the engine shows it in full) and a blank reply.
 export function buildCard(tool: string, input: unknown, output: unknown): Card | undefined {
+  const card = draft(tool, input, output)
+  if (!card) return undefined
+
+  return { ...card, openable: card.hidden > 0 || card.notes.length > 0 || (card.command?.extra ?? 0) > 0 || card.isCut }
+}
+
+function draft(tool: string, input: unknown, output: unknown): Omit<Card, 'openable'> | undefined {
   const reply = replyOf(output)
-  if (!reply) return undefined
+  if (!reply || isFailure(reply.text)) return undefined
 
   const name = tool.startsWith(PREFIX) ? tool.slice(PREFIX.length) : tool
   const fields = recordOf(input)
   const path = typeof fields.path === 'string' ? stripControl(fields.path) : undefined
   const command = name === 'run_command' ? commandOf(fields.command) : undefined
   const title = `◆ ${name}  ${command ? '' : mainArg(input)}`.trimEnd()
-  const base = { title, notes: reply.notes, full: cap(reply.text), ...(command ? { command } : {}) }
+  if (reply.text.trim() === '' && reply.notes.length === 0 && !command) return undefined
+
+  const base = { title, notes: reply.notes, full: cap(reply.text), isCut: false, ...(command ? { command } : {}) }
 
   if (name === 'read_file') {
     const file = fileBody(reply.text, input)
@@ -179,7 +236,9 @@ export function buildCard(tool: string, input: unknown, output: unknown): Card |
       const f = foldLines(file.lines)
       const body = { kind: 'code' as const, source: f.head.map(cut).join('\n'), path, startLine: file.startLine, isMarkdown: /\.md$/i.test(path ?? '') }
 
-      return { ...base, body, hidden: f.hidden, full: cap(file.lines.join('\n')) }
+      const notes = file.trailer ? [file.trailer, ...reply.notes] : reply.notes
+
+      return { ...base, notes, body, hidden: f.hidden, full: cap(file.lines.join('\n')) }
     }
   }
 
@@ -201,8 +260,8 @@ export function buildCard(tool: string, input: unknown, output: unknown): Card |
     return { ...base, body: { kind: 'code', source: f.head.map(cut).join('\n'), path, isMarkdown: false }, hidden: f.hidden, full: cap(content) }
   }
 
-  const summary = jsonFields(reply.text)
-  if (summary !== undefined) return { ...base, body: { kind: 'fields', line: summary }, hidden: 0 }
+  const summary = summarize(reply.text)
+  if (summary !== undefined) return { ...base, body: { kind: 'fields', line: summary.line }, hidden: 0, isCut: summary.isCut }
 
   const f = fold(reply.text)
 

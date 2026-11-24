@@ -34,6 +34,7 @@ const PASS: Array<[string, Record<string, unknown>, string?]> = [
   ['no output yet', { output: undefined }],
   ['isExpanded false', { isExpanded: false }],
   ['isExpanded absent', { isExpanded: undefined }],
+  ['an interrupted row', { isInterrupted: true }],
   ['an empty output array', { output: [] }],
   ['an output with no text block', { output: [{ type: 'image' }] }],
 ]
@@ -210,4 +211,23 @@ test('a run_command card is full width; another tool card is not', async $ => {
   expect((await tree.find({ type: 'Box' }))?.props.width).toBeUndefined()
   await cmd.unmount()
   await tree.unmount()
+})
+
+// Fix pass after the whole-branch review: a cut fields line can be opened.
+
+test('a JSON reply that left something out draws an open button; pressing it shows the whole reply', async $ => {
+  const reply = JSON.stringify({ exit_code: 101, stderr: 'e'.repeat(100) })
+  const ui = await mount($, {
+    tool_use_id: 'cut-1',
+    tool: 'mcp__codescout__run_command',
+    input: { command: 'cargo build' },
+    output: text(reply),
+  })
+
+  expect((await ui.find({ type: 'Button' }))?.props.label).toBe('open (full reply)')
+  await ui.press({ key: 'toggle' })
+
+  const codes = await ui.findAll({ type: 'Code' })
+  expect(codes.some((c: { text: string }) => c.text.includes('e'.repeat(100)))).toBe(true)
+  await ui.unmount()
 })

@@ -47,22 +47,23 @@ codescout-display/
 
 Rules for the hook:
 
-- **Act only when all hold:** `e.surface === 'terminal'`; `e.props.isExpanded === true`; `tool` starts with `mcp__codescout__`; `isRunning` is false; `isErrored` is false; `output` is defined. Otherwise return `next(e)`: a running row, an errored row and any other tool keep the engine's own drawing, and an error keeps its full text. *(Builder-check call.)* The `isExpanded` test keeps the card out of the compact view, whose one-line row is already short; the API says a hook that draws a compact row of its own "passes when true". All four profiles on this machine set `"verbose": true`, so here every row is expanded and the card always applies.
+- **Act only when all hold:** `e.surface === 'terminal'`; `e.props.isExpanded === true`; `tool` starts with `mcp__codescout__`; `isRunning` is false; `isErrored` is false; `isInterrupted` is not true; `output` is defined. Otherwise return `next(e)`: a running row, an errored row and any other tool keep the engine's own drawing, and an error keeps its full text. *(Builder-check call.)* The `isExpanded` test keeps the card out of the compact view, whose one-line row is already short; the API says a hook that draws a compact row of its own "passes when true". All four profiles on this machine set `"verbose": true`, so here every row is expanded and the card always applies.
 - **Draw from `ToolUse` only.** `ToolResult` is not raised for an MCP row.
 - **Never change what the model reads.** The hook returns a tree. It does not rewrite `input` or `output`.
+- **An error codescout reports as a result keeps the engine row.** codescout answers a recoverable error as a success result with the body `{"ok": false, "error": …, "hint": …}`, so `isErrored` is false. `buildCard` returns `undefined` for it, and so for a blank reply with no notes and no command.
 - **Fail open.** A thrown error, an unreadable result or an unknown shape calls `next(e)`.
 - **Strip control characters** other than tab and newline from every string handed to `Text` or `Code`, or the engine refuses the tree.
-- **Do the work once per state.** Slice the head before drawing. Build the full text only when the person opens it.
+- **Keep the work small.** Slice the head before drawing. `buildCard` also builds `full` on every render: measured 0.08 ms for a 100,000-character reply (the reviewer's probe), so it is not deferred to the open.
 
-A result is `[{ type: "text", text }, ...]`. Block 0 is codescout's reply. Later blocks are notes that hooks added.
+A result is `[{ type: "text", text }, ...]`. Block 0 is codescout's reply. Later blocks are notes: a note a hook added, or a block codescout appends itself (a path banner, a build notice, a guide). A card cannot tell them apart.
 
 | Part | Rule |
 |---|---|
-| Header | `◆ <tool>  <main argument>` plus a status mark. The main argument is `path`, `pattern`, `name` or `command`, whichever the input has. |
+| Header | `◆ <tool>  <main argument>`. The main argument is `path`, `pattern`, `name` or `command`, whichever the input has. No status mark in 0.1.0. |
 | Plain text reply (`tree`, `read_file`, `grep`, `symbols`) | Head of the text. |
 | JSON reply (`edit_file`, `run_command`, most others) | One line of the top-level scalar fields, for example `status: ok · replaced: 1`. Nested values are not drawn. |
 | Long result | The first 12 lines, then `… N more lines hidden`. The constant lives in one place. |
-| Hook notes (blocks after 0) | One dim line, `+N notes`. They open with the full text. |
+| Notes (blocks after 0) | One dim line each, `↳ <first non-empty line>`, cut at the edge. They open whole. The `Buffer: … [N of M lines shown] … Next: …` footer of a cut `read_file` reply is split off the code and shown as a note. |
 | `read_file` | The head in a `Code` element with a line gutter; a `.md` path uses `Markdown`. Details below. |
 | `edit_file` | A `Code` element with `format: "diff"`, built from `input.old_string` and `input.new_string`, only when the edit applied. Details below. |
 | `create_file` | A `Code` element with the head of `input.content`, when the reply says `status: ok`. |
@@ -74,7 +75,7 @@ Details, all *builder-check calls*:
 - **`read_file` reply.** Codescout writes `N lines`, a blank line, then the content. The card strips both lines (`codescout-redirect` strips the same header, measured). The gutter starts at `input.start_line`, else `input.offset`, else 1. The hidden count counts the text the model got, not the file on disk. A reply whose first line is `N lines  @file_…` is an outline of a large file and not file content; it takes the generic card with no gutter.
 - **`edit_file` success.** The reply is the bare string `"ok"` or an object with `status: "ok"` (codescout source, `edit_file/mod.rs`). Any other reply, a missing `old_string` or `new_string` (insert, markdown and heading modes), or a reply that is not JSON takes the generic card. The diff never shows an edit that did not apply.
 - **Language.** It comes from one path: `input.path` of `read_file`, `create_file` and `edit_file`. `grep`, `tree` and `symbols` have no single path and draw plain text, `symbols(include_body=true)` included. A path with no known language draws plain.
-- **JSON reply.** A reply is JSON when block 0 parses to an object. The summary lists at most 6 top-level scalar fields, each value cut at 40 characters. An array, a scalar or a parse failure is plain text.
+- **JSON reply.** A reply is JSON when block 0 parses to an object. The summary lists at most 6 top-level scalar fields, each value stripped of control characters and cut at 40 characters or at its first newline. An array, a scalar or a parse failure is plain text. When the line left anything out (a nested value, a seventh field, a cut value) the card is openable and the open control shows the whole reply.
 
 The control that opens the full text is a `Button` with a stored flag keyed by `tool_use_id`. **Not measured.** The builder verifies it first, as a gate. If a press does not work inside a `ToolUse` row, the card **folds anyway** (the person's decision, 2026-11-24): it shows the head and the hidden count, an error is never folded, and each hook note is drawn as one dim line (cut with `wrap: 'truncate-end'`) instead of `+N notes`. The full text then stays only in the model's context and the session log, and the README says so.
 
@@ -149,7 +150,7 @@ Instrument: the dev mod `codescout-display-probe`, hot-reloaded in a live sessio
 | Open control, hook level (plan Task 1) | A `Button` with an `atom` (`read`, `update`, one array of opened `tool_use_id`s) flips on `ui.press({ key })` in a mounted `ToolUse`. State needs `types/index.d.ts` that exports only types, named in `plugin.json`. A live press worked: see the next row. |
 | Live check of the built mod (plan Tasks 4 and 5, 2026-11-24) | Loaded from the repository folder through a symlink in the session's dev-mods folder. The person reported, for one run each: a `tree` card with 12 lines, a hidden count and an open button; a `read_file` card with a gutter and syntax colors; a `read_file` of a `.md` file drawn as markdown; an `edit_file` card with a red and green diff; and the open and fold button, which showed the whole list and folded it back. Reported by the person, not instrumented. |
 
-The three rows above come from the person's report of their screen ("1. yes. 2. yes 3 yes"), not from an automated check. The log proves only that the hooks received complete input and output.
+The `Replace the row`, `Rewrite output` and `Add under the row` rows above come from the person's report of their screen ("1. yes. 2. yes 3 yes"), not from an automated check. The log proves only that the hooks received complete input and output.
 
 What this does not show: `Button` and stored state in a `ToolUse` row; the `Markdown` element; a replaced row that carries a `Code` element with a gutter; the desktop and VS Code surfaces; a compact (not expanded) view; a result with an image; a result over 100,000 characters; parallel calls; a narrow terminal; the language inferred for a `.mjs` path.
 
