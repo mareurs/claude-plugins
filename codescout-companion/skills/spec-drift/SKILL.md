@@ -68,7 +68,7 @@ The three counts must add up to the length of `criteria`.
 doc(action="event_create", id="<spec-artifact-id>", event={"kind": "verdict", "payload": {"outcome": "partial", "gate": "no-go", "implemented": 1, "missing": 1, "divergent": 0, "criteria": [{"text": "Exports a CSV on request", "status": "implemented", "evidence": "src/export.py:42"}, {"text": "Rejects files over 10 MB", "status": "missing", "evidence": "no size check in src/upload.py"}]}})
 ```
 
-`verdict` requires `payload.outcome`; readers gate on `payload.gate`. Fill the id from Step 1. The call's answer carries `event_id`, which confirms it landed; no read-back is needed (on an opted-in checkout `event_list` reads only events written into the file, and a verdict on an unflagged spec is a catalog row).
+`verdict` requires `payload.outcome`; readers gate on `payload.gate`. Fill the id from Step 1. The call's answer carries `event_id`, which confirms it landed; no read-back is needed (on an opted-in checkout `event_list` reads only events written into the file: the verdict is an event section in the spec file itself, an uncommitted edit to commit with your work; a file that code or a harness reads by content keeps the event as a row only).
 
 Recording is the point of the skill, not a courtesy: a report that is only printed is gone by the next session. Re-run after changes and record a new event; do not edit an old one.
 
