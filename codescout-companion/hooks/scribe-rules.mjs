@@ -7,7 +7,11 @@
 // door-shell-guard.mjs is the reference for the quote rules; it cannot be imported because it
 // reads stdin when it loads.
 
-export const WRITE_VERBS = ['add', 'now', 'edit', 'close', 'promote', 'end', 'supersede', 'reaffirm'];
+export const WRITE_VERBS = ['add', 'now', 'edit', 'close', 'promote', 'end', 'supersede', 'reaffirm', 'note'];
+
+// Verbs and commands of the root that read or build, never write an entry. When one of them
+// comes first, a later word is its argument (`box help close`, `box find add`), not a verb.
+const ROOT_NON_WRITES = ['help', 'list', 'show', 'find', 'check', 'new', 'flush', 'decisions', 'timeline'];
 
 export const SCRIBE_MESSAGE =
   'A scribe fork can file this tracker edit while you keep working: ' +
@@ -96,11 +100,14 @@ const INVOCATION = /(?:^|[\s;&|(])(?:\S*\/)?codescout\s+box\b/g;
 // The first other word is a verb of the root ledger, or a box key; after a key the next other
 // word is the verb.
 function verbOf(words) {
+  // Help is a read in every form: `box <verb> --help`, `-h`.
+  if (words.includes('--help') || words.includes('-h')) return null;
   const named = [];
   for (let i = 0; i < words.length && named.length < 2; i += 1) {
     if (words[i] === '--project') i += 1;
     else if (!words[i].startsWith('-')) named.push(words[i]);
   }
+  if (ROOT_NON_WRITES.includes(named[0])) return null;
   if (WRITE_VERBS.includes(named[0])) return named[0];
   if (named.length === 2 && WRITE_VERBS.includes(named[1])) return named[1];
   return null;

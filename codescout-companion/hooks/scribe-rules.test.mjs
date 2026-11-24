@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { boxWriteVerb, SCRIBE_MESSAGE, WRITE_VERBS } from './scribe-rules.mjs';
 
-test('WRITE_VERBS is exactly the eight box write verbs', () => {
+test('WRITE_VERBS is exactly the nine box write verbs', () => {
   assert.deepEqual(
     [...WRITE_VERBS].sort(),
-    ['add', 'close', 'edit', 'end', 'now', 'promote', 'reaffirm', 'supersede'],
+    ['add', 'close', 'edit', 'end', 'note', 'now', 'promote', 'reaffirm', 'supersede'],
   );
 });
 
@@ -20,6 +20,8 @@ test('boxWriteVerb names the write verb of an unquoted codescout box call', () =
     ['codescout box bugs end', 'end'],
     ['codescout box bugs supersede k', 'supersede'],
     ['codescout box bugs reaffirm k', 'reaffirm'],
+    // `note` is the verb of the frictions inbox: the call an agent makes when it notices a friction.
+    ['codescout box frictions note --title "x" --tool run_command', 'note'],
     ['codescout box bugs add --title x | tee out', 'add'],
     // A heredoc body that mentions another verb does not change the verb of the call.
     ["codescout box bugs add --title x --text body - <<'EOF'\nsome body that says codescout box bugs close k\nEOF", 'add'],
@@ -34,6 +36,16 @@ test('boxWriteVerb is null for reads, box creation, flush, other doors and quote
     'codescout box bugs show k',
     'codescout box bugs find x',
     'codescout box bugs help close',
+    // Help is a read, in every form: `box help <verb>`, `box <key> help <verb>`, `--help` and `-h`.
+    'codescout box help close',
+    'codescout box help edit 2>&1 | head -5',
+    'codescout box help reaffirm',
+    'codescout box residuals close 2026-11-22-x done --help 2>&1 | head -15',
+    'codescout box bugs add --help',
+    'codescout box bugs edit -h',
+    // A read verb first: the next word is its argument, not a verb.
+    'codescout box find close',
+    'codescout box list add',
     'codescout box bugs check',
     'codescout box new bugs --title x',
     'codescout box flush',
