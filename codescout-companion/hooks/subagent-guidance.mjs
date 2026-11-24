@@ -79,9 +79,7 @@ const inLinkedWorktree = gitCommon !== null && gitDir !== null && gitCommon !== 
 // every call it makes carries workspace=.
 const pin = root && inLinkedWorktree ? `, workspace="${root}"` : '';
 
-let msg = `A brief that says "only Read" does not forbid codescout: mcp__codescout__read_file is your Read tool. Load it first (STEP 1).
-
-codescout is available in this project: an MCP server for code intelligence. Use it for source code and markdown instead of native Read, Grep, Glob or Bash. Native calls on source are blocked, and your profile may deny native Write, Edit and Bash as well.
+let msg = `codescout is available in this project: an MCP server for code intelligence. Use it for source code and markdown instead of native Read, Grep, Glob or Bash. Native calls on source are blocked, and your profile may deny native Write, Edit and Bash as well.
 
 STEP 1 — load the tools. If no mcp__codescout__* tool is in your tool list, they are deferred. Load them with ONE ToolSearch call: select:mcp__codescout__symbols,mcp__codescout__read_file,mcp__codescout__grep,mcp__codescout__semantic_search,mcp__codescout__run_command,mcp__codescout__memory,mcp__codescout__workspace,mcp__codescout__get_guide
 Add mcp__codescout__edit_code,mcp__codescout__edit_file,mcp__codescout__create_file if you must write, and mcp__codescout__doc for bugs, specs and trackers. Do this even when your brief names only Read and Write.
