@@ -311,5 +311,12 @@ persistence is the tracker files, not the memory store.
   the tracker entry.
 - **Do not save to memory:** routine violations and per-session
   frictions. Those compound through tracker IDs.
+- **File with the frictions box (when the maintainers should see it):**
+  a U-N that reached `promoted-to-H`, and every `kind='tool_bug'` row, also
+  go to the project's `frictions` box:
+  `codescout box frictions note --title "<one line>" --tool <tool name> --body "<what you saw>"`.
+  That box is what the `export-feedback` skill sends; the two trackers above
+  are not. A project without a `frictions` box (`codescout box` does not list
+  it) skips this step.
 - **Slug naming:** `usage-pattern-<name>` for promoted lessons. Scope
   project if repo-specific, global if substrate-level.
