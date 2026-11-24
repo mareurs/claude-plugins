@@ -5,7 +5,7 @@ description: Use when the user wants to export, share or send the entries of the
 
 # Export feedback
 
-Write every box of this repository as one Markdown file. With privacy on, the file has no paths, names, e-mail addresses, secrets or code blocks. The skill sends nothing: the person reads the file and sends it.
+Write every box of this repository as one Markdown file. With privacy on, the file has no paths, names, e-mail addresses, secrets or code blocks. The skill sends nothing: the person reads the file and sends it. In a repository with no box, the `codescout box` call that the export makes first creates the box skeleton and prints what it made on stderr; the export then has nothing to read.
 
 ## Run
 

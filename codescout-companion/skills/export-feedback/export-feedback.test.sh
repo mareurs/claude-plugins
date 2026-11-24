@@ -54,7 +54,7 @@ PY
 chmod +x "$BIN/codescout"
 
 # --- the fixture -----------------------------------------------------------------
-REPO="$REPO" DATA="$TMP/data.json" EMPTY="$TMP/empty.json" python3 -I - <<'PY'
+REPO="$REPO" DATA="$TMP/data.json" EMPTY="$TMP/empty.json" FRESH="$TMP/fresh.json" python3 -I - <<'PY'
 import json, os
 repo = os.environ["REPO"]
 fence = "`" * 3
@@ -92,6 +92,9 @@ data = {
 }
 json.dump(data, open(os.environ["DATA"], "w"))
 json.dump({"index": {"version": "0.15.0", "os": "linux x86_64", "collections": []}, "boxes": {}}, open(os.environ["EMPTY"], "w"))
+# A repository with no box: the first `codescout box` call made the skeleton, so `runtime` is the only collection.
+made = ["skeleton: made .codescout/harness.md, docs/trackers/ledgers/runtime/readme.md"]
+json.dump({"index": {"version": "0.15.0", "os": "linux x86_64", "collections": [{"key": "runtime"}], "skeleton": made}, "boxes": {}}, open(os.environ["FRESH"], "w"))
 PY
 
 # $1 = CS_PRIVACY ("" = unset), $2 = data file, rest = script args. Prints the script's stdout.
@@ -171,6 +174,14 @@ case "$ERR" in *"Boxes here: frictions, bugs, runtime, broken"*) ok "unknown box
 ERR="$(run on "$TMP/empty.json" --out "$TMP/x.md" 2>&1 >/dev/null)"; RC=$?
 [ "$RC" -eq 2 ] && ok "no box exits 2" || bad "no box exits 2 (rc=$RC)"
 case "$ERR" in *"no boxes found"*) ok "no box says so";; *) bad "no box says so: $ERR";; esac
+ERR="$(run on "$TMP/fresh.json" --out "$TMP/x.md" 2>&1 >/dev/null)"; RC=$?
+[ "$RC" -eq 2 ] && ok "a repository whose only box was just made exits 2" || bad "a repository whose only box was just made exits 2 (rc=$RC)"
+case "$ERR" in *"skeleton: made .codescout/harness.md"*) ok "the skeleton lines reach the user on stderr";; *) bad "the skeleton lines reach the user on stderr: $ERR";; esac
+case "$ERR" in *"no boxes found"*) ok "a just-made skeleton has nothing to export";; *) bad "a just-made skeleton has nothing to export: $ERR";; esac
+python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); d["index"]["skeleton"]=["skeleton: made .codescout/harness.md"]; json.dump(d,open(sys.argv[2],"w"))' "$TMP/data.json" "$TMP/data-skel.json"
+ERR="$(run on "$TMP/data-skel.json" --out "$TMP/y.md" 2>&1 >/dev/null)"; RC=$?
+[ "$RC" -eq 0 ] && ok "a repository with boxes still exports when the call made the skeleton" || bad "a repository with boxes still exports when the call made the skeleton (rc=$RC)"
+case "$ERR" in *"skeleton: made .codescout/harness.md"*) ok "an export that made the skeleton shows it on stderr";; *) bad "an export that made the skeleton shows it on stderr: $ERR";; esac
 PYREAL="$(python3 -c 'import sys; print(sys.executable)')"  # python3 may be a shim that needs bash on PATH
 ERR="$(env PATH="$TMP/empty" HOME="$HOMEDIR" "$PYREAL" -I "$EXPORT" --project "$REPO" --out "$TMP/x.md" 2>&1 >/dev/null)"; RC=$?
 [ "$RC" -eq 2 ] && ok "missing codescout exits 2" || bad "missing codescout exits 2 (rc=$RC)"

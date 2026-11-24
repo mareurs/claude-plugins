@@ -236,6 +236,13 @@ def build(project: Path, only: list[str], on: bool):
     if not isinstance(index, dict) or not index.get("collections"):
         raise ExportError(f"no boxes found in {project}. Run it inside a repository that has a codescout box.")
     boxes = [c["key"] for c in index["collections"]]
+    # A bare `codescout box` makes the skeleton of a repository that has none (the index and the
+    # `runtime` ledger) and says so in `skeleton`. Show what it made, so the user can commit or remove it.
+    made = index.get("skeleton") or []
+    for line in made:
+        print(line, file=sys.stderr)
+    if made and boxes == ["runtime"]:
+        raise ExportError(f"no boxes found in {project}. The first codescout box call made the skeleton (the lines above); there is nothing to export yet.")
     if only:
         unknown = [k for k in only if k not in boxes]
         if unknown:
