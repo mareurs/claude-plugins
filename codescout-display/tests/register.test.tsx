@@ -108,3 +108,58 @@ test('an output with a hook note draws the note as one dim line', async $ => {
   expect(note?.text).not.toContain('second')
   await ui.unmount()
 })
+
+// Task 5: the open control. `toggle` is the Button's key; its state is an atom keyed by tool_use_id.
+
+test('a long result draws an open button; pressing it draws the full text and "fold"', async $ => {
+  const ui = await mount($, { tool_use_id: 'open-1', output: text(rows(40)) })
+
+  expect((await ui.find({ type: 'Button' }))?.props.label).toBe('open (28 more lines)')
+  await ui.press({ key: 'toggle' })
+
+  expect((await ui.find({ type: 'Button' }))?.props.label).toBe('fold')
+  expect((await ui.find({ type: 'Code' }))?.text).toContain('l40')
+  expect(await ui.find({ text: /more lines hidden/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('pressing the button again folds the card', async $ => {
+  const ui = await mount($, { tool_use_id: 'open-2', output: text(rows(40)) })
+
+  await ui.press({ key: 'toggle' })
+  await ui.press({ key: 'toggle' })
+
+  expect((await ui.find({ type: 'Button' }))?.props.label).toBe('open (28 more lines)')
+  expect(await ui.find({ type: 'Code' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('two cards keep separate state', async $ => {
+  const a = await mount($, { tool_use_id: 'open-3a', output: text(rows(40)) })
+  const b = await mount($, { tool_use_id: 'open-3b', output: text(rows(40)) })
+
+  await a.press({ key: 'toggle' })
+
+  expect((await a.find({ type: 'Button' }))?.props.label).toBe('fold')
+  expect((await b.find({ type: 'Button' }))?.props.label).toBe('open (28 more lines)')
+  await a.unmount()
+  await b.unmount()
+})
+
+test('a result with nothing hidden and no notes draws no button', async $ => {
+  const ui = await mount($, { tool_use_id: 'open-4', output: text(rows(3)) })
+
+  expect(await ui.find({ type: 'Button' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('notes only: a button opens the whole note', async $ => {
+  const ui = await mount($, { tool_use_id: 'open-5', output: text(rows(3), 'line one\nline two') })
+
+  expect(await ui.find({ type: 'Text', text: /line two/ })).toBeUndefined()
+  expect((await ui.find({ type: 'Button' }))?.props.label).toBe('open notes')
+  await ui.press({ key: 'toggle' })
+
+  expect(await ui.find({ type: 'Text', text: /line two/ })).toBeDefined()
+  await ui.unmount()
+})

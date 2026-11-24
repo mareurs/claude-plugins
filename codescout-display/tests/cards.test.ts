@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import {
+  FULL_CAP,
   HEAD_LINES,
   LINE_CUT,
   buildCard,
@@ -217,4 +218,46 @@ test('a JSON reply takes the fields card, a plain reply the text card', () => {
     line: 'exit_code: 0 · stdout: a',
   })
   expect(buildCard(`${P}tree`, {}, text('a\nb'))?.body).toEqual({ kind: 'text', head: ['a', 'b'] })
+})
+
+// Task 5: `full` is what an opened card draws in place of its head.
+
+test('read_file: full is the whole file body, without the header', () => {
+  const card = buildCard(`${P}read_file`, { path: 'a.ts', start_line: 1 }, text(`30 lines\n\n${lines(30)}`))
+
+  expect(card?.full).toBe(lines(30))
+})
+
+test('edit_file: full is the whole diff, not the 40-line head', () => {
+  const big = lines(100)
+  const card = buildCard(`${P}edit_file`, { path: 'a.ts', old_string: big, new_string: 'y' }, text('{"status":"ok"}'))
+
+  expect(card?.full).toBe(diffOf(big, 'y'))
+})
+
+test('create_file: full is the whole content', () => {
+  const card = buildCard(`${P}create_file`, { path: 'n.ts', content: lines(20) }, text('{"status":"ok"}'))
+
+  expect(card?.full).toBe(lines(20))
+})
+
+test('a generic card: full is the reply text, cut at FULL_CAP characters', () => {
+  const card = buildCard(`${P}grep`, { pattern: 'z' }, text('z'.repeat(150000)))
+
+  expect(FULL_CAP).toBe(100000)
+  expect(card?.full).toHaveLength(100000)
+})
+
+test('edit_file: control characters in the strings are stripped from the diff and the full diff', () => {
+  const card = buildCard(`${P}edit_file`, { path: 'a.ts', old_string: 'a\u001b[0m', new_string: 'b\u0000' }, text('{"status":"ok"}'))
+
+  expect(card?.body.kind === 'diff' && card.body.source.includes('\u001b')).toBe(false)
+  expect(card?.full.includes('\u001b') || card?.full.includes('\u0000')).toBe(false)
+})
+
+test('create_file: control characters are stripped from the content', () => {
+  const card = buildCard(`${P}create_file`, { path: 'n.ts', content: 'a\u001bb' }, text('{"status":"ok"}'))
+
+  expect(card?.body.kind === 'code' && card.body.source).toBe('ab')
+  expect(card?.full).toBe('ab')
 })

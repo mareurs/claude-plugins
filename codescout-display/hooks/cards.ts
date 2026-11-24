@@ -87,6 +87,8 @@ export const PREFIX = 'mcp__codescout__'
 export const LINE_CUT = 400
 // A diff keeps this many lines of each side. The rest is counted, not drawn.
 const DIFF_SIDE = 40
+// An opened card draws at most this many characters: the limit of one `Code` element.
+export const FULL_CAP = 100000
 
 export type FileBody = { lines: string[]; startLine: number }
 
@@ -140,8 +142,11 @@ function recordOf(input: unknown): Record<string, unknown> {
 }
 
 const cut = (line: string): string => (line.length > LINE_CUT ? line.slice(0, LINE_CUT) : line)
+const cap = (text: string): string => (text.length > FULL_CAP ? text.slice(0, FULL_CAP) : text)
 
 // What to draw for one finished codescout call, or undefined to leave the engine's row.
+// `full` is what an opened card draws in place of its head: the whole file body, the whole diff,
+// the whole content, or the whole reply text, cut at FULL_CAP.
 export function buildCard(tool: string, input: unknown, output: unknown): Card | undefined {
   const reply = replyOf(output)
   if (!reply) return undefined
@@ -149,7 +154,7 @@ export function buildCard(tool: string, input: unknown, output: unknown): Card |
   const name = tool.startsWith(PREFIX) ? tool.slice(PREFIX.length) : tool
   const fields = recordOf(input)
   const path = typeof fields.path === 'string' ? stripControl(fields.path) : undefined
-  const base = { title: `◆ ${name}  ${mainArg(input)}`.trimEnd(), notes: reply.notes, full: reply.text }
+  const base = { title: `◆ ${name}  ${mainArg(input)}`.trimEnd(), notes: reply.notes, full: cap(reply.text) }
 
   if (name === 'read_file') {
     const file = fileBody(reply.text, input)
@@ -157,23 +162,26 @@ export function buildCard(tool: string, input: unknown, output: unknown): Card |
       const f = foldLines(file.lines)
       const body = { kind: 'code' as const, source: f.head.map(cut).join('\n'), path, startLine: file.startLine, isMarkdown: /\.md$/i.test(path ?? '') }
 
-      return { ...base, body, hidden: f.hidden }
+      return { ...base, body, hidden: f.hidden, full: cap(file.lines.join('\n')) }
     }
   }
 
   if (name === 'edit_file' && editApplied(reply.text) && typeof fields.old_string === 'string' && fields.old_string !== '' && typeof fields.new_string === 'string') {
-    const a = fields.old_string.split('\n')
-    const b = fields.new_string.split('\n')
+    const oldText = stripControl(fields.old_string)
+    const newText = stripControl(fields.new_string)
+    const a = oldText.split('\n')
+    const b = newText.split('\n')
     const hidden = Math.max(0, a.length - DIFF_SIDE) + Math.max(0, b.length - DIFF_SIDE)
     const source = diffOf(a.slice(0, DIFF_SIDE).map(cut).join('\n'), b.slice(0, DIFF_SIDE).map(cut).join('\n'))
 
-    return { ...base, body: { kind: 'diff', source, path: path ?? '' }, hidden }
+    return { ...base, body: { kind: 'diff', source, path: path ?? '' }, hidden, full: cap(diffOf(oldText, newText)) }
   }
 
   if (name === 'create_file' && editApplied(reply.text) && typeof fields.content === 'string') {
-    const f = fold(fields.content)
+    const content = stripControl(fields.content)
+    const f = fold(content)
 
-    return { ...base, body: { kind: 'code', source: f.head.map(cut).join('\n'), path, isMarkdown: false }, hidden: f.hidden }
+    return { ...base, body: { kind: 'code', source: f.head.map(cut).join('\n'), path, isMarkdown: false }, hidden: f.hidden, full: cap(content) }
   }
 
   const summary = jsonFields(reply.text)
