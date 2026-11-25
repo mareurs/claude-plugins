@@ -1,6 +1,6 @@
 # session-bridge: wake an idle Claude Code session on an addressed notice
 
-Status: draft, not approved. Nothing in it is built. Gates G1 to G5 are unmeasured.
+Status: draft, not approved. Nothing in it is built. Gates G1 to G3 are measured (below), G4 is not, G5 failed and changed the design.
 
 ## Problem
 
@@ -38,13 +38,13 @@ Codex and OpenCode targets do not have this gap: `send_message` queues a prompt 
 
 **Revisit-when:** the host adds a documented way to inject a prompt into an idle session; or measurement gate G2 fails.
 
-**Confidence:** medium. The mechanism works for jobs. Nobody has measured it from a `SessionStart` or `Stop` hook.
+**Confidence:** medium-high. G1 to G3 pass in headless mode; the interactive TUI and the timeout limit (G4) are unmeasured.
 
 ## Behaviour
 
-1. **Arm.** `hooks.json` gets one `asyncRewake` entry that runs `run.sh watch`. The trigger event is open (gate G3): `SessionStart` for the first arm, and `Stop` to re-arm after each turn, because a turn that ends is exactly when the session becomes idle.
+1. **Arm.** `hooks.json` gets two `asyncRewake` entries that run `run.sh watch`: `SessionStart` (a fresh session that never ran a turn) and `Stop` (after each turn, which is when the session becomes idle; this also re-arms the watcher after each wake). Both measured (G1, G3).
 2. **Singleton.** `watch` takes a lock keyed by endpoint (profile, pid) and exits 0 at once when a live watcher holds it. `EndpointState` records the watcher pid next to `worker_pid`.
-3. **Wait.** `watch` polls `direct_after` for every session id of the endpoint (the current id and earlier ids after `/clear`, as `take` does) without moving a cursor. It stops at its deadline with exit 0.
+3. **Wait.** `watch` polls `direct_after` for every session id of the endpoint (the current id and earlier ids after `/clear`, as `take` does) without moving a cursor. It stops at its deadline with exit 0. It also exits 0 when the endpoint's Claude pid is gone (gate G5: a killed host leaves the watcher running).
 4. **Wake.** On a notice it calls `take`. When `take` returns text, it writes the text to stderr and exits 2. When `take` returns nothing, it keeps waiting.
 5. **Opt-in on the receiver.** The watcher arms only when the receiver's profile enables it (setting name open, default off). The receiver owner decides who may spend its tokens.
 6. **Sender feedback.** `post_notice(to=...)` says in one line whether the receiver has a live watcher: `queued: wakes the session if idle` or `queued: shows at its next prompt or tool call`. It never says `delivered`.
@@ -62,20 +62,26 @@ No new tool parameter. The sender does not choose to wake: the receiver's opt-in
 | OpenCode | `send_message` queues a prompt | none; unchanged |
 | VS Code/Copilot | `AgentStop` hold in the companion | out of scope |
 
-## Measurement gates (all unmeasured)
+## Measurement gates
 
-- **G1.** An `asyncRewake` hook started by `SessionStart` keeps running after the hook event returns.
-- **G2.** Exit 2 from that process wakes an **idle** session, and the stderr text reaches the model as a message.
-- **G3.** A `Stop` hook entry with `asyncRewake` is accepted and re-arms the watcher. If not, find the next event that fires when a turn ends.
-- **G4.** The largest accepted `timeout`, and what happens at the deadline (silent exit, or a visible message).
-- **G5.** The watcher dies with its session (no orphan after `/exit` or a host crash).
+Measured 2026-11-26 on Claude Code 2.1.332, linux, **headless** (`claude -p --input-format stream-json`, model haiku, user and project settings plus a probe `--settings` file). Not measured in the interactive TUI. The probe hook slept, then wrote a marker to stderr and exited 2. Probe scripts: scratchpad of the authoring session, not committed.
 
-Record each result as a fixture next to the companion manifest format (`harness`, `hostVersion`, `os`, `status`). Linux only; Windows stays `unverified`.
+| Gate | Question | Result |
+| --- | --- | --- |
+| G1 | An `asyncRewake` hook from `SessionStart` keeps running after the event returns | **Pass.** Started at t=0, alive until its own exit at t=12 s. |
+| G2 | Exit 2 wakes an **idle** session; the stderr text reaches the model | **Pass.** Turn 1 ended at 3.8 s. The hook exited 2 at 12.8 s. A new turn started at 13.0 s and the model answered the exact marker the stderr asked for. |
+| G3 | A `Stop` hook entry with `asyncRewake` re-arms the watcher | **Pass.** Watcher 1 woke the session, the wake turn ended, `Stop` started watcher 2, which woke it again (`WAKE-ACK-1`, `WAKE-ACK-2`). A counter file stopped the chain. |
+| G4 | Largest accepted `timeout`, and the behaviour at the deadline | **Not measured.** The probes used `timeout: 120`. The companion ships `7200` (`hooks.json:176`). |
+| G5 | The watcher dies with its session | **Fail for a crash.** After `kill -9` of the host, the watcher process stayed alive (it would have exited 2 into nothing). A graceful stdin close did send TERM to the watcher, but the host took more than 20 s to exit while the watcher slept; the cause is not investigated. |
+
+Consequence of G5: the watcher must check that its Claude pid is alive on each poll and exit 0 when it is not (Behaviour step 3).
+
+Still open: repeat G1 to G3 in the interactive TUI before build, and measure G4. Windows stays `unverified`.
 
 ## Risks
 
 - **Cost.** Every wake bills the receiver. Mitigation: opt-in (step 5) and the loop guard (step 7).
-- **Loop.** A wakes B, B replies, A wakes. Mitigation: step 7. Open: should a reply to a wake notice carry a marker?
+- **Loop.** A wakes B, B replies, A wakes. G3 shows the chain is real: each wake ends a turn, `Stop` re-arms, the next notice wakes again. Mitigation: step 7. Open: should a reply to a wake notice carry a marker?
 - **Process count.** One idle process per session. Mitigation: the singleton lock and a poll interval of seconds, not milliseconds (value open).
 - **Spoofing.** Any session can address any session across profiles today. A wake makes this more visible, not new. The text stays peer data.
 
@@ -89,6 +95,7 @@ Record each result as a fixture next to the companion manifest format (`harness`
 
 - `watch` exits 2 with the rendered text for one addressed notice, and `take` moves the cursor first (no second wake for the same notice).
 - A second `watch` for the same endpoint exits 0 at once.
+- `watch` exits 0 when the endpoint's Claude pid is gone (G5).
 - A notice for another session id does not wake.
 - A notice over the loop guard stays queued and shows through the existing prompt hook.
 - A `/clear` between post and wake still delivers (old id).
