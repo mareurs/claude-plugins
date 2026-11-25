@@ -150,6 +150,10 @@ export async function watch({ handle, record, deadlineSecs = 1800, pollMs = 1000
   const deadline = startedAt + deadlineSecs * 1000;
   const minutes = Math.max(1, Math.round(deadlineSecs / 60));
   const watchFile = `${record}.watch`;
+  // The host (Claude Code) is this process's parent. When it dies the kernel reparents
+  // the watcher, so a changed ppid means nobody is left to wake: end without a message.
+  const parent = process.ppid;
+  const hostGone = () => process.ppid !== parent;
   try {
     writeFileSync(watchFile, String(process.pid));
   } catch {
@@ -171,6 +175,7 @@ export async function watch({ handle, record, deadlineSecs = 1800, pollMs = 1000
 
   let seen = false;
   for (;;) {
+    if (hostGone()) return finish(0);
     const rec = readRecord(record);
     if (!rec) {
       // Never seen: the record may still be landing. Seen then gone: vanished.
@@ -196,6 +201,7 @@ export async function watch({ handle, record, deadlineSecs = 1800, pollMs = 1000
       }
       // Server gone, job alive: poll the job pid only.
       for (;;) {
+        if (hostGone()) return finish(0);
         if (!pidAlive(rec.job_pid)) return deliver('server-ended-job-ended', { pid: rec.job_pid });
         if (Date.now() >= deadline) return deliver('server-ended-job-running', { pid: rec.job_pid });
         await sleep(pollMs);

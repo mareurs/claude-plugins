@@ -342,5 +342,32 @@ case "$ERR" in *'run_command("tail -1 @bg_00000001")'*) pass "heartbeat names th
 case "$ERR" in *"no end wake"*) pass "heartbeat says an end wake is lost without the read" ;; *) fail "heartbeat consequence" "no 'no end wake' in: $ERR" ;; esac
 case "$ERR" in *"end your turn"*) pass "heartbeat says to end the turn after the read" ;; *) fail "heartbeat turn rule" "no 'end your turn' in: $ERR" ;; esac
 
+# 25. host gone: a watcher whose parent (the Claude Code host) is killed must end by
+# itself. Else it polls on, up to its deadline, then wakes nobody
+# (bugs box: 2026-11-25-wake-on-job-end-watcher-outlives-a-killed-host-it-never).
+orphan_case() { # NAME RECORD ; the record never changes, so only the host check can end the watcher
+  local name="$1" rec="$2" inp pid=""
+  inp="$(mkinput spawn "$rec")"
+  CODESCOUT_WAKE_DEADLINE_SECS=60 bash -c 'printf "%s" "$1" | env "$2" node "$3" >/dev/null 2>"$4"; wait' _ "$inp" "$PD" "$HOOK" "$TMP/$name.err" &
+  local host=$!
+  for _ in $(seq 1 50); do [ -s "$rec.watch" ] && break; sleep 0.1; done
+  pid=$(cat "$rec.watch" 2>/dev/null)
+  if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then fail "$name" "watcher did not arm (pid '$pid')"; kill -9 "$host" 2>/dev/null; return; fi
+  kill -9 "$host" 2>/dev/null; wait "$host" 2>/dev/null
+  for _ in $(seq 1 50); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
+  if kill -0 "$pid" 2>/dev/null; then fail "$name" "watcher $pid still alive 5 s after its host was killed"; kill -9 "$pid" 2>/dev/null
+  else
+    pass "$name"
+    [ ! -s "$TMP/$name.err" ] && pass "$name: no wake text after the host is gone" || fail "$name" "stderr not empty: $(cat "$TMP/$name.err")"
+    [ ! -e "$rec.watch" ] && pass "$name: removes <record>.watch" || fail "$name" "$rec.watch still exists"
+  fi
+}
+R="$TMP/r25a.json"; mkrec "$R" running "$$" null
+orphan_case "host killed, server alive" "$R"
+R="$TMP/r25b.json"; sleep 30 & JOB25=$!
+mkrec "$R" running "$DEAD" "$JOB25"
+orphan_case "host killed, server dead and job alive" "$R"
+kill "$JOB25" 2>/dev/null
+
 echo "passed=$PASS failed=$FAIL"
 [ "$FAIL" -eq 0 ]
