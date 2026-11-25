@@ -1,12 +1,14 @@
 ---
 kind: entry
-status: open
+status: mitigated
 title: 'wake-on-job-end watcher outlives a killed host: it never checks that its Claude Code session is alive'
+closed: 2026-11-25
 created: 2026-11-25
 entry_kind: bug
 last_observed: 2026-11-26
 log:
 - '2026-11-25 open created codescout:6bb10174-8084-4777-b7ef-38b92a18572d'
+- '2026-11-25 open -> mitigated codescout:6bb10174-8084-4777-b7ef-38b92a18572d'
 severity: low
 status_since: 2026-11-25
 ---
@@ -40,3 +42,7 @@ The watcher is in the "server gone, job alive" branch of `watch()` (`wake-on-job
 ## Fix direction (not done)
 
 Exit 0 from the watcher when its parent process is gone (`process.ppid` changes to 1 or the original ppid is dead), checked in the poll loop. Add a test next to `wake-on-job-end.test.sh`.
+
+## Closed
+
+Mitigated 2026-11-26 in ddb2423 for the legacy watcher, which is the only engine any profile runs (no profile has codescout-wake.json). watch() compares process.ppid with its value at start and exits 0 without wake text; two tests in wake-on-job-end.test.sh kill the host (server alive, and server dead with job alive). Not done: the dormant v1 engine path (wake-on-job-end.mjs main, v1 branch) has no host check and no test; add an AbortController on a ppid change there before any profile enables v1.
