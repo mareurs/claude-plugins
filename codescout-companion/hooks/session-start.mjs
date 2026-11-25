@@ -240,22 +240,42 @@ if (sessionMayHaveSkillTool()) {
 }
 
 // Tracker-hygiene overdue nudge (ISO date; due-today counts; local date to match `date +%F`).
-const hygieneLog = join(cwd, 'docs', 'trackers', 'tracker-hygiene-log.md');
-if (existsSync(hygieneLog)) {
+// The due date is the greatest `next_sweep_due` in the frontmatter of the entries of the
+// hygiene box; when no entry carries a valid date, the flat log's `next-sweep-due:` decides.
+const readHygieneDue = (root) => {
+  const ISO = /^\d{4}-\d{2}-\d{2}$/;
   try {
-    const m = readFileSync(hygieneLog, 'utf8').match(/^next-sweep-due:[ \t]*(.+?)[ \t]*$/m);
-    const due = m ? m[1] : '';
-    if (/^\d{4}-\d{2}-\d{2}$/.test(due)) {
-      const now = new Date();
-      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      if (due <= today) {
-        msg += `TRACKER HYGIENE: sweep overdue (due ${due}) — run /codescout-companion:tracker-hygiene
-
-`;
+    const boxDir = join(root, 'docs', 'trackers', 'streams', 'hygiene');
+    let best = '';
+    if (existsSync(boxDir)) {
+      for (const entry of readdirSync(boxDir)) {
+        if (!entry.endsWith('.md') || entry === 'readme.md') continue;
+        const fm = readFileSync(join(boxDir, entry), 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---/);
+        const mm = fm && fm[1].match(/^next_sweep_due:[ \t]*(.+?)[ \t]*$/m);
+        if (mm && ISO.test(mm[1]) && mm[1] > best) best = mm[1];
       }
+    }
+    if (best) return best;
+    const flat = join(root, 'docs', 'trackers', 'tracker-hygiene-log.md');
+    if (existsSync(flat)) {
+      const mm = readFileSync(flat, 'utf8').match(/^next-sweep-due:[ \t]*(.+?)[ \t]*$/m);
+      if (mm && ISO.test(mm[1])) return mm[1];
     }
   } catch {
     /* silent on read/parse error */
+  }
+  return '';
+};
+{
+  const due = readHygieneDue(cwd);
+  if (due) {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (due <= today) {
+      msg += `TRACKER HYGIENE: sweep overdue (due ${due}) — run /codescout-companion:tracker-hygiene
+
+`;
+    }
   }
 }
 

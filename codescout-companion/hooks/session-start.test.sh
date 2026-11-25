@@ -361,6 +361,60 @@ else
 fi
 rm -f "$LEDGER"
 
+# --- Tracker-hygiene nudge: the hygiene box (docs/trackers/streams/hygiene) ---
+# The hook reads the greatest `next_sweep_due` in the FRONTMATTER of the box entries,
+# and falls back to the flat log when no box entry carries a valid date.
+HBOX="$TMP/docs/trackers/streams/hygiene"
+LEDGER="$TMP/docs/trackers/tracker-hygiene-log.md"
+hbox_entry() { # name, frontmatter line (may be empty), body line (may be empty)
+  mkdir -p "$HBOX"
+  printf -- '---\nkind: entry\nentry_kind: sweep\n%s\n---\n%s\n' "$2" "$3" > "$HBOX/$1.md"
+}
+hbox_reset() { rm -rf "$TMP/docs/trackers/streams"; rm -f "$LEDGER"; }
+hbox_nudges() { ctx startup | grep -q "TRACKER HYGIENE: sweep overdue (due $1)"; }
+hbox_silent() { ! ctx startup | grep -q "TRACKER HYGIENE"; }
+
+hbox_reset
+hbox_entry 2026-01-01-sweep "next_sweep_due: 2020-01-01" ""
+hbox_nudges 2020-01-01 && pass "box overdue → nudge with the date" || fail "box overdue entry did not nudge"
+
+hbox_reset
+hbox_entry 2026-01-01-sweep "next_sweep_due: 2099-01-01" ""
+hbox_silent && pass "box future date → silent" || fail "box future date must not nudge"
+
+hbox_reset
+hbox_entry 2026-01-01-a "next_sweep_due: 2020-01-01" ""
+hbox_entry 2026-02-01-b "next_sweep_due: 2099-01-01" ""
+hbox_silent && pass "box takes the greatest date, not the first file" || fail "box must use the greatest date"
+
+hbox_reset
+hbox_entry 2026-01-01-a "next_sweep_due: soonish" ""
+hbox_entry 2026-02-01-b "next_sweep_due: 2020-01-01" ""
+hbox_nudges 2020-01-01 && pass "box malformed date beside a valid one → the valid one decides" || fail "box malformed date hid the valid one"
+
+hbox_reset
+hbox_entry 2026-01-01-sweep "next_sweep_due: $(date +%F)" ""
+hbox_nudges "$(date +%F)" && pass "box due today → nudge" || fail "box due today must nudge"
+
+hbox_reset
+mkdir -p "$HBOX"; printf -- '---\nkind: collection\n---\n# Tracker hygiene sweeps\n' > "$HBOX/readme.md"
+printf -- '---\nnext-sweep-due: 2020-01-01\n---\n' > "$LEDGER"
+hbox_nudges 2020-01-01 && pass "empty box (readme only) → falls back to the flat log" || fail "empty box silenced the flat log"
+
+hbox_reset
+hbox_entry 2026-01-01-sweep "next_sweep_due: 2099-01-01" ""
+printf -- '---\nnext-sweep-due: 2020-01-01\n---\n' > "$LEDGER"
+hbox_silent && pass "box wins over the flat log" || fail "flat log overrode the box"
+
+hbox_reset
+hbox_entry 2026-01-01-sweep "" "next_sweep_due: 2020-01-01"
+hbox_silent && pass "a date in the entry body does not count" || fail "a body line counted as the due date"
+
+hbox_reset
+mkdir -p "$HBOX"; printf -- '---\nnext_sweep_due: 2020-01-01\n---\n# readme\n' > "$HBOX/readme.md"
+hbox_silent && pass "a date in readme.md does not count" || fail "readme.md counted as an entry"
+hbox_reset
+
 # --- Post-compact injection: names the cost, the condition, and the remedy ---
 # The assertions are PAIRED on purpose. A negative-only guard ("no disruption" is
 # absent) is monotone under REMOVAL: delete the whole `source === 'compact'` block
