@@ -1,14 +1,11 @@
-// Hot view block for the SessionStart hook. Finds lifecycle collections whose
-// readme declares `hot_cap`, asks `codescout hot-view <key>` for each, and
-// composes one text block. It reads one frontmatter key; everything shown comes
-// from the binary. Fails open: any error gives '' (or a per-collection
-// "not shown" line), never an exception.
+// Hot view block for the SessionStart hook. Asks `codescout box --json` which collections
+// declare a hot_cap, asks `codescout hot-view <name>` for each, and composes one text block.
+// It builds no tracker path and reads no readme; everything comes from the binary. Fails
+// open: any error gives '' (or a per-collection "not shown" line), never an exception.
 // Spec: docs/superpowers/specs/2026-11-15-session-start-hot-view-design.md
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { codescoutJson } from './lib.mjs';
 
-export const LIFECYCLE_DIRS = ['ledgers', 'streams', 'temp'];
 export const MAX_COLLECTIONS = 8;
 export const TIMEOUT_MS = 3000;
 
@@ -16,38 +13,22 @@ const HEADER = 'HOT VIEW (codescout hot-view; this hook shows collections whose 
 const NOT_SHOWN_PREFIX = 'NOT SHOWN — ';
 const UNAVAILABLE = 'hot-view unavailable';
 
-// True when the readme text has a `hot_cap:` key inside its leading frontmatter.
-function declaresHotCap(text) {
-  const lines = text.split('\n').map((l) => l.replace(/\r$/, ''));
-  if (lines[0] !== '---') return false;
-  for (let i = 1; i < lines.length; i++) {
-    if (lines[i] === '---') return false;
-    if (/^hot_cap\s*:/.test(lines[i])) return true;
+// The names to pass to `codescout hot-view`, sorted: every item of `collections` in
+// `codescout box --project <root> --json` whose `hot_cap` is a number and that has no
+// `problem`. `address` is the name once codescout groups collections into boxes, else `key`.
+// Any other answer selects nothing: no binary, a timeout, a failed call, an old binary whose
+// items have no `hot_cap`, and the old-layout refusal `{"done":false,...}` a repository
+// gets before `codescout box migrate`.
+export function findHotCollections(root, binary, timeoutMs = TIMEOUT_MS) {
+  const answer = codescoutJson(binary, ['box', '--project', root, '--json'], timeoutMs);
+  const items = Array.isArray(answer?.collections) ? answer.collections : [];
+  const names = new Set();
+  for (const item of items) {
+    if (!item || typeof item.hot_cap !== 'number' || item.problem) continue;
+    const name = item.address ?? item.key;
+    if (typeof name === 'string' && name) names.add(name);
   }
-  return false;
-}
-
-export function findHotCollections(root) {
-  const keys = new Set();
-  for (const lifecycle of LIFECYCLE_DIRS) {
-    const base = join(root, 'docs', 'trackers', lifecycle);
-    let children;
-    try {
-      children = readdirSync(base);
-    } catch {
-      continue;
-    }
-    for (const key of children) {
-      if (key === 'archive') continue;
-      try {
-        if (!statSync(join(base, key)).isDirectory()) continue;
-        if (declaresHotCap(readFileSync(join(base, key, 'readme.md'), 'utf8'))) keys.add(key);
-      } catch {
-        /* not a collection, or unreadable: not selected */
-      }
-    }
-  }
-  return [...keys].sort();
+  return [...names].sort();
 }
 
 // -> { kind: 'shown' | 'quiet', text } | { kind: 'not_shown', reason }
@@ -75,7 +56,7 @@ function ask(binary, key, root, timeoutMs) {
 
 export function hotViewBlock({ root, binary, timeoutMs = TIMEOUT_MS, maxCollections = MAX_COLLECTIONS }) {
   try {
-    const keys = findHotCollections(root);
+    const keys = findHotCollections(root, binary, timeoutMs);
     if (keys.length === 0) return '';
     const checked = keys.slice(0, maxCollections);
     const rest = keys.slice(maxCollections);

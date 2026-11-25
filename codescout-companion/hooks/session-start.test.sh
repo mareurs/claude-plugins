@@ -545,13 +545,21 @@ fi
 
 # --- hot view: collections that declare hot_cap (docs/superpowers/specs/2026-11-15-session-start-hot-view-design.md) ---
 HV_REPO="$TMP/hv-repo"; HV_CFG="$TMP/hv-cfg"; HV_LOG="$TMP/hv-calls.log"
-mkdir -p "$HV_REPO/docs/trackers/ledgers/busy" "$HV_CFG"
+mkdir -p "$HV_REPO" "$HV_CFG"
 git -C "$HV_REPO" init -q
-printf -- '---\ntitle: T\nhot_cap: 5\n---\n# body\n' > "$HV_REPO/docs/trackers/ledgers/busy/readme.md"
+# What the fake binary prints for `codescout box --project <root> --json`: the hook asks the binary which
+# collections declare hot_cap and builds no tracker path, so no readme file exists in this repository.
+HV_BOX="$TMP/hv-box.json"
+printf '{"collections":[{"key":"busy","hot_cap":5,"problem":null}]}' > "$HV_BOX"
 HV_FAKE="$TMP/hv-fake-codescout"
 cat > "$HV_FAKE" <<EOF
 #!/usr/bin/env bash
 echo "\$*" >> "$HV_LOG"
+# The call shape is part of the contract: box --project <root> --json.
+if [ "\$1" = "box" ]; then
+  { [ "\$2" = "--project" ] && [ "\$4" = "--json" ] && [ "\$#" -eq 4 ]; } || exit 101
+  cat "$HV_BOX"; exit 0
+fi
 # The call shape is part of the contract: hot-view <key> --project <root>.
 if [ "\$1" != "hot-view" ] || [ "\$3" != "--project" ] || [ "\$#" -ne 4 ]; then exit 101; fi
 printf 'hot view: busy (docs/trackers/ledgers/busy): 1 of 1 hot, 1 live. Scope: x.\n- [[e1]] t: open since 2026-11-01\n'
@@ -601,7 +609,8 @@ HV_WRAP=$(printf '{"cwd":"%s","source":"startup","session_id":"hv-wrap"}' "$HV_R
   | PATH="$HV_BIN:$PATH" CLAUDE_CONFIG_DIR="$HV_CFG" XDG_STATE_HOME="$TMP/state" node "$HOOK" 2>/dev/null \
   | jq -r '.hookSpecificOutput.additionalContext // ""')
 if echo "$HV_WRAP" | grep -q -F -- "- [[e1]] t: open since 2026-11-01" \
-   && [ "$(cat "$HV_LOG")" = "hot-view busy --project $HV_REPO" ]; then
+   && grep -q -x -F "box --project $HV_REPO --json" "$HV_LOG" \
+   && grep -q -x -F "hot-view busy --project $HV_REPO" "$HV_LOG"; then
   pass "hot view: a wrapper launch command (bash -c exec codescout) still reaches the real codescout"
 else
   fail "hot view: wrapper launch command broke the call (log: $(tr '\n' ';' < "$HV_LOG"))"
@@ -656,15 +665,30 @@ rm -f "$HV_REPO/.claude/codescout-routing.json"
 hv_profile "$TMP/missing-codescout"
 mkdir -p "$TMP/hv-empty-home"
 HV_MISSING=$(HV_HOME="$TMP/hv-empty-home" hv_ctx startup)
-echo "$HV_MISSING" | grep -q "not shown: busy (hot-view unavailable)" \
-  && echo "$HV_MISSING" | grep -q "codescout: Detected in config" \
-  && echo "$HV_MISSING" | grep -q "CODESCOUT RULES" \
-  && pass "hot view: a missing binary lists the collection as not shown and keeps the rest" \
-  || fail "hot view: missing-binary output wrong"
+# Without the binary nothing says which collections are hot, so there is no block at all.
+if echo "$HV_MISSING" | grep -q "HOT VIEW"; then
+  fail "hot view: a missing binary still produced a block"
+else
+  echo "$HV_MISSING" | grep -q "codescout: Detected in config" \
+    && echo "$HV_MISSING" | grep -q "CODESCOUT RULES" \
+    && pass "hot view: a missing binary adds no block and keeps the rest" \
+    || fail "hot view: missing-binary fixture precondition — the hook emitted nothing"
+fi
 hv_profile "$HV_FAKE"
 
+# The old-layout refusal (a repository before `codescout box migrate`): exit 0, no `collections`. No block.
+printf '{"done":false,"not_done":"the boxes use the old layout","old_layout":["docs/trackers/ledgers/busy"]}' > "$HV_BOX"
+HV_OLD=$(hv_ctx startup)
+if echo "$HV_OLD" | grep -q "HOT VIEW"; then
+  fail "hot view: the old-layout refusal got a block"
+else
+  echo "$HV_OLD" | grep -q "CODESCOUT RULES" \
+    && pass "hot view: the old-layout refusal adds nothing" \
+    || fail "hot view: old-layout fixture precondition — the hook emitted nothing"
+fi
+
 # No hot_cap anywhere: no block at all.
-printf -- '---\ntitle: T\n---\n# body\n' > "$HV_REPO/docs/trackers/ledgers/busy/readme.md"
+printf '{"collections":[{"key":"busy","hot_cap":null,"problem":null}]}' > "$HV_BOX"
 HV_NONE=$(hv_ctx startup)
 if echo "$HV_NONE" | grep -q "HOT VIEW"; then
   fail "hot view: a repo with no hot_cap got a block"
