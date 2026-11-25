@@ -45,3 +45,4 @@ node_modules/
 # Local instruction files, generated from .codescout/private-facts.md by scripts/gen-local-instructions.sh
 /AGENTS.override.md
 /CLAUDE.local.md
+.hidden/
