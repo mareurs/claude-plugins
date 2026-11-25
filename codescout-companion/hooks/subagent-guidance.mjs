@@ -136,7 +136,7 @@ if (d.HAS_CS_SYSTEM_PROMPT === 'true') {
 • Entry points, navigation strategy and project rules: read_file(path=".codescout/system-prompt.md"${pin}) — a heading map first, then heading="## Section".`;
 }
 msg += `
-• Orientation: get_guide("project-activation-bootstrap"). If a get_guide topic matches your area (error-handling, progressive-disclosure, workspace-state, librarian, tracker-conventions, untrusted-content), CALL get_guide on it, even if your brief says it is "already loaded": that is true of your parent's context, not yours, and an explicit get_guide always returns the full body.
+• Tracking work (bugs, decisions, notes): run \`codescout box\` for the boxes of this project and \`codescout box find "<words>"\` before you file.
 
 Verify at the bytes: a finding needs lines you read, not a grep hit alone. For a claim about how a tool behaves, run the call once and read the real output. Cite file:line for every finding. For bug hunts, end your report with "Ledger checked: <bug ids seen | none>".`;
 

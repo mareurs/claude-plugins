@@ -462,7 +462,7 @@ Nothing is edited before its verdict.
   `workspace(action="activate", path=<target>, read_only=false)` before Phase 2,
   and confirm the response shows `read_only: false` — a read-only activation
   blocks Phase 5 apply and the box bootstrap. Restore the home project before
-  the turn ends (`get_guide("workspace-state")`). Pinning `workspace=` reaches only
+  the turn ends. Pinning `workspace=` reaches only
   the file-based detectors (D1/D2/D3 via `run_command`/`read_file`), never the
   catalog — so a pinned-not-activated sweep silently runs at most half the detectors.
 
