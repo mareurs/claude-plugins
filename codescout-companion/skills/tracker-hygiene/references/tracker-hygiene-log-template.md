@@ -1,52 +1,14 @@
-# Tracker hygiene log — template
+# Tracker hygiene — templates for the hygiene box
 
-> **Bootstrap:** Copy this file to `docs/trackers/tracker-hygiene-log.md`
-> in the active project on first sweep. The local copy becomes the
-> project's sweep ledger + HY-N meta-ledger for the
-> `codescout-companion:tracker-hygiene` skill. Set `next-sweep-due` to
-> today before the first sweep. Sync mature HY-N proposals back into
-> `SKILL.md` (see § How to sync).
+Templates for `codescout box hygiene add`, the box of the `codescout-companion:tracker-hygiene` skill. Sync mature `meta` proposals back into `SKILL.md` (§ How to sync).
 
----
+## Box readme
 
-```yaml
----
-kind: tracker
-status: active
-title: Tracker hygiene log
-owners: []
-tags:
-  - hygiene
-  - skill-meta
-  - lifecycle
-next-sweep-due: YYYY-MM-DD
-sweep-interval-days: 30
----
-```
+Make the box with `codescout box new worklog hygiene --title "Tracker hygiene sweeps" --exit-when "the repository stops running tracker hygiene"`. Then set its readme frontmatter to `entry_kinds: [sweep, meta]` and the field `next_sweep_due` with `type: scalar`, and keep the statuses `open`, `done`, `promoted`, `dropped`. Keep the readme body under 2000 bytes (`codescout box hygiene check`). The body says: a `sweep` is filed with `--status done`, its body ends with the detector trust table, and its frontmatter field `next_sweep_due` is the sweep date plus 30 days; the newest `sweep` entry is the state of the project; a `meta` entry is an observation about the skill and starts with `**Verdict:**`.
 
-# Tracker hygiene log
+## Detector trust table (default)
 
-Per-project ledger for the `codescout-companion:tracker-hygiene` skill.
-Two kinds of entries live here:
-
-- **Sweep entries** (`## Sweep YYYY-MM-DD`) — one per sweep: per-detector
-  findings/verdicts, every reject's reason, fixes applied with commit SHA.
-- **HY-N meta-entries** (`## HY-N — <title>`) — observations about the
-  *skill itself*: detector hits, misses, false-positive patterns, and
-  SKILL.md change proposals. Monotonic per project; never reuse an ID.
-
-The frontmatter `next-sweep-due:` field is read by the companion's
-SessionStart hook — an overdue date produces a one-line nudge at session
-start. Every sweep entry ends by updating it to
-`sweep date + sweep-interval-days`.
-
-## Detector trust state
-
-Batch-approval graduation is per detector, earned from this table.
-A detector enters `batch` after **two consecutive advancing sweeps** — a sweep
-advances only if the detector fired and every finding was approved (zero rejects,
-zero defers). Any reject resets to `individual`; a no-finding or deferred sweep is
-neutral (streak unchanged).
+Batch-approval graduation is per detector, earned from this table. A detector enters `batch` after **two consecutive advancing sweeps**: a sweep advances only if the detector fired and every finding was approved (zero rejects, zero defers). Any reject resets to `individual`; a no-finding or deferred sweep is neutral (streak unchanged). Copy the table into every sweep entry, with the updated values.
 
 | Detector | Mode | Consecutive zero-reject sweeps | Last reject (sweep, reason) |
 |----------|------|-------------------------------|------------------------------|
@@ -59,7 +21,7 @@ neutral (streak unchanged).
 | D10 session-log-decay | individual | 0 | — |
 | D11 promotion-pointer drift | individual | 0 | — |
 
-## HY-N verdict vocabulary
+## Verdict vocabulary of a `meta` entry
 
 | Verdict | Meaning |
 |---------|---------|
@@ -72,23 +34,16 @@ neutral (streak unchanged).
 
 ## How to sync
 
-When an HY-N proposal is confirmed across **2+ sweeps** (same shape,
-either sweep in this project or a sibling project's ledger), sync it
-into the skill:
+When a `meta` proposal is confirmed across **2+ sweeps** (same shape, in this project or in a sibling project's box), sync it into the skill:
 
-1. PR against `codescout-companion/skills/tracker-hygiene/SKILL.md`,
-   citing the HY-N IDs and their sweep entries.
-2. On merge, set the HY-N entry to `Verdict: promoted` and pin the
-   commit SHA + plugin version.
+1. PR against `codescout-companion/skills/tracker-hygiene/SKILL.md`, citing the entry keys and their sweep entries.
+2. On merge, end the `meta` entry with `promoted` and the line `**Promoted to:** <commit SHA>, plugin version <X.Y.Z>`.
 
-Manual flow — no automated cross-project aggregation. The skill is the
-canonical destination; per-project ledgers are the substrate.
+Manual flow — no automated cross-project aggregation. The skill is the canonical destination; per-project boxes are the substrate.
 
 ## Sweep entry template
 
 ```markdown
-## Sweep YYYY-MM-DD
-
 **Scope:** docs/trackers/ | **Files inventoried:** N | **Convention sources:** <index file, conventions doc, or "none — thin sweep">
 
 | Detector | Findings | Approved | Rejected | Deferred |
@@ -106,19 +61,17 @@ canonical destination; per-project ledgers are the substrate.
 
 **Fixes applied:** "this commit" (a sweep entry can't cite its own commit's SHA); use the project's citation format for any *external* SHA.
 
-**Detector trust updates:** <rows changed in the trust table, or "none">
+**Detector trust table after this sweep:** <the full table, with the updated rows>
 
-**Next sweep due:** YYYY-MM-DD (frontmatter updated in this edit)
+**Next sweep due:** YYYY-MM-DD (the `next_sweep_due` field of this entry)
 ```
 
-## HY-N entry template
+## Meta entry template
 
 ```markdown
-## HY-N — <one-line title>
-
 **Verdict:** hit | miss | false-positive-pattern | proposal | promoted | wontfix
 
-**Sweep:** YYYY-MM-DD (this ledger) — or cite sibling project ledger.
+**Sweep:** YYYY-MM-DD (this box) — or cite a sibling project's box.
 
 **Observation:** <what the detector did / didn't do, and the human verdict>.
 
@@ -126,27 +79,3 @@ canonical destination; per-project ledgers are the substrate.
 
 **Promote-when:** <criterion — default: same shape confirmed across 2+ sweeps>.
 ```
-
----
-
-## Template for new entries
-
-<!-- Insert a new Sweep entry above this line via a plain body edit
-     (sweep entries are dated, not HY-N — no id to allocate):
-
-     doc(action="update", id="<ledger artifact id>",
-              patch={body_edits: [{heading: "## Template for new entries",
-                                    action: "insert_before",
-                                    content: "## Sweep YYYY-MM-DD\n..."}],
-                     extra: {"next-sweep-due": "YYYY-MM-DD"}})
-
-     Insert a new HY-N entry via append_entry — let the server allocate
-     the id and write the section in one call; do not hand-grep the
-     highest HY-N:
-
-     doc(action="append_entry", id="<ledger artifact id>", id_prefix="HY",
-              anchor_heading="## Template for new entries",
-              title="title", body="**Verdict:** ...")
-
-     `edit_file` is refused once entry_prefix guards the ledger —
-     it only works on an unguarded fresh copy. -->

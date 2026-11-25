@@ -1,6 +1,6 @@
 ---
 name: tracker-hygiene
-description: Use when asked to run a tracker hygiene sweep, audit tracker staleness or drift, clean up docs/trackers, before backlog triage or any "what's open?" report, or when the SessionStart banner says a tracker hygiene sweep is overdue. Interactive — every finding is human-gated; approved fixes apply via the librarian; each sweep appends to the project's tracker-hygiene-log.
+description: Use when asked to run a tracker hygiene sweep, audit tracker staleness or drift, clean up docs/trackers, before backlog triage or any "what's open?" report, or when the SessionStart banner says a tracker hygiene sweep is overdue. Interactive — every finding is human-gated; approved fixes apply via the librarian; each sweep adds an entry to the project's hygiene box.
 ---
 
 # /codescout-companion:tracker-hygiene
@@ -86,9 +86,9 @@ never-augmented-here signal, not a staleness one.
 **2. The ledger is in git; the catalog is not.** Phase 2 records `link_scan`'s
 `counts.edges_missing` / `counts.dangling` (on a derived-index checkout,
 `counts.dangling` alone) into the sweep entry, and treats a jump
-versus the previous sweep as worth an HY-N note. On the unrepaired laptop those read
+versus the previous sweep as worth a `meta` entry. On the unrepaired laptop those read
 **697 missing and 597 dangling** — numbers that describe a machine with no catalog,
-not a corpus that decayed. Writing them into `tracker-hygiene-log.md` commits a
+not a corpus that decayed. Writing them into the sweep entry commits a
 machine-local artifact into a repo-wide record, where it becomes a permanent false
 baseline that every other checkout inherits and that the next sweep will "improve"
 against.
@@ -160,19 +160,19 @@ If no convention docs exist: announce it, run the **thin sweep** (D2/D3/D4/D9
 only — no index to diff), and emit a synthetic finding recommending a
 conventions bootstrap.
 
-If the ledger `docs/trackers/tracker-hygiene-log.md` does not exist,
-bootstrap it now from `references/tracker-hygiene-log-template.md`. The
-template stores its frontmatter inside a fenced ```yaml sample, so you must
-convert it into a REAL top-of-file frontmatter block: delete everything
-above that fenced block — the `# Tracker hygiene log — template` title, the
-bootstrap blockquote, and the fence markers themselves — so the file begins
-at byte 0 with `---` on line 1, then `kind: tracker`, `status: active`, … .
-Set `next-sweep-due` to today and keep `sweep-interval-days` (default 30).
-Verify with `head -1` that the first line is exactly `---`; if it is not,
-the librarian will not catalog the ledger as a tracker (making it invisible
-to this skill's own Phase 2 inventory) and Phase 5's frontmatter update will
-synthesize a duplicate block. The file body (from the `# Tracker hygiene
-log` H1 downward) is copied as-is.
+If `codescout box` does not list `hygiene`, make the box now, then run the two
+commit lines the command prints:
+
+```bash
+codescout box new worklog hygiene --title "Tracker hygiene sweeps" --exit-when "the repository stops running tracker hygiene"
+```
+
+Then set its readme from `references/tracker-hygiene-log-template.md`
+(§ Box readme): the kinds `sweep` and `meta`, and the field `next_sweep_due`.
+The box holds the state of the project in its newest `sweep` entry: the due date
+and the detector trust table. When the box has no `sweep` entry yet, read the
+trust table from the flat log's `## Detector trust state` if that file exists,
+else start from the all-`individual` table of the template.
 
 ### Phase 2 — Inventory
 
@@ -182,7 +182,7 @@ Build both states. All shell via `run_command`; never pipe unbounded output.
 - **Observed placement:** which files sit in the live dir vs the archive dir.
 - **Observed catalog:** `doc(action="find", kind="tracker", include_archived=true)` — note rows whose `status` or `rel_path` disagree with disk. This query is project-wide: it returns trackers **anywhere** in the project, including outside `docs/trackers/` (e.g. a subproject's `*/docs/*_TRACKER.md`). The file inventory above only sees `docs/trackers/` — so the two halves disagree on scope. Treat `docs/trackers/` as the sweep's authoritative scope; a catalog tracker living elsewhere is a *separate observation*, not a D1 index-drift finding. (If you reach for `librarian(action="doctor")` to find orphans, note it scans the **whole catalog across all projects** — filter its `missing_file` violations to this project's path.) `kind=tracker` can also return mis-classified `docs/issues/` bug files (a bug file carrying `kind: tracker`) — exclude `docs/issues/` from the cross-check; bug-file lifecycle is D8/v2.
 - **Observed augmentation freshness:** `doc(action="list_stale", threshold_hours=168)`.
-- **Observed citation-graph drift:** `librarian(action="link_scan")` (report mode) — record `counts.edges_missing` and `counts.dangling` in the sweep entry; a jump vs the previous sweep is an observation worth an HY-N note (materializing with `write=true` is a Phase-5 fix, gated like any other). On a derived-index checkout record `counts.dangling` alone: `counts.edges_missing` is absent and `write=true` is refused. Its population differs from the catalog scanner's: both count a 16-hex id that a non-empty old catalog does not hold (`counts.dangling_dead_ids` gives the derived share; on codescout 2026-11-21, 439 of 457), but the catalog scanner also counts a bare token whose prefix is known and that no document defines, and, with an empty catalog, every 16-hex id, while the derived report counts neither. So **do not compare the count across a sweep taken before the repository opted in and one taken after**; note in each sweep entry which side of the opt-in it was taken on.
+- **Observed citation-graph drift:** `librarian(action="link_scan")` (report mode) — record `counts.edges_missing` and `counts.dangling` in the sweep entry; a jump vs the previous sweep is an observation worth a `meta` entry (materializing with `write=true` is a Phase-5 fix, gated like any other). On a derived-index checkout record `counts.dangling` alone: `counts.edges_missing` is absent and `write=true` is refused. Its population differs from the catalog scanner's: both count a 16-hex id that a non-empty old catalog does not hold (`counts.dangling_dead_ids` gives the derived share; on codescout 2026-11-21, 439 of 457), but the catalog scanner also counts a bare token whose prefix is known and that no document defines, and, with an empty catalog, every 16-hex id, while the derived report counts neither. So **do not compare the count across a sweep taken before the repository opted in and one taken after**; note in each sweep entry which side of the opt-in it was taken on.
 - **Declared:** parse the index file's rows (file links + claimed status); read each tracker's frontmatter `status:` via `read_file`.
 
 ### Phase 3 — Diff (the detectors)
@@ -204,7 +204,7 @@ observed Y"*.
 
 D6 (entry-level verify-open), D7 (citation format), D8 (`docs/issues/`
 discipline) are **v2** — do not improvise them mid-sweep; a drift you notice
-outside D1–D5/D9/D10/D11 is a `miss` HY-N entry, which is how v2 earns its way in.
+outside D1–D5/D9/D10/D11 is a `miss` `meta` entry, which is how v2 earns its way in.
 
 **D9 defer-vs-refresh — default to defer.** Before synthesizing a D9 refresh, read
 the augmentation's own prompt. Auto-refresh **only** when that prompt describes a
@@ -369,7 +369,7 @@ that was never written. Also `docs/issues/2026-08-19-no-check-detects-a-fired-un
 
 ### Phase 4 — Triage (interactive, one finding at a time)
 
-Check the ledger's **Detector trust state** table first. For detectors in
+Check the **detector trust table** of the newest `sweep` entry first. For detectors in
 `individual` mode (v1 default: all), present each finding as its own
 `AskUserQuestion`: the evidence pair, the proposed fix, the detector name.
 **Batching homogeneous findings:** when a detector produces several findings that
@@ -416,35 +416,23 @@ Nothing is edited before its verdict.
   the sweep entry. Skip if `link_scan` is unavailable (see Degradation). On a
   derived-index checkout skip it too: `write=true` is refused there, and the index
   reads every edge from the files, so a move leaves no edge to heal.
-- Append the sweep entry (`## Sweep YYYY-MM-DD`) and bump `next-sweep-due`
-  in one call. A sweep entry has no monotonic id — it's dated, not `HY-N` —
-  so this goes through a plain body edit, not `append_entry`:
+- File the sweep entry and set the due date in one call. The body is the sweep
+  entry of `references/tracker-hygiene-log-template.md`, ending with the
+  detector trust table after this sweep (zero-reject streaks, demotions). The
+  field `next_sweep_due` is today plus 30 days:
 
-  ```python
-  doc(action="update", id="<ledger artifact id>",
-           patch={body_edits: [{heading: "## Template for new entries",
-                                 action: "insert_before",
-                                 content: "## Sweep YYYY-MM-DD\n..."}],
-                  extra: {"next-sweep-due": "<today + sweep-interval-days>"}})
+  ```bash
+  codescout box hygiene add --kind sweep --status done --title "Sweep YYYY-MM-DD" --text body - '{"fields":{"next_sweep_due":"YYYY-MM-DD"}}'
   ```
 
-  For an `HY-N` meta-entry, let the server allocate the id instead — do not
-  hand-grep the highest `HY-N` (this ledger has no index table; the headings
-  ARE the index):
+  The call commits the entry and prints its key.
+- File a `meta` entry for anything about the skill itself: a `miss` (drift found
+  outside the detectors), a `false-positive-pattern` (recurring reject reason), a
+  `proposal`. The body starts with the line `**Verdict:** <verdict>`:
 
-  ```python
-  doc(action="append_entry", id="<ledger artifact id>", id_prefix="HY",
-           anchor_heading="## Template for new entries",
-           title="<one-line title>", body="**Verdict:** ...")
+  ```bash
+  codescout box hygiene add --kind meta --title "<one-line title>" --text body -
   ```
-
-  `edit_file` is refused once the ledger declares `entry_prefix` to
-  guard it (the template instructs this on first sweep) — it only works on
-  an unguarded fresh copy.
-- Update the Detector trust state table (zero-reject streaks, demotions).
-- Add HY-N entries for anything meta: a `miss` (drift found outside the
-  detectors), a `false-positive-pattern` (recurring reject reason), a
-  `proposal`.
 - One commit for the whole sweep, message referencing the sweep entry. Cite
   SHAs in the project's citation format for *external* references; the sweep
   entry cannot cite its own commit's SHA (it lives inside that commit) — write
@@ -475,20 +463,22 @@ Nothing is edited before its verdict.
 
 - The user rejects three findings in a row from the same detector — stop
   presenting that detector's findings this sweep, log a
-  `false-positive-pattern` HY-N, move on.
+  `false-positive-pattern` `meta` entry, move on.
 - More than ~25 findings total — present counts per detector first and ask
   which detectors to triage this session; the rest defer.
 
 ## The ledger (per project)
 
-`docs/trackers/tracker-hygiene-log.md`, bootstrapped from this skill's
-`references/tracker-hygiene-log-template.md`. Holds sweep entries, HY-N
-meta-entries, and the detector trust table. The companion's SessionStart
-hook reads its `next-sweep-due:` frontmatter and nudges when overdue —
-keeping that field current is part of every sweep's Phase 5.
+The box `hygiene` (`docs/trackers/streams/hygiene/`), made from this skill's
+`references/tracker-hygiene-log-template.md`. Holds `sweep` entries and `meta`
+entries; the newest `sweep` entry carries the detector trust table. The
+companion's SessionStart hook reads the greatest `next_sweep_due` in the
+frontmatter of its entries (and the flat log's `next-sweep-due:` when no entry
+has one) and nudges when it is due — setting that field is part of every
+sweep's Phase 5.
 
-HY-N promotion mirrors reconnaissance's R-N flow: proposals confirmed
-across 2+ sweeps → PR against this SKILL.md citing the HY-N IDs → mark
+Promotion of a `meta` entry mirrors reconnaissance's R-N flow: proposals confirmed
+across 2+ sweeps → PR against this SKILL.md citing the entry keys → mark
 `promoted` with commit SHA + plugin version.
 
 ## Growth path (so future sessions don't re-litigate)

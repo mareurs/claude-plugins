@@ -40,8 +40,7 @@ CREATED: list[str] = []  # fixture ledger ids not yet dropped; see make_ledger
 # The heading the shipped ledger templates carry for new entries. The fixture holds THIS heading, not
 # whatever heading a skill's call names, so a typo in a skill's `anchor_heading` is refused, not adopted.
 TEMPLATE_HEADING = "## Template for new entries"
-TEMPLATE_FILES = ("tracker-hygiene/references/tracker-hygiene-log-template.md",
-                  "reconnaissance/references/reconnaissance-patterns-template.md")
+TEMPLATE_FILES = ("reconnaissance/references/reconnaissance-patterns-template.md",)
 
 def ok(msg: str) -> None:
     print(f"  PASS: {msg}")
