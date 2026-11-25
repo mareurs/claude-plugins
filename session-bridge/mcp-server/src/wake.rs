@@ -1,7 +1,12 @@
 //! Wake of an idle session by an addressed notice: opt-in marker and loop guard.
 
+use crate::cursor::get_direct;
+use crate::direct::take;
 use crate::endpoints::{pid_alive, process_start_ms, Roots};
-use crate::state::update;
+use crate::hook::HookInput;
+use crate::paths::is_safe_component;
+use crate::state::{endpoint_path, load_or_default, update};
+use crate::store::Store;
 use std::path::{Path, PathBuf};
 
 /// How often the watcher polls, in milliseconds.
@@ -71,4 +76,95 @@ pub fn release_watcher(path: &Path, own_pid: u32) {
             s.watch_until_ms = 0;
         }
     });
+}
+
+/// What one armed watcher ends with.
+#[derive(Debug, PartialEq, Eq)]
+pub enum WatchOutcome {
+    /// The text of the notices to hand to the idle session.
+    Wake(String),
+    /// Nothing to deliver: the deadline passed, the host is gone or the guard held.
+    Done,
+}
+
+/// Time source of the watch loop, so tests run without real sleeps.
+pub struct Clock<'a> {
+    pub now_ms: &'a dyn Fn() -> i64,
+    pub sleep_ms: &'a dyn Fn(u64),
+}
+
+/// Watch for a notice addressed to this session and take it when one arrives.
+///
+/// `me.1` is the Claude pid of the host. The watcher claims the endpoint's watcher slot with
+/// its own pid, then polls every `POLL_MS` through `clock.sleep_ms`. A pass checks, in order:
+/// the host is alive, the claim deadline has not passed, then whether a notice is pending for
+/// the input session id or the id the endpoint state still names (after `/clear`). The pending
+/// check only peeks; `direct::take` moves the cursor, and only when the loop guard allows a
+/// wake, so a held-back notice stays deliverable by `on_trigger`. The claim is released on
+/// every return path. A subagent, an unsafe id or a lost claim ends at once with `Done`.
+pub fn watch(
+    input: &HookInput,
+    me: (&str, u32),
+    roots: &Roots,
+    state: &Path,
+    store: &Store,
+    clock: &Clock,
+) -> WatchOutcome {
+    if input.agent_id.is_some() || !is_safe_component(&input.session_id) || !is_safe_component(me.0)
+    {
+        return WatchOutcome::Done;
+    }
+    let path = endpoint_path(state, me.0, me.1);
+    let own = std::process::id();
+    if !claim_watcher(&path, roots, own, (clock.now_ms)()) {
+        return WatchOutcome::Done;
+    }
+    let out = watch_loop(input, me, roots, state, store, clock, &path);
+    release_watcher(&path, own);
+    out
+}
+
+fn watch_loop(
+    input: &HookInput,
+    me: (&str, u32),
+    roots: &Roots,
+    state: &Path,
+    store: &Store,
+    clock: &Clock,
+    path: &Path,
+) -> WatchOutcome {
+    loop {
+        if !pid_alive(roots, me.1) {
+            return WatchOutcome::Done;
+        }
+        let st = load_or_default(path);
+        let now = (clock.now_ms)();
+        if now >= st.watch_until_ms {
+            return WatchOutcome::Done;
+        }
+        let mut ids = vec![input.session_id.as_str()];
+        if !st.session_id.is_empty() && st.session_id != input.session_id {
+            ids.push(st.session_id.as_str());
+        }
+        let pending = ids.iter().any(|id| {
+            is_safe_component(id)
+                && store
+                    .direct_after(id, get_direct(state, me.0, id), 1)
+                    .map(|v| !v.is_empty())
+                    .unwrap_or(false)
+        });
+        if pending {
+            if !guard_allows(&st.wake_ms, now) {
+                return WatchOutcome::Done;
+            }
+            if let Some(text) = take(&ids, me, roots, state, store) {
+                let _ = update(path, |s| {
+                    s.wake_ms.retain(|&w| now - w <= HOUR_MS);
+                    s.wake_ms.push(now);
+                });
+                return WatchOutcome::Wake(text);
+            }
+        }
+        (clock.sleep_ms)(POLL_MS);
+    }
 }
