@@ -372,7 +372,7 @@ real post-collapse evidence rather than by inspection: U-1 re-measured and still
 2026-09-02 collapse `bb24b7f`), U-4 downgraded to `open, re-check next audit` (0/54
 since), U-5 noted unenforced-by-rejection-count rather than re-measured. No further
 action here — see `RM-28` for the adjudication and
-`docs/trackers/codescout-usage-audit-session-log.md`'s `UPDATE 2026-09-06` banner for
+`docs/trackers/archive/codescout-usage-audit-session-log.md`'s `UPDATE 2026-09-06` banner for
 the full evidence.
 
 **Valid:** dated 2026-09-01
@@ -795,7 +795,7 @@ Deciding needs to know whether the warn-tier behaviour is still wanted; the test
 
 **Status:** fixed
 
-`docs/trackers/codescout-usage-audit-session-log.md` U-2 and U-3 recommended routing
+`docs/trackers/archive/codescout-usage-audit-session-log.md` U-2 and U-3 recommended routing
 markdown reads/edits to `read_markdown`/`edit_markdown`. The 2026-09-02 tool collapse
 (`bb24b7f`) retired both — `read_file`/`edit_file` handle markdown directly now.
 

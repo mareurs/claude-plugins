@@ -1,7 +1,8 @@
 ---
 kind: tracker
-status: active
+status: archived
 title: Session Log — codescout-usage-audit
+archived_on: 2026-11-25
 ---
 
 # Session Log — codescout-usage-audit
@@ -16,6 +17,22 @@ title: Session Log — codescout-usage-audit
 > done here, per INDEX.md's "fewer files" rule. One work stream, one file.
 
 ---
+
+## Outcomes digest (archived 2026-11-25)
+
+This log was archived after a verify-open pass on 2026-11-25, and the owner confirmed that the work stream is wrapped. The numbers below come from 29 days of `.codescout/usage.db` rows (2026-10-27 to 2026-11-25) of this repository. Every entry keeps its heading in this file.
+
+| ID | Status now | Evidence on 2026-11-25 |
+|----|------------|------------------------|
+| U-1 | mitigated | 65 of 3829 `read_file` calls (1.7%) hit the symbol-overlap rejection. The server's hint re-routes each one. The Hookify assessment still holds: no client hook. |
+| U-2 | moot-superseded | `read_markdown` was retired on 2026-09-02. The window holds 0 calls to it. |
+| U-3 | moot-superseded | `edit_markdown` was retired on 2026-09-02. The window holds 0 calls to it. |
+| U-4 | mitigated | 47 of 1908 `edit_file` calls (2.5%) hit the definition rejection. U-4 recurs: the note of 2026-09-06 (0 of 54) came from a 3-day sample. The server's hint re-routes each one. |
+| U-5 | wontfix-false-alarm | 1541 `grep` calls to 1 `semantic_search` call. `grep` is a legitimate tool and the server has no rejection to count, so no rule can enforce this. |
+| F-1 | fixed | Unchanged. |
+| W-1 | validated | 1 datapoint. Its Promote-when criterion (a second stale-recorder target caught by a fresh re-read) has not fired. |
+
+`moot-superseded` means that the remedy the entry prescribed no longer exists. The entry keeps its measured counts as history.
 
 ## Recorder reliability caveat (read before trusting any query)
 > **UPDATE 2026-09-06 — re-audit of U-1..U-5 against the post-collapse tool surface,
@@ -82,11 +99,11 @@ is sourced from those, not the dead columns.
 
 | ID | Iron Law | Tool called | Should have called | Count (lifetime) | Severity | Status |
 |----|----------|-------------|--------------------|-----------------:|----------|--------|
-| U-1 | IL1 | `read_file` on source | `symbols(name=…, include_body=true)` | 45 rejections (+1 since 09-03) | med | open |
-| U-2 | IL4 | `read_file` on markdown | ~~`read_markdown`~~ tool retired 2026-09-02; `read_file` now handles markdown directly | 39 rejections | med | dead-tool, superseded |
-| U-3 | IL5 | `edit_file` on markdown | ~~`edit_markdown`~~ tool retired 2026-09-02; `edit_file` now handles markdown directly | 29 rejections | med | dead-tool, superseded |
-| U-4 | IL2 | `edit_file` with `def`/structural | `edit_code` | 22 rejections (0 since 09-03, n=54) | med | open, re-check next audit |
-| U-5 | (search routing) | `grep` for concept lookup | `semantic_search` | 355 : 6 lifetime (156 : 3 last 7d) | low | unenforced — not measurable by rejection count |
+| U-1 | IL1 | `read_file` on source | `symbols(name=…, include_body=true)` | 45 rejections (+65 in 29 days to 11-25) | med | mitigated |
+| U-2 | IL4 | `read_file` on markdown | ~~`read_markdown`~~ tool retired 2026-09-02; `read_file` now handles markdown directly | 39 rejections | med | moot-superseded |
+| U-3 | IL5 | `edit_file` on markdown | ~~`edit_markdown`~~ tool retired 2026-09-02; `edit_file` now handles markdown directly | 29 rejections | med | moot-superseded |
+| U-4 | IL2 | `edit_file` with `def`/structural | `edit_code` | 22 rejections (+47 in 29 days to 11-25) | med | mitigated |
+| U-5 | (search routing) | `grep` for concept lookup | `semantic_search` | 355 : 6 lifetime (1541 : 1 in 29 days to 11-25) | low | wontfix-false-alarm |
 
 ## Reconnaissance Frictions Index (F-N)
 
@@ -114,7 +131,7 @@ is sourced from those, not the dead columns.
 **Whistle delivered:** yes (server-side, every time).
 **Recurrence:** 3rd+ (sustained habit over a month).
 **Severity:** med — habit-forming, but self-correcting (server hint re-routes).
-**Status:** open — see Hookify assessment (no client hook warranted).
+**Status:** mitigated — verify-open 2026-11-25: 65 of 3829 `read_file` calls (1.7%) hit the symbol-overlap rejection, and the server's hint re-routes each one. See Hookify assessment (no client hook warranted).
 
 ## U-2 — `read_file` on markdown (39×) — Iron Law 4
 
@@ -126,7 +143,7 @@ is sourced from those, not the dead columns.
 **Whistle delivered:** yes (server-side).
 **Recurrence:** 3rd+.
 **Severity:** med.
-**Status:** open.
+**Status:** moot-superseded — `read_markdown` was retired on 2026-09-02, and verify-open 2026-11-25 found 0 calls to it in the window. The measured count stays as history.
 
 ## U-3 — `edit_file` on markdown (29×) — Iron Law 5
 
@@ -138,7 +155,7 @@ is sourced from those, not the dead columns.
 **Whistle delivered:** yes (server-side).
 **Recurrence:** 3rd+.
 **Severity:** med.
-**Status:** open.
+**Status:** moot-superseded — `edit_markdown` was retired on 2026-09-02, and verify-open 2026-11-25 found 0 calls to it in the window. The measured count stays as history.
 
 ## U-4 — `edit_file` carrying a definition (22×) — Iron Law 2
 
@@ -153,7 +170,7 @@ NOT wrong-tool; not counted here.)
 **Whistle delivered:** yes (server-side).
 **Recurrence:** 3rd+.
 **Severity:** med.
-**Status:** open.
+**Status:** mitigated — verify-open 2026-11-25: 47 of 1908 `edit_file` calls (2.5%) hit the definition rejection, so U-4 recurs; the note of 2026-09-06 (0 of 54) came from a 3-day sample. The server's hint re-routes each one.
 
 ## U-5 — `grep` used for concept search instead of `semantic_search`
 
@@ -169,7 +186,7 @@ in a month is the smell.
 **Whistle delivered:** advisory only (grep is a legitimate tool; no server reject).
 **Recurrence:** sustained.
 **Severity:** low.
-**Status:** open.
+**Status:** wontfix-false-alarm — verify-open 2026-11-25: 1541 `grep` calls to 1 `semantic_search` call. `grep` is a legitimate tool and the server has no rejection to count, so no rule can enforce it.
 
 ## Hookify assessment (why no H-N graduated)
 
@@ -235,9 +252,9 @@ Then promote to the Dzo's Heuristics / a `legibility` memory:
 
 ```yaml
 topic: codescout-usage-audit
-status: open
+status: archived
 opened: 2026-06-14
-last_touched: 2026-06-14
+last_touched: 2026-11-25
 counters: { U: 5, F: 1, W: 1, H: 0 }
 done_condition: >
   Closes when U-1..U-5 land (whistle acknowledged / habit stops) AND F-1 is
@@ -247,6 +264,7 @@ done_condition: >
 
 ## History
 
+- 2026-11-25 — Verify-open pass (tracker-hygiene D10) on 29 days of `usage.db` rows; U-1 and U-4 mitigated, U-2 and U-3 moot-superseded, U-5 wontfix-false-alarm. Owner confirmed the work stream is wrapped. Archived under its stable name; see the Outcomes digest at the top.
 - 2026-06-14 — F-1 handed off and dealt with in the codescout repo (column population fixed at the source). Marked promoted-to-bug-tracker; not verifiable from claude-plugins.
 - 2026-06-14 — Created. Pika+Dzo audit of `.codescout/usage.db` (5961 calls,
   2026-05-15 → 06-14). Captured U-1..U-5 (wrong-tool routing, server-enforced),

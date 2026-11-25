@@ -6,5 +6,5 @@ path = "CLAUDE.md"
 hash = "16a53c25bd553336c243e48c113c6df24ef67d3ba444d8283b2353e05292beff"
 
 [[anchors]]
-path = "docs/trackers/codescout-usage-audit-session-log.md"
+path = "docs/trackers/archive/codescout-usage-audit-session-log.md"
 hash = "2023c36267375d9e34ac7c1f7fd2017added38bef19251c0819150a55dce9ad9"
