@@ -28,3 +28,16 @@ status_since: 2026-11-25
 3. Release this change no later than the codescout release that refuses params (codescout decision D10: skills that assume catalog behaviour change in the same release). codescout's E7b-2 step 3 waits on this entry.
 
 **Tests added:** none yet.
+
+## Now
+
+**Done 2026-11-25 (committed, not released):**
+- The 24 audits are entries of the box `prompt-hamsa` (`04052ab`), made from the template `buddy/skills/prompt-hamsa/box` (`f2f6772`). Each entry holds its row fields verbatim, and A-1 to A-6 hold their record section verbatim; a body-compare script found no loss.
+- `SKILL.md` names the box, `add`, `close` and `box new <skill dir>/box` for a project without one (`f2f6772`). The skill core also shrank to 9,5 KB (`a720ec3`).
+- The flat tracker is moved to `docs/research/2026-11-25-prompt-hamsa-audit-history.md` and holds only its History section; the augmentation sidecar is removed; citations are re-pointed (`aebb689`).
+
+**Open, in this order:**
+1. Release buddy with `./scripts/release.sh buddy` (`NO_PUSH=1` unless the operator asks for the push). The skill is committed, not live, until then, and it must ship no later than the codescout release that refuses params.
+2. The catalog row of the moved document still carries `entry_collection: audits` and its params, grafted by `doc move`. It ends with codescout E7b-2.
+3. codescout migrates its own `prompt-hamsa-audit-log` into a box with the same key `prompt-hamsa` (E7b-2 step 1). Then `references/eval.md` and `docs/templates/eval-pre-registration.md` cite `docs/trackers/prompt-hamsa-audit-log.md` § Protocol in codescout, a path that no longer exists there; point them at the box entry or the file that holds P-1..P-8.
+4. Close this entry as `fixed` (Fix provenance: SHA of `aebb689` and the release) after item 1.
