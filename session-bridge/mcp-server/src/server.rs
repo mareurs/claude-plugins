@@ -162,6 +162,11 @@ pub fn addressed_result(seq: i64, key: &str, target: &EndpointState, now_ms: i64
         let age_s = (now_ms - target.last_look_ms).max(0) / 1000;
         text.push_str(&format!(" Its hooks last looked {age_s}s ago."));
     }
+    if target.watch_until_ms > now_ms {
+        text.push_str(
+            " A wake watcher is armed there, so an idle session is woken (at most once a minute).",
+        );
+    }
     text
 }
 
