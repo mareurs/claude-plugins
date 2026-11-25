@@ -1,6 +1,7 @@
 ---
 kind: tracker
-status: active
+status: archived
+archived_on: 2026-11-25
 entry_high_water_F: 7
 entry_prefix:
 - F
@@ -30,6 +31,15 @@ entry_prefix:
 >   stream wraps.
 
 ---
+
+## Outcomes digest — 2026-11-25
+
+The work stream is wrapped and this log is archived under its stable name, because code, a memory and two specs cite it. Entry headings and ids are unchanged. Reading surface: the Index and Wins Index below, then the sections.
+
+- **Frictions:** `F-1` to `F-5` and `F-7` are `fixed-verified`. `F-6` is `mitigated` by `scripts/check-skill-skew.sh`; the host still prints the working tree as the base directory and serves the text from the cache.
+- **Promoted or rehomed entries:** none.
+- **Unfired promote-when criteria:** `W-1` needs a third pre-spec doc-check that catches a non-existent or changed Claude Code mechanism. `W-2` needs a second "fixed N=1, missed N=many" near-miss. Both are `validated` with one datapoint and stay so.
+- **Open at archive:** nothing.
 
 ## Index
 

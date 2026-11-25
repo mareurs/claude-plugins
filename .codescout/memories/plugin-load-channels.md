@@ -34,14 +34,14 @@
 > session is the least representative observer of this — it is the one most likely to
 > believe the edit shipped. Probe `plugin_root` in the trace log for hook freshness; probe
 > the served bytes against `installPath` for skill freshness.
-> (`docs/trackers/skill-loading-session-log.md` F-5.)
+> (`docs/trackers/archive/skill-loading-session-log.md` F-5.)
 >
 > **Re-measured 2026-11-25, Claude Code 2.1.332.** A marker line that exists only in the working-tree
 > `spec-drift/SKILL.md` did not appear in the text the Skill tool served, while the tool still printed the
 > working tree as "Base directory". So the text comes from the cache and the printed directory is the tree.
 > A skill that reads its helper files through that directory mixes release-time text with tree-time
 > helpers until the next release. `scripts/check-skill-skew.sh` names every skills/ and commands/ file where
-> the tree and an installed cache disagree (`docs/trackers/skill-loading-session-log.md` F-6).
+> the tree and an installed cache disagree (`docs/trackers/archive/skill-loading-session-log.md` F-6).
 
 Claude Code freezes `installPath` + `version` in `~/.claude/plugins/installed_plugins.json`
 at install time. For directory-source plugins (marketplace `source: directory`), the

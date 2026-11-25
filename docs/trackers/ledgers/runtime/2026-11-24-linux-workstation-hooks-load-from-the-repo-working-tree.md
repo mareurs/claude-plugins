@@ -30,7 +30,7 @@ topics:
   session is the least representative observer of that. What a restart/reload buys you on
   top is *registration* — which hooks, skills and commands exist — resolved at process
   launch. See `CLAUDE.md` § Plugin Install Path for the per-channel table, and
-  `docs/trackers/skill-loading-session-log.md` F-5 for the measurement. Third-party
+  `docs/trackers/archive/skill-loading-session-log.md` F-5 for the measurement. Third-party
   github-source marketplaces load everything from `<profile>/plugins/marketplaces/…`.
 
 **Valid:** conditional — the marketplace source or installLocation of sdd-misc-plugins changes

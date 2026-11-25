@@ -1,7 +1,7 @@
 # Skill-Loading Bootstrap — Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-06-12-skill-loading-bootstrap-design.md`
-**Evidence:** `docs/trackers/skill-loading-session-log.md` (F-1, W-1)
+**Evidence:** `docs/trackers/archive/skill-loading-session-log.md` (F-1, W-1)
 
 ## Task order
 

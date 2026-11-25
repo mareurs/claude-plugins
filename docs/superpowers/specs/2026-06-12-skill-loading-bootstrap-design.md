@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-12
 **Status:** approved (user: "this is beautiful what you found lets implement it")
-**Evidence base:** `docs/trackers/skill-loading-session-log.md` F-1 / W-1 — every
+**Evidence base:** `docs/trackers/archive/skill-loading-session-log.md` F-1 / W-1 — every
 mechanism named below was verified against docs or a live probe before this spec
 was written.
 
@@ -114,7 +114,7 @@ the hook emits a pointer marker carrying `payload-file=<path>`. summon.md
 Step 0 reads that one file with **native `Read`** (not `read_markdown`, which
 would fragment a persona-sized file). Inline emission survives only as the
 no-session-id / spill-failed fallback. Evidence + measurements:
-`docs/trackers/skill-loading-session-log.md` F-4.
+`docs/trackers/archive/skill-loading-session-log.md` F-4.
 ### C. Frontmatter hygiene (buddy personas)
 
 All 12 builtin `SKILL.md` files gain YAML frontmatter: `name` (directory name),

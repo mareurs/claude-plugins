@@ -277,7 +277,7 @@ a sibling project's ledger hitting the same miss).
 | D4 frontmatter-catalog-mismatch | 3 | 3 | 0 | 0 |
 | D5 canonical-conflict | 0 | 0 | 0 | 0 |
 | D9 augmentation-stale | 1 | 0 | 0 | 1 |
-| D10 session-log-decay | 3 | 0 | 0 | 3 |
+| D10 session-log-decay | 3 | 1 | 0 | 2 |
 | D11 promotion-pointer drift | 0 | 0 | 0 | 0 |
 
 **D1 (9, approved):** nine live files had no row in `INDEX.md`. Before approving, the operator asked what the seven non-D2 files contain and whether they are still actual. Each was checked against the repository: four were finished or obsolete and were archived (below), and three stayed live (`collection-hot-path-session-log`, `harness-identification-session-log`, `session-bridge-codex-session-log`). Nine rows were added: three live, six archived.
@@ -294,7 +294,7 @@ a sibling project's ledger hitting the same miss).
 
 **D9 (1, deferred):** `prompt-hamsa-audit-log`, `age_hours: null`, `refresh_count: 0`. Domain-expert audit log, so the skill says defer. Same finding and same verdict as 2026-10-19.
 
-**D10 (3, deferred):** `codescout-usage-audit-session-log` (79 days, 5 open frictions, deferred a third time), `skill-loading-session-log` (43 days, 4 open) and `portable-workflows-session-log` (43 days, 7 open). Each needs a verify-open pass over its frictions before any archive; the operator chose to do that as its own task.
+**D10 (3, 1 approved / 2 deferred):** `skill-loading-session-log` (43 days idle) was archived later the same day, after a verify-open pass: its two open frictions were re-measured and closed. `F-6` (which bytes the Skill tool serves) was probed with a marker line that exists only in the working tree: the served text came from the cache while the printed base directory was the tree, on Claude Code 2.1.332. It is `mitigated` by `scripts/check-skill-skew.sh` and its test. `F-7` (PostToolUse fires for Skill calls) was re-measured on 2.1.332 and is `fixed-verified`; the false docstring in `buddy/scripts/skill_ledger.py` was corrected. The owner confirmed the work stream is wrapped. `W-1` and `W-2` stay `validated` with one datapoint each, and the digest at the top of the archived file names their unfired promote-when criteria. Pointers were repointed in the memory `plugin-load-channels`, `buddy/scripts/reload.py`, the 2026-06-12 spec and plan, `INDEX.md` and one runtime-box entry; dated records were left alone. `codescout-usage-audit-session-log` (79 days, 5 open frictions, deferred a third time) and `portable-workflows-session-log` (43 days, 7 open) stay deferred; each needs the same verify-open pass.
 
 **D11 (0):** every `promoted-to-permanent-docs` hit in the live trackers is a template or vocabulary line.
 
