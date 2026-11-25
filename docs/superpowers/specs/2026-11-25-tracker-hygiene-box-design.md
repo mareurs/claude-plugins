@@ -1,7 +1,7 @@
 # Tracker hygiene writes through a box: short design
 
 Date: 2026-11-25. Status: proposed, waits for the operator's approval.
-Entry: `docs/trackers/streams/box-migration/2026-11-24-tracker-hygiene-log-cannot-move-to-a-box-while-the-hygiene.md`.
+Entry: `docs/trackers/streams/context-migration/2026-11-24-tracker-hygiene-log-cannot-move-to-a-box-while-the-hygiene.md` in the codescout checkout.
 
 ## Intent and why
 
@@ -11,7 +11,7 @@ The `tracker-hygiene` skill writes `docs/trackers/tracker-hygiene-log.md` by pat
 
 - Goal: the skill adds sweep and `HY-N` entries with `codescout box hygiene add`. The hook finds the due date in the box.
 - Goal: a project with the old log keeps working until its log moves.
-- Non-goal: moving the existing log in this change. Session `9b880af2` may still write it (a D10 step). The move waits for its word.
+- Non-goal: moving the existing log in this change. The move is a later step, after the box and the hook are live and the log has no open writer (the sessions that wrote it on 2026-11-25 have committed and reported no further write).
 - Non-goal: changing the detectors D1 to D11 or the sweep method.
 - Anti-goal: a second place for the due date, or a hook that starts a process.
 
