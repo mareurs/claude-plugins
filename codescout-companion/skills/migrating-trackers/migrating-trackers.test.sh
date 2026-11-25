@@ -31,7 +31,7 @@ SIZE=$(wc -c < "$SKILL")
 
 for needle in 'trackers inventory' 'trackers apply' 'trackers check' '--json' '"refused"' '"ran": false' \
   'already_applied' 'git diff --cached --name-only' 'absolute-git-dir' 'reconnaissance-patterns' \
-  'tracker-hygiene-log' 'trackers --help' 'cutover plan' '--no-old-catalog'; do
+  'trackers --help' 'cutover plan' '--no-old-catalog'; do
   grep -qF -- "$needle" "$SKILL" && pass "names $needle" || fail "names $needle" "absent"
 done
 

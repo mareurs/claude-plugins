@@ -422,7 +422,7 @@ The version 1 [session context contract](docs/session-context.md) separates root
 ### 1.12.0
 
 - New skill `tracker-hygiene`: periodic, human-gated tracker-corpus sweep — six detectors (index-drift, terminal-not-archived, stale-active, frontmatter-catalog-mismatch, canonical-conflict, augmentation-stale), per-project sweep ledger with HY-N self-improvement entries, per-detector batch-approval graduation.
-- `session-start.sh`: one-line nudge when the project's `docs/trackers/tracker-hygiene-log.md` frontmatter says the next sweep is overdue.
+- `session-start.sh`: one-line nudge when the newest `next_sweep_due` in the project's hygiene box (`docs/boxes/hygiene/hygiene/`) is overdue.
 
 ### 1.11.1
 
