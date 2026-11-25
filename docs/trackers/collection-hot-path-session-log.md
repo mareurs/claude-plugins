@@ -100,8 +100,8 @@ entry_prefix:
 
 | ID | Date | Severity | Category | Status | Title |
 |----|------|---------:|----------|--------|-------|
-| F-1 | 2026-11-15 | med | substrate | open | **The installed codescout 0.15.0 has no `hot-view`** — the hook will be dormant until a release |
-| F-2 | 2026-11-15 | high | coupling | open | **No collection exists yet, and L-E must write `hot_cap`** — else the hook shows nothing after the migration too |
+| F-1 | 2026-11-15 | med | substrate | fixed-verified | **The installed codescout 0.15.0 has no `hot-view`** — the hook will be dormant until a release |
+| F-2 | 2026-11-15 | high | coupling | fixed-verified | **No collection exists yet, and L-E must write `hot_cap`** — else the hook shows nothing after the migration too |
 | F-3 | 2026-11-15 | med | plan-drift | mitigated | **My discovery glob covered `ledgers/` only** — collections also live in `streams/` and `temp/` |
 | F-4 | 2026-11-15 | low | contract-gap | mitigated | **The contract does not say what to do with a view of 0 hot entries** — inject, drop, or summarise |
 | F-5 | 2026-11-15 | high | plan-drift | fixed-verified | **`CS_BINARY` is the MCP launch command, not the binary** — the hook ran `bash hot-view …`; now uses `resolveCodescoutBinary` |
@@ -288,8 +288,8 @@ Codified so the Index column means the same thing across sessions.
 
 ## F-1 — The installed codescout 0.15.0 has no `hot-view`, so the hook is dormant until a release
 
-**Valid:** conditional — until a codescout release that contains `hot-view` is installed at the path the MCP config names
-**Status:** open
+**Valid:** dated 2026-11-25
+**Status:** fixed-verified
 
 **Observed:** The hot-view plan (`docs/superpowers/plans/2026-11-15-collection-hot-view.md` § Contract for the hook) and the memory `collection-hot-view-state` treat a binary that lacks `hot-view` as possible version skew. On this machine today it is the actual state, not just a risk. `~/.claude-stef/.claude.json` names `/home/marius/.cargo/bin/codescout` as the server command. That binary and `codescout/target/release/codescout` both report `codescout 0.15.0`. Both exit 2 with empty stdout and `error: unrecognized subcommand 'hot-view'` on stderr (run 2026-11-15). The command exists only on `integration/identity-lifecycle-20261114` at `5d655bfef`. It is not on `experiments` and not in a release.
 
@@ -297,10 +297,12 @@ Codified so the Index column means the same thing across sessions.
 
 **Action:** Test the hook with a fake binary that covers each exit path: 0 with a view, 2 with `NOT SHOWN — `, 2 with empty stdout, and 101. Say in the hand-over that the hook stays dormant until the release.
 
+**Resolved (verify-open 2026-11-25):** The server command of all four profiles (`~/.claude`, `~/.claude-sdd`, `~/.claude-kat`, `~/.claude-stef`) is `/home/marius/.cargo/bin/codescout`. That path is now a symlink to `codescout/target/release/codescout`, a build of `experiments` rebuilt on 2026-11-25. It still reports `codescout 0.15.0`, so a dev build met the condition, not a release. `hot-view --help` exits 0. `hot-view bugs --project <this repository>` exits 0 and prints the view. An unknown key exits 2 with `NOT SHOWN — no collection …`. The hook also ran in this session and injected the HOT VIEW block. The action is done: the fake binary in `hot-view.test.mjs` covers exit 0 with a view, a quiet view, exit 2 with a reason, exit 2 with empty stdout (the old binary), exit 101, a timeout and exit 0 with empty output, and the file passes (11 cases). A machine whose server command is an older binary is still in the state that this entry describes.
+
 ## F-2 — No collection exists yet, and Plan L-E must write `hot_cap` or the hook stays empty after migration
 
-**Valid:** conditional — until Plan L-E runs, or until someone creates a collection by hand
-**Status:** open
+**Valid:** dated 2026-11-25
+**Status:** fixed-verified
 
 **Observed:** No collection readme exists anywhere the hook would look. `find docs/trackers/ledgers -maxdepth 3 -name readme.md` returns nothing in `codescout` and nothing in `claude-plugins`. `git ls-tree` on `integration/identity-lifecycle-20261114` shows no readme under `docs/trackers/ledgers` (all checked 2026-11-15). So every hot view the hook could show depends on Plan L-E, which is not written.
 
@@ -309,6 +311,8 @@ Codified so the Index column means the same thing across sessions.
 **Cost:** If the plans are written separately, the hook ships, L-E ships, and the hook still shows nothing. No test fails, because both halves are correct alone.
 
 **Action:** Plan L-E carries an explicit step: choose `hot_cap` and `stale_after` for each migrated collection, or record why a collection has none.
+
+**Resolved (verify-open 2026-11-25):** The `find` of this entry (`find docs/trackers/ledgers -maxdepth 3 -name readme.md`) returns 5 readmes in this repository: `bugs`, `frictions`, `patterns`, `runtime` and `runtime-residuals`. All 5 declare `hot_cap`, and so does the `recon` stream. In `codescout` the same `find` returns 8 readmes, and 12 readmes under `ledgers/` and `streams/` declare `hot_cap`. The coupling that this entry feared (readmes without `hot_cap`, so a hook that shows nothing) did not occur in this repository: its hot views appear at the start of each session.
 
 ## F-3 — My first hook proposal searched only `ledgers/`, but collections also live in `streams/` and `temp/`
 
