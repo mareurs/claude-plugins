@@ -116,7 +116,7 @@ test('hasBugsBox is true only when codescout shows the bugs box', () => {
     // output that is not JSON, and a failing binary.
     assert.equal(hasBugsBox(dir, fakeBox(dir, '{"shown":false}')), false);
     assert.equal(hasBugsBox(dir, fakeBox(dir, 'NOT SHOWN — no box bugs', 2)), false);
-    assert.equal(hasBugsBox(dir, fakeBox(dir, '{"done":false,"not_done":"the boxes use the old layout","old_layout":["docs/trackers/ledgers/bugs"]}')), false);
+    assert.equal(hasBugsBox(dir, fakeBox(dir, '{"done":false,"not_done":"the boxes use the old layout","old_layout":["docs/boxes/bugs/bugs"]}')), false);
     assert.equal(hasBugsBox(dir, fakeBox(dir, 'not json')), false);
     assert.equal(hasBugsBox(dir, fakeBox(dir, '{"shown":true}', 101)), false);
     // No binary, no root, and a call shape the fake does not know.

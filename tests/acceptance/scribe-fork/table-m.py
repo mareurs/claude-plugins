@@ -72,7 +72,7 @@ def metrics(label):
     after = sum(1 for k in main_calls[first_fork + 1:] if k == "code") if first_fork is not None else 0
     calc = open(f"{repo}/calc.py", encoding="utf-8").read() if os.path.exists(f"{repo}/calc.py") else ""
     py = subprocess.run(["python3", "-m", "pytest", "-q", "-p", "no:cacheprovider"], cwd=repo, capture_output=True, text=True)
-    bugs = f"{repo}/docs/trackers/ledgers/bugs"
+    bugs = f"{repo}/docs/boxes/bugs/bugs"
     names = [f for f in os.listdir(bugs) if f.endswith(".md") and f != "readme.md"] if os.path.isdir(bugs) else []
     text = {f: open(f"{bugs}/{f}", encoding="utf-8").read() for f in names}
 

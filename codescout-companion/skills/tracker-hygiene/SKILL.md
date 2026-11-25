@@ -166,7 +166,7 @@ If `codescout box` does not list `hygiene`, make the box now:
 codescout box new worklog hygiene --title "Tracker hygiene sweeps" --exit-when "the repository stops running tracker hygiene"
 ```
 
-Before you run the commit lines it prints, edit `docs/trackers/streams/hygiene/readme.md`: replace the
+Before you run the commit lines it prints, edit `docs/boxes/hygiene/hygiene/readme.md`: replace the
 frontmatter keys `entry_kinds` and `statuses` and add `fields` as the block in
 `references/tracker-hygiene-log-template.md` (§ Box readme) shows. Without it the box refuses a `sweep`
 entry. Then run the commit lines, with the readme path in the `git add`.
@@ -495,7 +495,7 @@ Nothing is edited before its verdict.
 
 ## The box (per project)
 
-The box `hygiene` (`docs/trackers/streams/hygiene/`), made from this skill's
+The box `hygiene` (`docs/boxes/hygiene/hygiene/`), made from this skill's
 `references/tracker-hygiene-log-template.md`. Holds `sweep` entries and `meta`
 entries; the newest `sweep` entry carries the detector trust table. The
 companion's SessionStart hook reads the greatest `next_sweep_due` in the

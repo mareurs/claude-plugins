@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - The hook stays a file read: no process, no new dependency, silent on every error.
-- Box path: `docs/trackers/streams/hygiene/`. Field: `next_sweep_due` (scalar, `YYYY-MM-DD`). Nudge text unchanged: `TRACKER HYGIENE: sweep overdue (due <date>) — run /codescout-companion:tracker-hygiene`.
+- Box path: `docs/boxes/hygiene/hygiene/`. Field: `next_sweep_due` (scalar, `YYYY-MM-DD`). Nudge text unchanged: `TRACKER HYGIENE: sweep overdue (due <date>) — run /codescout-companion:tracker-hygiene`.
 - A due date of today counts as overdue. A value that is not exactly `YYYY-MM-DD` never nudges.
 - The box readme body stays under 2000 bytes. The sweep interval of 30 days stays in the skill text, not in a field.
 - Agent-facing text states the current situation only, with no history. Write all text in English.
@@ -32,7 +32,7 @@
 
 - Modify `codescout-companion/hooks/session-start.mjs` (the nudge block near line 242): one new function `readHygieneDue(cwd)`.
 - Modify `codescout-companion/hooks/session-start.test.sh` (the nudge tests near line 300): new box cases beside the old ones.
-- Create `docs/trackers/streams/hygiene/readme.md` through `codescout box new`.
+- Create `docs/boxes/hygiene/hygiene/readme.md` through `codescout box new`.
 - Modify `codescout-companion/skills/tracker-hygiene/SKILL.md` and its `references/tracker-hygiene-log-template.md`.
 - Modify the skill-contract test data only if `tests/run-all.sh` names a skill call that is no longer legal.
 
@@ -47,7 +47,7 @@
 **Interfaces:**
 - Produces: `readHygieneDue(cwd: string): string`, returns the due date `YYYY-MM-DD` or `''`. It never throws.
 
-- [ ] **Step 1: Write the failing tests.** Add these cases to `session-start.test.sh`, in the style of the existing nudge cases (`ctx startup`, `pass`, `fail`). Each case writes files under `$TMP/docs/trackers/streams/hygiene/` and removes them after. Entry files are `2026-11-25-sweep.md` style with frontmatter `---\nkind: entry\nentry_kind: sweep\nnext_sweep_due: <date>\n---\n`.
+- [ ] **Step 1: Write the failing tests.** Add these cases to `session-start.test.sh`, in the style of the existing nudge cases (`ctx startup`, `pass`, `fail`). Each case writes files under `$TMP/docs/boxes/hygiene/hygiene/` and removes them after. Entry files are `2026-11-25-sweep.md` style with frontmatter `---\nkind: entry\nentry_kind: sweep\nnext_sweep_due: <date>\n---\n`.
   - `box overdue → nudge with the date`: one entry with `2020-01-01`; assert `TRACKER HYGIENE: sweep overdue (due 2020-01-01)`.
   - `box future → silent`: `2099-01-01`.
   - `box takes the greatest date`: entries `2020-01-01` and `2099-01-01`; assert silent.
@@ -60,7 +60,7 @@
 
 - [ ] **Step 2: Run the tests and confirm the new cases fail.** Run: `bash codescout-companion/hooks/session-start.test.sh 2>&1 | grep -E "FAIL|passed"`. Expected: the new box cases FAIL, the old cases PASS.
 
-- [ ] **Step 3: Implement `readHygieneDue(cwd)` in `session-start.mjs`.** List `*.md` files of `docs/trackers/streams/hygiene/` except `readme.md`. For each, read the frontmatter block only (between the first two `---` lines) and match `^next_sweep_due:[ \t]*(\d{4}-\d{2}-\d{2})[ \t]*$` (multiline). Collect valid dates and return the greatest. When none, read the flat log with the existing rule (`^next-sweep-due:` anywhere in the file, valid ISO only) and return its date, else `''`. Wrap the whole function in `try/catch` returning `''`. Replace the inline block so it calls `readHygieneDue(cwd)` and keeps the existing `due <= today` test and message.
+- [ ] **Step 3: Implement `readHygieneDue(cwd)` in `session-start.mjs`.** List `*.md` files of `docs/boxes/hygiene/hygiene/` except `readme.md`. For each, read the frontmatter block only (between the first two `---` lines) and match `^next_sweep_due:[ \t]*(\d{4}-\d{2}-\d{2})[ \t]*$` (multiline). Collect valid dates and return the greatest. When none, read the flat log with the existing rule (`^next-sweep-due:` anywhere in the file, valid ISO only) and return its date, else `''`. Wrap the whole function in `try/catch` returning `''`. Replace the inline block so it calls `readHygieneDue(cwd)` and keeps the existing `due <= today` test and message.
 
 - [ ] **Step 4: Run the tests and confirm all pass.** Same command. Expected: no FAIL; the old six nudge cases still PASS.
 
@@ -69,7 +69,7 @@
 ### Task 2: Create the box
 
 **Files:**
-- Create: `docs/trackers/streams/hygiene/readme.md` (through the CLI)
+- Create: `docs/boxes/hygiene/hygiene/readme.md` (through the CLI)
 
 - [ ] **Step 1: Make the box.** Run: `codescout box new worklog hygiene --title "Tracker hygiene sweeps" --exit-when "the repository stops running tracker hygiene"`. Run the commit lines the command prints, with explicit paths.
 

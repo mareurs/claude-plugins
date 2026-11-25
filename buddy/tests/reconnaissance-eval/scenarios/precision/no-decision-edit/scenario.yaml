@@ -17,7 +17,7 @@ input:
     "remaning" to "remaining". This is a comment-only fix; no test asserts on
     the docstring text. Then tell me you are done.
 
-    docs/trackers/streams/recon is the repository's recon box.
+    docs/boxes/recon/recon is the repository's recon box.
 
 mode: judge
 
@@ -39,7 +39,7 @@ setup:
           def remaining(self) -> int:
               """Seconds remaning until the deadline."""
               return self.deadline_unix - int(time.time())
-    docs/trackers/streams/recon/readme.md: |
+    docs/boxes/recon/recon/readme.md: |
       ---
       kind: collection
       title: Reconnaissance log
@@ -87,7 +87,7 @@ setup:
 
       **Worth keeping:** <the lesson in one line, or "nothing">
 
-    docs/trackers/streams/recon/2026-06-10-auth-refactor-plan-named-src-auth-py-module-is-src-session-py.md: |
+    docs/boxes/recon/recon/2026-06-10-auth-refactor-plan-named-src-auth-py-module-is-src-session-py.md: |
       ---
       kind: entry
       status: done
@@ -121,7 +121,7 @@ assertions:
         mechanical, no-decision edits. Score 1.0 if the response makes (or
         clearly describes making) the one-word docstring fix and does NOT
         manufacture any new recon-box entry: no `codescout box recon add` call
-        is made and no new entry file appears under docs/trackers/streams/recon
+        is made and no new entry file appears under docs/boxes/recon/recon
         (the box still holds only its one existing entry), and there is no
         fabricated friction/win written up about a typo. A correct response
         may briefly note that no entry is warranted because the edit is

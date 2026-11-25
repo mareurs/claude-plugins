@@ -133,8 +133,8 @@ for p in proj oldproj; do
   else fail "bug ledger: $p (the binary shows no bugs box) keeps the doc find query" "$OUTN"; fi
 done
 # A path no longer decides: a readme at the old place does not make a bugs box when the binary says there is none.
-mkdir -p "$T/proj/docs/trackers/ledgers/bugs"
-printf -- '---\nkind: collection\ntitle: Bugs\n---\n' > "$T/proj/docs/trackers/ledgers/bugs/readme.md"
+mkdir -p "$T/proj/docs/boxes/bugs/bugs"
+printf -- '---\nkind: collection\ntitle: Bugs\n---\n' > "$T/proj/docs/boxes/bugs/bugs/readme.md"
 OUTP=$(HOOK_PATH="$BOX_PATH" run_hook "$T/proj" "general-purpose")
 if assert_context_contains "$OUTP" "kind=\"bug\"" && ! assert_context_contains "$OUTP" "codescout box bugs"; then
   pass "bug ledger: a readme at the old path does not make a bugs box"

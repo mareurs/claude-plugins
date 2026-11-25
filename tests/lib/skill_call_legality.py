@@ -262,7 +262,7 @@ def case_recon_box(binary: str, env: dict, sandbox: Path) -> None:
 
     new_args = shlex.split(new_blocks[0])[1:]
     made = box(new_args)
-    readme = "docs/trackers/streams/recon/readme.md"
+    readme = "docs/boxes/recon/recon/readme.md"
     if made.returncode != 0 or f"git add {readme}" not in made.stdout:
         return bad(f"{label}: `box new worklog recon` makes the box and prints its commit lines",
                    f"rc={made.returncode} stdout={made.stdout[:200]!r} stderr={made.stderr[:200]!r}")
@@ -289,14 +289,14 @@ def case_recon_box(binary: str, env: dict, sandbox: Path) -> None:
         if done.returncode != 0 or not KEY_RE.match(key):
             bad(f"{where} is accepted and prints an entry key", f"rc={done.returncode} stdout={done.stdout[:120]!r} stderr={done.stderr[:160]!r}")
             continue
-        entry = repo / "docs/trackers/streams/recon" / f"{key}.md"
+        entry = repo / "docs/boxes/recon/recon" / f"{key}.md"
         kind = args[args.index("--kind") + 1]
         if entry.is_file() and f"entry_kind: {kind}" in entry.read_text() and "**What happened:**" in entry.read_text():
             ok(f"{where} ({kind}) is accepted; the entry carries its kind and the fields")
             keys.append(key)
         else:
             bad(f"{where} writes the entry", f"{entry} missing, wrong kind or no `**What happened:**`")
-    dirty = subprocess.run(["git", "-C", str(repo), "status", "--porcelain", "--", "docs/trackers/streams/recon"],
+    dirty = subprocess.run(["git", "-C", str(repo), "status", "--porcelain", "--", "docs/boxes/recon/recon"],
                            capture_output=True, text=True).stdout.strip()
     ok(f"{label}: `add` committed every entry itself") if not dirty else bad(f"{label}: `add` commits the entry", dirty[:200])
     if len(keys) < 3:
@@ -312,7 +312,7 @@ def case_recon_box(binary: str, env: dict, sandbox: Path) -> None:
     else:
         bad(f"{label}: close is accepted", f"rc={closed.returncode} out={closed.stdout[:160]!r} err={closed.stderr[:160]!r}")
     promoted = box(["box", "recon", "promote", keys[1], "--to-file", "README.md"])
-    if promoted.returncode == 0 and "Promoted to" in (repo / "docs/trackers/streams/recon" / f"{keys[1]}.md").read_text():
+    if promoted.returncode == 0 and "Promoted to" in (repo / "docs/boxes/recon/recon" / f"{keys[1]}.md").read_text():
         ok(f"{label}: `promote <entry> --to-file <path>` is accepted and writes the `**Promoted to:**` line")
     else:
         bad(f"{label}: promote is accepted and writes its line", f"rc={promoted.returncode} out={promoted.stdout[:160]!r} err={promoted.stderr[:160]!r}")

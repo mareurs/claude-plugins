@@ -22,7 +22,7 @@ input:
     (a unix timestamp) versus the current time. The plan's test asserts
     `tok.expired() is True` for a stale token.
 
-    Before you edit, the recon box docs/trackers/streams/recon holds the
+    Before you edit, the recon box docs/boxes/recon/recon holds the
     repository's reconnaissance log; read its existing entries.
 
 mode: judge
@@ -61,7 +61,7 @@ setup:
       def test_expired_false_for_fresh():
           tok = SessionToken(token="x", deadline_unix=int(time.time()) + 10)
           assert tok.expired() is False
-    docs/trackers/streams/recon/readme.md: |
+    docs/boxes/recon/recon/readme.md: |
       ---
       kind: collection
       title: Reconnaissance log
@@ -109,7 +109,7 @@ setup:
 
       **Worth keeping:** <the lesson in one line, or "nothing">
 
-    docs/trackers/streams/recon/2026-06-10-auth-refactor-plan-named-src-auth-py-module-is-src-session-py.md: |
+    docs/boxes/recon/recon/2026-06-10-auth-refactor-plan-named-src-auth-py-module-is-src-session-py.md: |
       ---
       kind: entry
       status: done
@@ -133,7 +133,7 @@ setup:
 
       fixed
 
-    docs/trackers/streams/recon/2026-06-12-auth-refactor-grep-scoped-to-file-missed-a-cross-module-caller.md: |
+    docs/boxes/recon/recon/2026-06-12-auth-refactor-grep-scoped-to-file-missed-a-cross-module-caller.md: |
       ---
       kind: entry
       status: open
@@ -151,7 +151,7 @@ setup:
 
       **Worth keeping:** Scope a caller search to the workspace, not the changing file.
 
-    docs/trackers/streams/recon/2026-06-12-auth-refactor-scouted-caller-sites-before-a-signature-change.md: |
+    docs/boxes/recon/recon/2026-06-12-auth-refactor-scouted-caller-sites-before-a-signature-change.md: |
       ---
       kind: entry
       status: open
@@ -188,7 +188,7 @@ assertions:
             (not `--kind win`), whose title starts with the topic
             `auth-refactor:` and is not the title of an existing entry. If the
             profile cannot run the command, a new entry file under
-            docs/trackers/streams/recon/ with the same title and `entry_kind:
+            docs/boxes/recon/recon/ with the same title and `entry_kind:
             friction` counts.
         (3) Writes the entry with the three worklog fields: `**What happened:**`
             states the plan's `.expiry_ts` against the reality (`.deadline_unix`,

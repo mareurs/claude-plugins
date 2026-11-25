@@ -77,7 +77,7 @@ assert "tracker t2's distinct C-1 (same session) -> deny (not deduped against t1
 export CS_STUB_RESPONSE='[{"id":"C-1","tracker_id":"t2","title":"T2","rule":"R2"}]'
 assert "same tracker_id/id pair, new session -> deny again (session isolation preserved)" "$(mkinput s5 src/solver/x.kt)" "deny"
 
-# --- binary resolution off PATH (docs/trackers/ledgers/bugs/2026-11-24-constitution-hooks-cannot-find-the-codescout-binary-off-path.md)
+# --- binary resolution off PATH (docs/boxes/bugs/bugs/2026-11-24-constitution-hooks-cannot-find-the-codescout-binary-off-path.md)
 # A minimal PATH that excludes the stub dir and any real codescout. Asserted
 # below so these cases cannot pass vacuously.
 NODE_BIN=$(command -v node)

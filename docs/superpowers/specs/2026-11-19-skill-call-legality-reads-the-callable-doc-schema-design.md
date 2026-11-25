@@ -101,7 +101,7 @@ This part is certain and small. Do it before, or in the same session as, the cod
 
 **Verification before the operator rebuilds:** build the codescout `experiments` binary in a worktree slot (`scripts/with-slot.sh cargo build`), set `CODESCOUT_BIN` to it, and run `bash tests/test-skill-call-legality.sh`. Expected before the fix: nine FAIL lines. Expected after: no FAIL, and the first real stdio observation that a hidden action is accepted by `tools/call` (the `link` case at `skill_contract_calls.py:209-235` executes it).
 
-The bug file `docs/trackers/ledgers/bugs/2026-11-24-no-automated-check-that-the-tool-calls-a-skill-prescribes.md` (key [[2026-11-24-no-automated-check-that-the-tool-calls-a-skill-prescribes]], status fixed) records how this suite was built. Add a short dated section there when part 1 lands; do not reopen the bug.
+The bug file `docs/boxes/bugs/bugs/2026-11-24-no-automated-check-that-the-tool-calls-a-skill-prescribes.md` (key [[2026-11-24-no-automated-check-that-the-tool-calls-a-skill-prescribes]], status fixed) records how this suite was built. Add a short dated section there when part 1 lands; do not reopen the bug.
 
 ## Design, part 2: how skills tell an agent to call the nine actions (decided: B, see below)
 

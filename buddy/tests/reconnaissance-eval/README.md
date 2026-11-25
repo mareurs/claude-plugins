@@ -261,7 +261,7 @@ CLI for its recon box. The isolated
   `references`. The *discipline* (read actual shape before acting) survives; the
   specific codescout tool calls do not.
 - The **recon box** is supplied as `setup.files` fixtures (a pre-seeded
-  `docs/trackers/streams/recon/` with its readme and prior entries). The skill's
+  `docs/boxes/recon/recon/` with its readme and prior entries). The skill's
   `codescout box new worklog recon` step and the `recon_count.py` statusline bump
   are **NOT** exercised, and whether the isolated profile can run
   `codescout box recon add` is **not verified**: the rubrics also accept a new

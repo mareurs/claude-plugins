@@ -6,9 +6,9 @@
 # working tree moves on its own.
 set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DIR="$ROOT/.codescout/box/scripts/frictions"
-README="$ROOT/docs/trackers/ledgers/frictions/readme.md"
-SRC="${CODESCOUT_REPO:-$ROOT/../codescout}/.codescout/box/scripts/frictions"
+DIR="$ROOT/.codescout/box/scripts/frictions/frictions"
+README="$ROOT/docs/boxes/frictions/frictions/readme.md"
+SRC="${CODESCOUT_REPO:-$ROOT/../codescout}/.codescout/box/scripts/frictions/frictions"
 PASS=0; FAIL=0
 ok()  { echo "  PASS: $1"; PASS=$((PASS+1)); }
 bad() { echo "  FAIL: $1 — $2"; FAIL=$((FAIL+1)); }
@@ -25,10 +25,10 @@ done
 if git -C "$ROOT" check-ignore -q "$DIR/note.py"; then
   bad ".codescout/box is ignored" "keep '!/.codescout/box/' in .gitignore"
 else ok ".codescout/box is not ignored"; fi
-if [ -n "$(git -C "$ROOT" ls-files -- .codescout/box/scripts/frictions)" ]; then ok "the scripts are tracked"
+if [ -n "$(git -C "$ROOT" ls-files -- .codescout/box/scripts/frictions/frictions)" ]; then ok "the scripts are tracked"
 else bad "the scripts are not tracked" "git add .codescout/box/scripts"; fi
 # The state of the verbs is regenerable and stays out of the repository.
-if git -C "$ROOT" check-ignore -q "$ROOT/.codescout/box/state/frictions/x"; then ok ".codescout/box/state is ignored"
+if git -C "$ROOT" check-ignore -q "$ROOT/.codescout/box/state/frictions/frictions/x"; then ok ".codescout/box/state is ignored"
 else bad ".codescout/box/state is not ignored" "keep '/.codescout/box/state/' in .gitignore"; fi
 
 # The scripts file an inbox entry and admit it with an FR-N: the readme must declare both.

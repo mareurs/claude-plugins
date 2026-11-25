@@ -361,10 +361,10 @@ else
 fi
 rm -f "$LEDGER"
 
-# --- Tracker-hygiene nudge: the hygiene box (docs/trackers/streams/hygiene) ---
+# --- Tracker-hygiene nudge: the hygiene box (docs/boxes/hygiene/hygiene) ---
 # The hook reads the greatest `next_sweep_due` in the FRONTMATTER of the box entries,
 # and falls back to the flat log when no box entry carries a valid date.
-HBOX="$TMP/docs/trackers/streams/hygiene"
+HBOX="$TMP/docs/boxes/hygiene/hygiene"
 LEDGER="$TMP/docs/trackers/tracker-hygiene-log.md"
 hbox_entry() { # name, frontmatter line (may be empty), body line (may be empty)
   mkdir -p "$HBOX"
@@ -489,7 +489,7 @@ fi
 # omits Skill has no such tool (28 of 28 cs-arm runs of the Setup A/B study), so the
 # line can only waste a turn. The hook reads the Claude process's own argv; unreadable
 # or unrecognised argv leaves the block in, which is the behaviour from before.
-# docs/trackers/ledgers/bugs/2026-11-24-companion-hooks-advertise-a-skill-tool-the-cs-arm-lacks-name.md
+# docs/boxes/bugs/bugs/2026-11-24-companion-hooks-advertise-a-skill-tool-the-cs-arm-lacks-name.md
 skill_absent() {  # <argv...>: prints yes|no
   node -e 'import(process.argv[1]).then((m) => console.log(m.skillToolAbsentFromArgv(process.argv.slice(2)) ? "yes" : "no"))' \
     -- "$SCRIPT_DIR/lib.mjs" "$@" 2>/dev/null

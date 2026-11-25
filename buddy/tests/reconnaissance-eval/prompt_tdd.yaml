@@ -3,7 +3,7 @@
 # Scope: reconnaissance's SCOUT-BEFORE-ACT discipline and its recon-box
 # externalization protocol. Each scenario presents a seam-contact
 # task (a plan that names code shape the model has not read), pre-seeds a
-# recon box (docs/trackers/streams/recon), and judges whether the model
+# recon box (docs/boxes/recon/recon), and judges whether the model
 # (a) scouts the actual shape BEFORE editing/asserting, (b) files the
 # plan-vs-reality gap as a friction entry in the box (`codescout box recon
 # add --kind friction`), and (c) announces a one-line outcome citing the entry

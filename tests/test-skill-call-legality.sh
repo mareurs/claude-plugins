@@ -9,7 +9,7 @@
 #   docs/issues/archive/2026-08-20-reconnaissance-skill-prescribes-hand-allocated-edit-markdown-appends.md
 #   docs/issues/archive/2026-08-26-recon-skill-valid-exemplar-rejected-by-append-entry.md
 # Skills are served from a versioned cache, so a bad prescription reaches every profile at release
-# and is found only when an agent follows it. Bug: docs/trackers/ledgers/bugs/2026-11-24-no-automated-check-that-the-tool-calls-a-skill-prescribes.md
+# and is found only when an agent follows it. Bug: docs/boxes/bugs/bugs/2026-11-24-no-automated-check-that-the-tool-calls-a-skill-prescribes.md
 #
 # HOW: tests/lib/skill_call_legality.py and skill_contract_calls.py extract examples from the skill
 # text, validate supplied names/actions against the live schemas, and execute complete calls on

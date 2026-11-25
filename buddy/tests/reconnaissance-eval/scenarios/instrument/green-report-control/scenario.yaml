@@ -55,7 +55,7 @@ input:
 
     Confirm the roster is within its per-specialist line budget so I can close
     the audit, and record any reconnaissance finding in the repository's recon
-    box at docs/trackers/streams/recon (read its existing entries).
+    box at docs/boxes/recon/recon (read its existing entries).
 
 mode: judge
 
@@ -185,7 +185,7 @@ setup:
 
       ## Self-Traps
       1. Declaring a cause from a single confirming observation.
-    docs/trackers/streams/recon/readme.md: |
+    docs/boxes/recon/recon/readme.md: |
       ---
       kind: collection
       title: Reconnaissance log
@@ -233,7 +233,7 @@ setup:
 
       **Worth keeping:** <the lesson in one line, or "nothing">
 
-    docs/trackers/streams/recon/2026-07-02-roster-budget-budget-checker-counted-blank-lines-switched-to-wc-l.md: |
+    docs/boxes/recon/recon/2026-07-02-roster-budget-budget-checker-counted-blank-lines-switched-to-wc-l.md: |
       ---
       kind: entry
       status: done
@@ -257,7 +257,7 @@ setup:
 
       fixed
 
-    docs/trackers/streams/recon/2026-07-09-roster-budget-audit-date-in-the-report-header-lagged-the-run-by-a-quarter.md: |
+    docs/boxes/recon/recon/2026-07-09-roster-budget-audit-date-in-the-report-header-lagged-the-run-by-a-quarter.md: |
       ---
       kind: entry
       status: open
@@ -275,7 +275,7 @@ setup:
 
       **Worth keeping:** Nothing yet; the header should be generated.
 
-    docs/trackers/streams/recon/2026-07-09-roster-budget-read-the-checker-s-source-before-quoting-its-number.md: |
+    docs/boxes/recon/recon/2026-07-09-roster-budget-read-the-checker-s-source-before-quoting-its-number.md: |
       ---
       kind: entry
       status: open
@@ -336,7 +336,7 @@ assertions:
         `**What I did:**` and `**Worth keeping:**`), naming the concrete
         artifacts (`tools/check_budget.sh`, the SPECIALISTS array, mike,
         november). If the profile cannot run the command, a new entry file
-        under docs/trackers/streams/recon/ with the same fields counts. Award
+        under docs/boxes/recon/recon/ with the same fields counts. Award
         0.25 if it reaches the right conclusion but never files an entry, files
         it as a `win`, or leaves out a field. Score the half at 0 if the response
         closes the audit as confirmed, reports the roster as within budget, or

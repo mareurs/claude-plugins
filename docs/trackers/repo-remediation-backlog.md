@@ -146,7 +146,7 @@ listed so it is not the thing that quietly stays local.
 
 ## RM-6 — Repair the hostname label in the run-all zombie's caveat
 
-`docs/trackers/ledgers/bugs/2026-11-24-tests-run-all-sh-has-16-pre-existing-failing-suites.md`
+`docs/boxes/bugs/bugs/2026-11-24-tests-run-all-sh-has-16-pre-existing-failing-suites.md`
 (`2646bba03b528020`) has `unverified:` reading *"Green on ONE machine only (Arch Linux
 workstation, `archlinux` host…)"*, but `/etc/hostname` on this box reads **`ripper`**.
 

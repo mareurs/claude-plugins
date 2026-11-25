@@ -49,7 +49,7 @@ def metrics(label):
                     main_ref += 1
     calc = open(f"{repo}/calc.py", encoding="utf-8").read() if os.path.exists(f"{repo}/calc.py") else ""
     py = subprocess.run(["python3", "-m", "pytest", "-q", "-p", "no:cacheprovider"], cwd=repo, capture_output=True, text=True)
-    bugs = f"{repo}/docs/trackers/ledgers/bugs"
+    bugs = f"{repo}/docs/boxes/bugs/bugs"
     entries = [f for f in os.listdir(bugs) if f.endswith(".md") and f != "readme.md"] if os.path.isdir(bugs) else []
     text = {f: open(f"{bugs}/{f}", encoding="utf-8").read() for f in entries}
     median = next((t for f, t in text.items() if "median" in f), "")

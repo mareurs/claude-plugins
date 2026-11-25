@@ -93,7 +93,7 @@ data = {
 json.dump(data, open(os.environ["DATA"], "w"))
 json.dump({"index": {"version": "0.15.0", "os": "linux x86_64", "collections": []}, "boxes": {}}, open(os.environ["EMPTY"], "w"))
 # A repository with no box: the first `codescout box` call made the skeleton, so `runtime` is the only collection.
-made = ["skeleton: made .codescout/harness.md, docs/trackers/ledgers/runtime/readme.md"]
+made = ["skeleton: made .codescout/harness.md, docs/boxes/runtime/runtime/readme.md"]
 json.dump({"index": {"version": "0.15.0", "os": "linux x86_64", "collections": [{"key": "runtime"}], "skeleton": made}, "boxes": {}}, open(os.environ["FRESH"], "w"))
 PY
 

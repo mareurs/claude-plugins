@@ -1344,7 +1344,7 @@ separate the `1.20.16` cache from the working tree, since they are byte-identica
   files, named in State, no exclusion added.
 - Push state: `origin/main..HEAD` = `415cdb0`, `206a03a`, `74950cf`, `39b214a` — not pushed.
 - Pre-flight: `release.sh` requires a clean tree. An untracked file from another session
-  (`docs/trackers/ledgers/bugs/2026-11-24-claude-code-s-native-task-tool-taskcreate-todowrite-is.md`) was moved aside for
+  (`docs/boxes/bugs/bugs/2026-11-24-claude-code-s-native-task-tool-taskcreate-todowrite-is.md`) was moved aside for
   the run and restored byte-identical (sha256 `4a0c4c26…`), on the operator's choice.
 
 ### 2026-09-28 — buddy 0.11.8 (statusline row-1 resolution + fallback percentages), pushed

@@ -89,7 +89,7 @@ const ESCAPE_FOOTER_COMMON =
   'through `run_command` with `acknowledge_risk` instead. ';
 // The last sentence depends on who is reading. The main agent can ask the user. A subagent cannot, and the
 // only way out it has is the breaker, so it is told on every strike (not only at strike 3) that a retry
-// releases the guard. docs/trackers/ledgers/bugs/2026-11-24-the-bash-guard-tells-a-subagent-with-no-codescout-tool-to.md
+// releases the guard. docs/boxes/bugs/bugs/2026-11-24-the-bash-guard-tells-a-subagent-with-no-codescout-tool-to.md
 const ESCAPE_FOOTER_MAIN =
   ESCAPE_FOOTER_COMMON +
   'If no codescout tool is present ' +

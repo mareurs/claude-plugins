@@ -23,11 +23,11 @@ The `tracker-hygiene` skill writes `docs/trackers/tracker-hygiene-log.md` by pat
 
 ## Design
 
-- **Box.** `docs/trackers/streams/hygiene/`, template `worklog`, kinds `sweep` and `meta`. The readme declares the field `next_sweep_due` (scalar) and `sweep_interval_days` is not a field: the skill text holds the default of 30.
+- **Box.** `docs/boxes/hygiene/hygiene/`, template `worklog`, kinds `sweep` and `meta`. The readme declares the field `next_sweep_due` (scalar) and `sweep_interval_days` is not a field: the skill text holds the default of 30.
 - **Where state lives.** The newest `sweep` entry carries the state of the project: `next_sweep_due` in its frontmatter and the full detector trust table in its body. The next sweep reads the newest entry, edits the table and writes a new entry. This replaces the mutable table of the log. *My call: a copy per sweep gives a history of the trust table for free.*
 - **`HY-N`.** A `meta` entry is one box entry. The server's date key replaces the number. Old `HY-N` ids stay in titles when the log moves.
 - **Skill.** `SKILL.md` Phase 0 bootstraps the box with `codescout box new worklog hygiene ...` in place of copying a template file. Phase 5 adds the entry with `codescout box hygiene add --kind sweep` and sets the field. The reference file `tracker-hygiene-log-template.md` becomes the box readme text and the entry templates.
-- **Hook.** `session-start.mjs` reads every `*.md` file in `docs/trackers/streams/hygiene/` except `readme.md`, takes the greatest `next_sweep_due`, and nudges when it is today or earlier. When the folder does not exist, it reads the old log as today. Both paths give the same one-line text.
+- **Hook.** `session-start.mjs` reads every `*.md` file in `docs/boxes/hygiene/hygiene/` except `readme.md`, takes the greatest `next_sweep_due`, and nudges when it is today or earlier. When the folder does not exist, it reads the old log as today. Both paths give the same one-line text.
 - **`migrating-trackers`.** The writer table drops the `tracker-hygiene-log` row once the release lands.
 
 ## Constraints

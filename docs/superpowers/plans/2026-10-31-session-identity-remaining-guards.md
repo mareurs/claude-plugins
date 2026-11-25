@@ -135,7 +135,7 @@
 
 **Files:**
 - Modify: `docs/conventions/harness-neutral-session-context.md` (capability and scope text)
-- Modify (claude-plugins repo): `docs/trackers/ledgers/bugs/2026-11-24-harness-neutral-session-identity-and-provenance-are-needed.md`
+- Modify (claude-plugins repo): `docs/boxes/bugs/bugs/2026-11-24-harness-neutral-session-identity-and-provenance-are-needed.md`
 
 - [ ] **Step 1: Mutation recipes**, each applied to a copy and reverted: (M1) make `publish_principal_equal` a plain string test, so Tasks 2 and 3 cases `codex_own_prior_write_is_not_a_peer` and `pre_upgrade_bare_owner_row_matches_codex_self` must go red; (M2) let `-` equal `-`, so `dash_never_equal` goes red; (M3) drop the conflicting branch in `commit-mine.sh`, so `conflicting_identity_exits_2_with_reason` goes red; (M4) revert the `foreign_writer` comparison, so `codex_own_prior_write_is_not_a_peer` goes red. Record each result.
 - [ ] **Step 2: Full leased gate** in `$WT`: `./scripts/gate.sh`; start it in the background and wait for the completion notice. Expected: exit 0 with every lane code 0.

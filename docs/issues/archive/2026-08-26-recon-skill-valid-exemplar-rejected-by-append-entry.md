@@ -140,7 +140,7 @@ What was done instead, this pass:
   `sdd/` — clean. **The regex was first checked against a known-positive line**, so the
   zero is evidence rather than an untested absence (which is `R-4`'s whole subject).
 - `./tests/run-all.sh` — 16/16 suites green on Linux. Note the ~16 pre-existing failures
-  recorded in `docs/trackers/ledgers/bugs/2026-11-24-tests-run-all-sh-has-16-pre-existing-failing-suites.md`
+  recorded in `docs/boxes/bugs/bugs/2026-11-24-tests-run-all-sh-has-16-pre-existing-failing-suites.md`
   did **not** reproduce here; that bug is WSL-scoped.
 - Confirmed no test pins the edited strings, so nothing was silently depending on them.
 

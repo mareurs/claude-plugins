@@ -5,7 +5,7 @@
 # Why this exists: `claude-statusline` was reserved (the name starts with `claude-`),
 # so `claude plugin validate` failed for the WHOLE marketplace while install and load
 # kept working. Nothing in tests/run-all.sh noticed, because no suite called the
-# validator. See docs/trackers/ledgers/bugs/2026-11-24-claude-statusline-name-is-reserved-so-claude-plugin-validate.md.
+# validator. See docs/boxes/bugs/bugs/2026-11-24-claude-statusline-name-is-reserved-so-claude-plugin-validate.md.
 #
 # Two layers, because the second needs the `claude` CLI and CI does not install it:
 #   1. OFFLINE — a jq check of the documented reserved-name rules against every

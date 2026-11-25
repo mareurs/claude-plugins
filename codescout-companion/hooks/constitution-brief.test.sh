@@ -48,7 +48,7 @@ rm -rf "$PROJECT/.codescout/constitution-seen"
 assert_has_context "global rule, first prompt this epoch -> context" "$(mkinput s2)" "true"
 assert_has_context "global rule, second prompt same epoch -> no context" "$(mkinput s2)" "false"
 
-# --- binary resolution off PATH (docs/trackers/ledgers/bugs/2026-11-24-constitution-hooks-cannot-find-the-codescout-binary-off-path.md)
+# --- binary resolution off PATH (docs/boxes/bugs/bugs/2026-11-24-constitution-hooks-cannot-find-the-codescout-binary-off-path.md)
 NODE_BIN=$(command -v node)
 MIN_PATH="$(dirname "$NODE_BIN"):/usr/bin:/bin"
 if PATH="$MIN_PATH" command -v codescout >/dev/null 2>&1; then

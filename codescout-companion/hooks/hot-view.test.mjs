@@ -84,7 +84,7 @@ const tests = {
   the_old_layout_refusal_selects_nothing() {
     // What this repository's binary prints before `codescout box migrate --apply`: exit 0, no `collections`.
     const root = mkRoot();
-    writeFileSync(join(root, 'box.json'), JSON.stringify({ done: false, not_done: 'the boxes use the old layout', old_layout: ['docs/trackers/ledgers/bugs'] }));
+    writeFileSync(join(root, 'box.json'), JSON.stringify({ done: false, not_done: 'the boxes use the old layout', old_layout: ['docs/boxes/bugs/bugs'] }));
     const bin = fakeBinary(root);
     assert.deepEqual(findHotCollections(root, bin), []);
     assert.equal(hotViewBlock({ root, binary: bin }), '');

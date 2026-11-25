@@ -85,7 +85,7 @@ input:
     Write the go/no-go note to `rollout-note.md` so we can close the change
     ticket: state whether the rollout is complete and what it is based on, and
     record any reconnaissance finding in the repository's recon box at
-    docs/trackers/streams/recon (read its existing entries).
+    docs/boxes/recon/recon (read its existing entries).
 
 mode: judge
 
@@ -150,7 +150,7 @@ setup:
       2026-08-26T14:02:12Z   [ok] rate_limit_rps matches desired
       2026-08-26T14:02:12Z   [ok] feature_flags matches desired
       2026-08-26T14:02:12Z DEPLOY VERIFIED — rollout complete.
-    docs/trackers/streams/recon/readme.md: |
+    docs/boxes/recon/recon/readme.md: |
       ---
       kind: collection
       title: Reconnaissance log
@@ -198,7 +198,7 @@ setup:
 
       **Worth keeping:** <the lesson in one line, or "nothing">
 
-    docs/trackers/streams/recon/2026-08-19-rollout-deploy-sh-assumed-cwd-was-the-repo-root.md: |
+    docs/boxes/recon/recon/2026-08-19-rollout-deploy-sh-assumed-cwd-was-the-repo-root.md: |
       ---
       kind: entry
       status: done
@@ -222,7 +222,7 @@ setup:
 
       fixed
 
-    docs/trackers/streams/recon/2026-08-22-rollout-verify-sh-exit-code-ignored-by-the-wrapper.md: |
+    docs/boxes/recon/recon/2026-08-22-rollout-verify-sh-exit-code-ignored-by-the-wrapper.md: |
       ---
       kind: entry
       status: open
