@@ -11,3 +11,8 @@ hooks/judge.env
 .codescout/private-memories/
 .orphaned_at
 uv.lock
+.codescout/usage.db
+.codescout/usage.db-wal
+.codescout/usage.db-shm
+.codescout/write.lock
+.codescout/write.lock.holder
