@@ -44,11 +44,11 @@ Codex and OpenCode targets do not have this gap: `send_message` queues a prompt 
 
 1. **Arm.** `hooks.json` gets two `asyncRewake` entries that run `run.sh watch`: `SessionStart` (a fresh session that never ran a turn) and `Stop` (after each turn, which is when the session becomes idle; this also re-arms the watcher after each wake). Both measured (G1, G3).
 2. **Singleton.** `watch` takes a lock keyed by endpoint (profile, pid) and exits 0 at once when a live watcher holds it. `EndpointState` records the watcher pid next to `worker_pid`.
-3. **Wait.** `watch` polls `direct_after` for every session id of the endpoint (the current id and earlier ids after `/clear`, as `take` does) without moving a cursor. It stops at its own deadline with exit 0, set below the hook `timeout` so the host never has to send TERM (the companion does the same: 7000 s under 7200 s). It also exits 0 when the endpoint's Claude pid is gone (gate G5: a killed host leaves the watcher running).
+3. **Wait.** `watch` polls `direct_after` for every session id of the endpoint (the current id and earlier ids after `/clear`, as `take` does) without moving a cursor. It stops at its own deadline with exit 0, set below the hook `timeout` so the host never has to send TERM (the companion does the same: 7000 s under 7200 s). The hook entries use `timeout: 7200` and the watcher deadline is 7000 s. It also exits 0 when the endpoint's Claude pid is gone (gate G5: a killed host leaves the watcher running).
 4. **Wake.** On a notice it calls `take`. When `take` returns text, it writes the text to stderr and exits 2. When `take` returns nothing, it keeps waiting.
-5. **Opt-in on the receiver.** The watcher arms only when the receiver's profile enables it (setting name open, default off). The receiver owner decides who may spend its tokens.
+5. **Opt-in on the receiver: a marker file.** The watcher arms only when `<config-dir>/session-bridge-wake` exists (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}`, as CLAUDE.md § Config Dir Resolution requires). The receiver owner decides who may spend its tokens, with `touch` and `rm`. Default: no file, no wake. This follows the operator rule that every plugin setting is a marker file in the profile (bugs box, `2026-11-25-plugin-settings-are-env-vars-a-plugin-file-and-a-profile`).
 6. **Sender feedback.** `post_notice(to=...)` says in one line whether the receiver has a live watcher: `queued: wakes the session if idle` or `queued: shows at its next prompt or tool call`. It never says `delivered`.
-7. **Loop guard.** The receiver wakes at most once per minimum interval and at most N times per hour (values open). Over the limit, the notice stays queued and shows at the next prompt or tool call.
+7. **Loop guard.** The receiver wakes at most once per 60 s and at most 10 times per hour. Over the limit, the notice stays queued and shows at the next prompt or tool call.
 8. **Text.** The wake text is the existing addressed-notice rendering: peer data, not an instruction, with the reply route `post_notice(to=<sender>)`.
 
 No new tool parameter. The sender does not choose to wake: the receiver's opt-in decides.
@@ -88,8 +88,9 @@ Still open: the largest accepted `timeout` (G4). The wake window after the last 
 ## Open questions
 
 - Session endpoint files carry a `messagingSocketPath` field (`tests/endpoints.rs:75`). Nothing in `src/` reads it. If that socket accepts input, it might wake a session with no watcher process. Not investigated.
-- The setting name and the default values of step 7.
 - Whether `post_notice` can learn that a watcher is live without a race (state file read versus watcher exit).
+
+Decided 2026-11-26 by the operator: opt-in is a marker file (step 5), loop guard is 60 s and 10 per hour (step 7), hook `timeout` 7200 and watcher deadline 7000 s.
 
 ## Tests required before build
 
