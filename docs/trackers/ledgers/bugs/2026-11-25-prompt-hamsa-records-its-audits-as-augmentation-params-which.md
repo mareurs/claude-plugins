@@ -37,7 +37,7 @@ status_since: 2026-11-25
 - The flat tracker is moved to `docs/research/2026-11-25-prompt-hamsa-audit-history.md` and holds only its History section; the augmentation sidecar is removed; citations are re-pointed (`aebb689`).
 
 **Open, in this order:**
-1. Release buddy with `./scripts/release.sh buddy` (`NO_PUSH=1` unless the operator asks for the push). The skill is committed, not live, until then, and it must ship no later than the codescout release that refuses params.
+1. **Released 2026-11-25, not pushed:** buddy 0.12.3 (`94e063f`) is recorded in all four profiles (verification `2f5d5ac`, 39 rows green). Left: the operator's push, and a cold restart of the four profiles, which is when the skill is live. It must ship no later than the codescout release that refuses params. Close as `fixed` only after both, and after one audit has been filed through the box by a restarted session (the entry has no regression test).
 2. The catalog row of the moved document still carries `entry_collection: audits` and its params, grafted by `doc move`. It ends with codescout E7b-2.
 3. codescout migrates its own `prompt-hamsa-audit-log` into a box with the same key `prompt-hamsa` (E7b-2 step 1). Then `references/eval.md` and `docs/templates/eval-pre-registration.md` cite `docs/trackers/prompt-hamsa-audit-log.md` § Protocol in codescout, a path that no longer exists there; point them at the box entry or the file that holds P-1..P-8.
 4. Close this entry as `fixed` (Fix provenance: SHA of `aebb689` and the release) after item 1.
