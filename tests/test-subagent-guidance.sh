@@ -81,28 +81,15 @@ if assert_context_contains "$OUT" "run a long command in the foreground with tim
   pass "run: says no wake reaches a subagent"
 else fail "run: says no wake reaches a subagent" "$OUT"; fi
 
-# --- Guides: a subagent must be told to FETCH them, never that it already has
-# --- them. Its parent's brief may say "already loaded" (true of the parent's
-# --- context, false of the subagent's), and the guide-hint ledger is shared
-# --- parent<->subagent so the auto-inject is suppressed for it too. This hook is
-# --- the only channel that can override both. Regression guard for that class.
-if assert_context_contains "$OUT" "CALL get_guide on it"; then
-  pass "guides: directs an explicit get_guide fetch"
-else fail "guides: directs an explicit get_guide fetch" "$OUT"; fi
-if assert_context_contains "$OUT" "already loaded"; then
-  pass "guides: overrides an 'already loaded' brief"
-else fail "guides: overrides an 'already loaded' brief" "$OUT"; fi
-if assert_context_contains "$OUT" "true of your parent's context, not yours"; then
-  pass "guides: says an 'already loaded' claim is the parent's, not the subagent's"
-else fail "guides: says an 'already loaded' claim is the parent's, not the subagent's" "$OUT"; fi
-
-# --- The topic list and the bug-ledger statuses must match the session opener
-# --- (codescout `project-activation-bootstrap`): a subagent that reads only this hook gets the
-# --- same contract. Two drifts seen on 2026-11-12: `untrusted-content` was missing from the
-# --- topic list, and `investigating` and `zombie` were filtered on but never explained.
-if assert_context_contains "$OUT" "tracker-conventions, untrusted-content)"; then
-  pass "guides: the topic list names untrusted-content"
-else fail "guides: the topic list names untrusted-content" "$OUT"; fi
+# --- Tracking work: a subagent is sent to the box CLI, and the hook names no get_guide topic
+# --- that get_guide does not list (it lists box and scribe only).
+if assert_context_contains "$OUT" "run \`codescout box\` for the boxes of this project"; then
+  pass "tracking: points at codescout box"
+else fail "tracking: points at codescout box" "$OUT"; fi
+for gone in "project-activation-bootstrap" "untrusted-content" "CALL get_guide on it"; do
+  if assert_context_contains "$OUT" "$gone"; then fail "guides: text no longer names $gone" "$OUT"
+  else pass "guides: text no longer names $gone"; fi
+done
 if assert_context_contains "$OUT" "\"investigating\" (no live owner)" && assert_context_contains "$OUT" "\"zombie\" (a recurrence check, not a task)"; then
   pass "bug ledger: explains investigating and zombie"
 else fail "bug ledger: explains investigating and zombie" "$OUT"; fi
