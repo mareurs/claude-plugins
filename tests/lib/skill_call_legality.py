@@ -263,15 +263,16 @@ def case_recon_box(binary: str, env: dict, sandbox: Path) -> None:
     new_args = shlex.split(new_blocks[0])[1:]
     made = box(new_args)
     readme = "docs/boxes/recon/recon/readme.md"
-    if made.returncode != 0 or f"git add {readme}" not in made.stdout:
+    if made.returncode != 0 or f"git add docs/boxes/recon/readme.md {readme}" not in made.stdout:
         return bad(f"{label}: `box new worklog recon` makes the box and prints its commit lines",
                    f"rc={made.returncode} stdout={made.stdout[:200]!r} stderr={made.stderr[:200]!r}")
     want_exit = new_args[new_args.index("--exit-when") + 1]
     if want_exit not in (repo / readme).read_text():
         return bad(f"{label}: --exit-when text reaches the readme", f"{want_exit!r} not in {readme}")
     ok(f"{label}: `box new worklog recon` makes the box, prints its commit lines, keeps --exit-when")
-    subprocess.run(["git", "-C", str(repo), "add", "--", readme], check=True)
-    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "box", "--", readme], check=True)
+    printed = ["docs/boxes/recon/readme.md", readme, ".gitignore"]
+    subprocess.run(["git", "-C", str(repo), "add", "--", *printed], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "box", "--", *printed], check=True)
 
     keys: list[str] = []
     for i, (args, body) in enumerate(adds):
