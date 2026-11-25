@@ -36,6 +36,8 @@ enum Command {
         #[arg(long,default_value="claude",value_parser=["claude","codex","opencode"])]
         harness: String,
     },
+    /// Wait for an addressed notice and wake an idle Claude session (asyncRewake hook).
+    Watch,
     /// Filter Claude notices against a session transcript.
     Filter {
         #[arg(long)]
@@ -115,6 +117,9 @@ fn main() -> anyhow::Result<()> {
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("hook")) {
         run_hook_fail_open();
     }
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("watch")) {
+        run_watch_fail_open();
+    }
     run()
 }
 
@@ -128,6 +133,48 @@ fn run_hook_fail_open() -> ! {
         }
     });
     std::process::exit(0)
+}
+
+/// Run `session-bridge watch`; never returns. Exit 2 with the notice text on stderr is the
+/// deliberate wake; every other outcome, a panic included, exits 0 and prints nothing.
+fn run_watch_fail_open() -> ! {
+    std::panic::set_hook(Box::new(|_| {}));
+    let woke = std::panic::catch_unwind(watch_output).ok().flatten();
+    if let Some(text) = woke {
+        use std::io::Write;
+        let _ = writeln!(std::io::stderr(), "{text}");
+        std::process::exit(2);
+    }
+    std::process::exit(0)
+}
+
+/// The notice text to wake the session with, or `None` for nothing.
+fn watch_output() -> Option<String> {
+    use session_bridge_mcp::wake::{wake_enabled, watch, Clock, WatchOutcome};
+    let env = |k: &str| std::env::var(k).ok();
+    if !wake_enabled(&env) {
+        return None;
+    }
+    let mut raw = String::new();
+    std::io::Read::read_to_string(&mut std::io::stdin().take(1024 * 1024 + 1), &mut raw).ok()?;
+    if raw.len() > 1024 * 1024 {
+        return None;
+    }
+    let input: HookInput = serde_json::from_str(&raw).ok()?;
+    let roots = Roots::system();
+    let pid = claude_pid_of(&roots, std::process::id())?;
+    let profile = profile_of(std::env::var("CLAUDE_CONFIG_DIR").ok().as_deref());
+    let state = state_root(&env)?;
+    std::fs::create_dir_all(&state).ok()?;
+    let store = Store::open(&state.join("notices.db")).ok()?;
+    let clock = Clock {
+        now_ms: &now_ms,
+        sleep_ms: &|ms| std::thread::sleep(std::time::Duration::from_millis(ms)),
+    };
+    match watch(&input, (&profile, pid), &roots, &state, &store, &clock) {
+        WatchOutcome::Wake(text) => Some(text),
+        WatchOutcome::Done => None,
+    }
 }
 
 /// The text a hook prints, or `None` for nothing.
@@ -350,6 +397,7 @@ async fn run() -> anyhow::Result<()> {
             }
         }
         Command::Hook { .. } => {}
+        Command::Watch => {}
         Command::Call {
             tool,
             opencode_caller,

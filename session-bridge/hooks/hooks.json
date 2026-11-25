@@ -1,7 +1,11 @@
 {
   "hooks": {
-    "SessionStart": [{ "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run.sh session-start", "timeout": 5 }] }],
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run.sh session-start", "timeout": 5 }] },
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run.sh watch", "asyncRewake": true, "timeout": 7200 }] }
+    ],
     "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run.sh prompt", "timeout": 5 }] }],
-    "PostToolUse": [{ "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run.sh post-tool", "timeout": 5 }] }]
+    "PostToolUse": [{ "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run.sh post-tool", "timeout": 5 }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run.sh watch", "asyncRewake": true, "timeout": 7200 }] }]
   }
 }
