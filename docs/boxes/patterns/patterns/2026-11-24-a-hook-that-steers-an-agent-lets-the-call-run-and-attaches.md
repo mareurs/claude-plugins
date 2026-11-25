@@ -9,7 +9,7 @@ log:
 - '2026-11-24 proposed created codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
 - '2026-11-24 edited:source codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
 revisit_by: 2026-12-24
-source: operator, 2026-11-24; probe in .codescout/box/scripts/patterns/hold-ack-probe/
+source: operator, 2026-11-24; probe in .codescout/box/scripts/patterns/patterns/hold-ack-probe/
 status_since: 2026-11-24
 ---
 
