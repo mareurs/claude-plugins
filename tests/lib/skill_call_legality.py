@@ -21,6 +21,7 @@ sandbox, after a control (an undeclared `--kind`) that must be refused with exit
 from __future__ import annotations
 
 import ast
+import os
 import re
 import shlex
 import shutil
@@ -318,6 +319,105 @@ def case_recon_box(binary: str, env: dict, sandbox: Path) -> None:
     else:
         bad(f"{label}: promote is accepted and writes its line", f"rc={promoted.returncode} out={promoted.stdout[:160]!r} err={promoted.stderr[:160]!r}")
 
+HYGIENE_DIR = ROOT / "codescout-companion" / "skills" / "tracker-hygiene"
+HYGIENE_SKILL = HYGIENE_DIR / "SKILL.md"
+HYGIENE_TEMPLATE = HYGIENE_DIR / "references" / "tracker-hygiene-log-template.md"
+HYGIENE_HOOK = ROOT / "codescout-companion" / "hooks" / "session-start.mjs"
+INDENTED_BASH_RE = re.compile(r"^[ ]*```bash\n(.*?)\n[ ]*```", re.DOTALL | re.MULTILINE)
+
+
+def hygiene_blocks(prefix: str) -> list[tuple[list[str], str]]:
+    """Every fenced bash block of the tracker-hygiene SKILL.md, indented or not, that starts with
+    `prefix`, as (argv after `codescout`, heredoc body). A block without a heredoc has an empty body."""
+    out = []
+    for raw in INDENTED_BASH_RE.findall(HYGIENE_SKILL.read_text()):
+        block = "\n".join(line.strip() if i == 0 else line.removeprefix("  ") for i, line in enumerate(raw.split("\n")))
+        if not block.startswith(prefix):
+            continue
+        head, _, rest = block.partition("<<'EOF'\n")
+        body = rest.rsplit("\nEOF", 1)[0] + "\n" if rest else ""
+        out.append((shlex.split(head.replace("\\\n", " "))[1:], body))
+    return out
+
+
+def apply_hygiene_readme(readme: Path) -> None:
+    """Do what SKILL.md says: replace `entry_kinds` and `statuses` in the readme frontmatter and add
+    `fields`, from the YAML block of the template's § Box readme."""
+    block = re.search(r"## Box readme.*?```yaml\n(.*?)\n```", HYGIENE_TEMPLATE.read_text(), re.DOTALL).group(1)
+    text = readme.read_text()
+    _, front, body = text.split("---\n", 2)
+    kept, skipping = [], False
+    for line in front.splitlines():
+        if re.match(r"^(entry_kinds|statuses|fields):", line):
+            skipping = True
+            continue
+        if skipping and (line.startswith(("- ", " ", "\t")) or not line.strip()):
+            continue
+        skipping = False
+        kept.append(line)
+    readme.write_text("---\n" + "\n".join(kept) + "\n" + block + "\n---\n" + body)
+
+
+def case_hygiene_box(binary: str, env: dict, sandbox: Path) -> None:
+    """The tracker-hygiene skill's `codescout box` lines, run for real, then read by the SessionStart hook.
+
+    The first-run `box new`; the control that a `sweep` is refused before the readme edit the skill
+    prescribes (and accepted after it); the sweep and meta `add` blocks; and the hook, which must report a
+    sweep as overdue from the date the skill's own `add` line wrote. The writer and the reader are tested
+    together because each passes alone while the pair can disagree on a path or a field name."""
+    label = "tracker-hygiene box lines"
+    repo = sandbox / "hygienerepo"
+    git_repo(repo)
+
+    def box(args: list[str], stdin: str = "") -> subprocess.CompletedProcess:
+        return subprocess.run([binary, *args], cwd=repo, env=env, input=stdin, text=True, capture_output=True, timeout=60)
+
+    news = hygiene_blocks("codescout box new worklog hygiene")
+    sweeps = hygiene_blocks("codescout box hygiene add --kind sweep")
+    metas = hygiene_blocks("codescout box hygiene add --kind meta")
+    if len(news) != 1 or len(sweeps) != 1 or len(metas) != 1:
+        return bad(f"{label} extracted", f"want 1 new, 1 sweep and 1 meta block, got {len(news)}, {len(sweeps)}, {len(metas)}")
+    ok(f"{label} extracted: 1 `box new`, 1 sweep `add`, 1 meta `add`")
+
+    made = box(news[0][0])
+    readme = repo / "docs/boxes/hygiene/hygiene/readme.md"
+    added = re.search(r"git add (.+)", made.stdout)
+    if made.returncode != 0 or not added or "docs/boxes/hygiene/hygiene/readme.md" not in added.group(1):
+        return bad(f"{label}: `box new worklog hygiene` makes the box and prints its commit lines",
+                   f"rc={made.returncode} stdout={made.stdout[:300]!r}")
+    printed = added.group(1).split()
+    ok(f"{label}: `box new worklog hygiene` makes the box and prints its commit lines")
+
+    due = "2020-01-01"
+    sweep_args, sweep_body = sweeps[0]
+    sweep_args = [a.replace("YYYY-MM-DD", due) for a in sweep_args]
+    before = box(sweep_args, sweep_body)
+    if before.returncode == 0:
+        return bad(f"{label}: control (no readme edit) refuses a sweep", "the box accepted a sweep before the readme edit; the skill's warning is stale")
+    ok(f"{label}: control: a sweep is refused before the readme edit")
+
+    apply_hygiene_readme(readme)
+    subprocess.run(["git", "-C", str(repo), "add", "--", *printed], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "box", "--", *printed], check=True)
+    for where, (args, body) in (("sweep", (sweep_args, sweep_body)), ("meta", metas[0])):
+        done = box(args, body)
+        key = done.stdout.strip().splitlines()[-1] if done.stdout.strip() else ""
+        if done.returncode != 0 or not KEY_RE.match(key):
+            bad(f"{label}: the {where} `add` is accepted and prints an entry key", f"rc={done.returncode} stdout={done.stdout[:160]!r} stderr={done.stderr[:200]!r}")
+        else:
+            ok(f"{label}: the {where} `add` is accepted and prints an entry key")
+    entries = sorted((repo / "docs/boxes/hygiene/hygiene").glob("2*.md"))
+    if not any(f"next_sweep_due: '{due}'" in e.read_text() or f"next_sweep_due: {due}" in e.read_text() for e in entries):
+        return bad(f"{label}: the sweep entry carries next_sweep_due", f"no entry of {len(entries)} holds {due}")
+    ok(f"{label}: the sweep entry carries next_sweep_due")
+
+    hook = subprocess.run(["node", str(HYGIENE_HOOK)], cwd=repo, env={**os.environ, "XDG_STATE_HOME": str(sandbox / "state")}, text=True,
+                          input=f'{{"cwd":"{repo}","source":"startup","session_id":"hyg-case"}}', capture_output=True, timeout=60)
+    if f"TRACKER HYGIENE: sweep overdue (due {due})" in hook.stdout:
+        ok(f"{label}: SessionStart reports the sweep as overdue from the date the skill's `add` wrote")
+    else:
+        bad(f"{label}: SessionStart reads the date the skill's `add` wrote", f"rc={hook.returncode} out={hook.stdout[:200]!r} err={hook.stderr[:200]!r}")
+
 
 SPEC_DRIFT_SKILL = SKILLS / "spec-drift" / "SKILL.md"
 
@@ -547,6 +647,7 @@ def main() -> int:
         with IsolatedCodescout(repo, sandbox, binary) as cs:
             covered = case_prescribed_exemplars(cs)
             case_recon_box(binary, cs.env, sandbox)
+            case_hygiene_box(binary, cs.env, sandbox)
             case_spec_drift(cs)
             case_spec_drift_finds(cs)
             case_sdd_calls(cs)
