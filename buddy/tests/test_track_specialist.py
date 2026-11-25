@@ -150,3 +150,23 @@ def test_dismiss_acts_on_the_opencode_session_not_the_pointer(tmp_path):
     b = json.loads((tmp_path / ".buddy" / "ses-b" / "state.json").read_text())
     assert a["active_specialists"] == []
     assert b["active_specialists"] == ["debugging-yeti"], "session B must be untouched"
+
+
+def test_resolve_sid_takes_the_host_ancestor_over_the_last_writer_pointer(tmp_path, monkeypatch):
+    """Claude Code: two sessions share the project and the pointer names the one that prompted
+    last. The command's shell sits below its own host, whose by-ppid entry names the right one."""
+    import os
+    from scripts import state as state_mod
+    from scripts import track_specialist as ts
+
+    bdir = tmp_path / ".buddy"
+    entry = bdir / "by-ppid" / "100"
+    entry.mkdir(parents=True)
+    (entry / "session_id").write_text("mine")
+    (entry / "started_at").write_text("T")
+    (bdir / ".current_session_id").write_text("peer")
+    monkeypatch.delenv("OPENCODE_SESSION_ID", raising=False)
+    monkeypatch.setattr(state_mod, "_parent_pid", lambda pid: {os.getppid(): 100}.get(pid))
+    monkeypatch.setattr(state_mod, "pid_started_at", lambda pid: "T" if pid == 100 else None)
+
+    assert ts._resolve_sid(tmp_path) == "mine"

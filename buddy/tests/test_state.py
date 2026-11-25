@@ -140,6 +140,62 @@ def test_resolve_falls_through_when_started_at_mismatches(tmp_path, monkeypatch)
     sid = state_mod.resolve_session_id_for_command(tmp_path, 12345)
     assert sid == "pointer-sid"
 
+def _ancestry(monkeypatch, state_mod, parents, started):
+    """Fake process tree: `parents` maps pid -> parent pid, `started` maps pid -> start time."""
+    monkeypatch.setattr(state_mod, "_parent_pid", lambda pid: parents.get(pid))
+    monkeypatch.setattr(state_mod, "pid_started_at", lambda pid: started.get(pid))
+
+
+def _by_ppid(bdir, pid, sid, started_at):
+    d = bdir / "by-ppid" / str(pid)
+    d.mkdir(parents=True)
+    (d / "session_id").write_text(sid)
+    (d / "started_at").write_text(started_at)
+
+
+def test_resolve_walks_up_to_an_ancestor_with_a_by_ppid_entry(tmp_path, monkeypatch):
+    """A command's shell sits below the host (python -> MCP server -> host). The host's
+    entry names the session; the last-writer pointer names whichever session prompted last."""
+    from scripts import state as state_mod
+    bdir = _setup_buddy_dir(tmp_path)
+    _by_ppid(bdir, 100, "ancestor-sid", "T100")
+    (bdir / ".current_session_id").write_text("peer-sid")
+    _ancestry(monkeypatch, state_mod, {300: 200, 200: 100}, {100: "T100"})
+
+    assert state_mod.resolve_session_id_for_command(tmp_path, 300) == "ancestor-sid"
+
+
+def test_resolve_prefers_the_nearest_ancestor(tmp_path, monkeypatch):
+    from scripts import state as state_mod
+    bdir = _setup_buddy_dir(tmp_path)
+    _by_ppid(bdir, 200, "near-sid", "T200")
+    _by_ppid(bdir, 100, "far-sid", "T100")
+    _ancestry(monkeypatch, state_mod, {300: 200, 200: 100}, {200: "T200", 100: "T100"})
+
+    assert state_mod.resolve_session_id_for_command(tmp_path, 300) == "near-sid"
+
+
+def test_resolve_rejects_an_ancestor_whose_pid_was_reused(tmp_path, monkeypatch):
+    """The ancestor's stored start time differs from the live one: the entry is stale."""
+    from scripts import state as state_mod
+    bdir = _setup_buddy_dir(tmp_path)
+    _by_ppid(bdir, 100, "stale-sid", "OLD")
+    (bdir / ".current_session_id").write_text("pointer-sid")
+    _ancestry(monkeypatch, state_mod, {300: 200, 200: 100}, {100: "NEW"})
+
+    assert state_mod.resolve_session_id_for_command(tmp_path, 300) == "pointer-sid"
+
+
+def test_resolve_ends_on_a_cyclic_process_chain(tmp_path, monkeypatch):
+    from scripts import state as state_mod
+    bdir = _setup_buddy_dir(tmp_path)
+    (bdir / ".current_session_id").write_text("pointer-sid")
+    _ancestry(monkeypatch, state_mod, {300: 200, 200: 300}, {})
+
+    assert state_mod.resolve_session_id_for_command(tmp_path, 300) == "pointer-sid"
+
+
+
 
 def test_resolve_uses_pointer_when_no_by_ppid(tmp_path, monkeypatch):
     from scripts import state as state_mod

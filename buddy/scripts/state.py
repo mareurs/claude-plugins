@@ -226,13 +226,70 @@ def session_id_from_env(project_root: Path) -> str | None:
         return None
 
 
+def _parent_pid(pid: int) -> int | None:
+    """Parent of ``pid``, or None when it is gone or unknown.
+
+    Uses the same ``ps`` as ``pid_started_at`` (Linux + macOS); on Windows it returns None, so
+    the resolver there keeps looking at the one pid it was given.
+    """
+    if not _START_TIME_SUPPORTED:
+        return None
+    try:
+        result = subprocess.run(
+            ["ps", "-o", "ppid=", "-p", str(pid)],
+            capture_output=True, text=True, timeout=2,
+        )
+        out = result.stdout.strip()
+        if result.returncode != 0 or not out.isdigit():
+            return None
+        return int(out)
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return None
+
+
+# A command's shell sits below the host process: python -> MCP server -> host is two hops. The
+# walk stops at this depth, so a corrupt or cyclic chain cannot spin.
+_MAX_ANCESTORS = 16
+
+
+def _sid_from_by_ppid(buddy_dir: Path, pid: int) -> str | None:
+    """The session ``by-ppid/<pid>`` names, when the entry is verified, else None."""
+    ppid_dir = buddy_dir / "by-ppid" / str(pid)
+    sid_file = ppid_dir / "session_id"
+    started_file = ppid_dir / "started_at"
+    if not sid_file.is_file():
+        return None
+    try:
+        if not _START_TIME_SUPPORTED:
+            # Platform can't verify process start time (e.g. Windows: no
+            # stdlib start-time API) — trust the PPID mapping alone. NOTE:
+            # session-start GC cannot detect PID reuse without a start-time
+            # either, so a reused PID could resolve to a dead session. This
+            # is an accepted, bounded Windows-only limitation; the by-ppid
+            # *writer* is still bash-only (ported in P3), so this branch is
+            # not yet reached on Windows. Revisit the Windows by-ppid
+            # strategy when the writer lands.
+            return sid_file.read_text().strip() or None
+        if started_file.is_file():
+            stored_started = started_file.read_text().strip()
+            current_started = pid_started_at(pid)
+            if current_started and current_started == stored_started:
+                return sid_file.read_text().strip() or None
+    except OSError:
+        pass
+    return None
+
+
 def resolve_session_id_for_command(project_root: Path, ppid: int) -> str | None:
     """Resolve the active session_id for a slash command running under PPID.
 
     Resolution chain:
       0. $OPENCODE_SESSION_ID, when .buddy/<it>/ exists (session_id_from_env)
-      1. by-ppid/<ppid>/{session_id,started_at} — verify started_at matches current
-         (on platforms without start-time support, trust the PPID mapping alone)
+      1. by-ppid/<pid>/{session_id,started_at} for PPID, then for each ancestor of PPID
+         (nearest first) — verify started_at matches current (on platforms without
+         start-time support, trust the PPID mapping alone). The host writes that entry
+         at every SessionStart, so it names the session that runs the command even when
+         several sessions share the project and when the shell is two levels below the host.
       2. .current_session_id pointer (last-writer)
       3. Sole session dir under .buddy/ (excluding by-ppid)
       4. None
@@ -246,34 +303,17 @@ def resolve_session_id_for_command(project_root: Path, ppid: int) -> str | None:
     if sid:
         return sid
 
-    # 1. by-ppid index with PID-reuse verification
-    ppid_dir = buddy_dir / "by-ppid" / str(ppid)
-    sid_file = ppid_dir / "session_id"
-    started_file = ppid_dir / "started_at"
-    if sid_file.is_file():
-        try:
-            if not _START_TIME_SUPPORTED:
-                # Platform can't verify process start time (e.g. Windows: no
-                # stdlib start-time API) — trust the PPID mapping alone. NOTE:
-                # this returns before the pointer / lone-dir steps below, and
-                # session-start GC cannot detect PID reuse without a start-time
-                # either, so a reused PID could resolve to a dead session. This
-                # is an accepted, bounded Windows-only limitation; the by-ppid
-                # *writer* is still bash-only (ported in P3), so this branch is
-                # not yet reached on Windows. Revisit the Windows by-ppid
-                # strategy when the writer lands.
-                sid = sid_file.read_text().strip()
-                if sid:
-                    return sid
-            elif started_file.is_file():
-                stored_started = started_file.read_text().strip()
-                current_started = pid_started_at(ppid)
-                if current_started and current_started == stored_started:
-                    sid = sid_file.read_text().strip()
-                    if sid:
-                        return sid
-        except OSError:
-            pass
+    # 1. by-ppid index with PID-reuse verification, for PPID and its ancestors
+    pid: int | None = ppid
+    seen: set[int] = set()
+    for _ in range(_MAX_ANCESTORS):
+        if pid is None or pid <= 1 or pid in seen:
+            break
+        seen.add(pid)
+        sid = _sid_from_by_ppid(buddy_dir, pid)
+        if sid:
+            return sid
+        pid = _parent_pid(pid)
 
     # 2. Last-writer pointer
     pointer = buddy_dir / ".current_session_id"

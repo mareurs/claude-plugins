@@ -2,10 +2,9 @@ You are handling a /buddy:focus request. The argument is `$ARGUMENTS`.
 
 ## Step 1 — Resolve the session
 
-Read `session_id` and `cwd` from the stdin JSON Claude Code delivers to this
-command. If there is no such JSON (OpenCode delivers none), take `cwd` as the
-current directory and get `session_id` from buddy's resolver, which reads the
-host's session id first:
+Take `cwd` as the current directory and get `session_id` from buddy's resolver. It
+reads the host's own id first (OpenCode), then the session of the host process that runs
+this command (Claude Code), and only then the last session that prompted:
 
 ```bash
 python3 -c '
@@ -22,7 +21,7 @@ If `session_id` is missing, empty or the literal string "unknown", print
 
 Compute:
 
-- `PROJECT_DIR = <cwd from stdin, or $CLAUDE_PROJECT_DIR fallback>`
+- `PROJECT_DIR = <the current directory, or $CLAUDE_PROJECT_DIR>`
 - `SESSION_DIR = $PROJECT_DIR/.buddy/$session_id`
 
 ## Step 2 — Dispatch on argument

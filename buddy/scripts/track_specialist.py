@@ -37,19 +37,13 @@ def _project_root() -> Path:
 
 
 def _resolve_sid(project: Path) -> str | None:
-    # The host's own answer first (OpenCode's $OPENCODE_SESSION_ID, see state.py): the pointer
-    # names whichever session prompted last when one host runs several sessions.
+    # The host's own answer first (OpenCode's $OPENCODE_SESSION_ID, see state.py). Then the
+    # resolver: the by-ppid entry of this process or of an ancestor names the session that runs
+    # the command, and only after that does it fall back to the last-writer pointer, which
+    # names whichever session prompted last when several share the project.
     sid = session_id_from_env(project)
     if sid:
         return sid
-    pointer = project / ".buddy" / ".current_session_id"
-    if pointer.is_file():
-        try:
-            sid = pointer.read_text(encoding="utf-8").strip()
-            if sid:
-                return sid
-        except OSError:
-            pass
     try:
         return resolve_session_id_for_command(project, os.getppid())
     except Exception:
