@@ -101,12 +101,12 @@ entry_prefix:
 
 | ID | Date | Severity | Category | Status | Title |
 |----|------|---------:|----------|--------|-------|
-| F-1 | 2026-10-13 | high | architectural | open | **Workflow skills in `buddy/skills/` become summonable specialists** — both discovery paths scan every SKILL.md there |
-| F-2 | 2026-10-13 | med | architectural | open | **No named Claude Code context source on the skill route** — design names none; `UserPromptExpansion` and PreToolUse:`Skill` carry native `session_id` but are unused |
-| F-3 | 2026-10-13 | med | doc-vs-reality | open | **Baseline omits that Buddy hooks already run under Codex** — `.buddy/` already holds a Codex rollout's state and summon spill |
+| F-1 | 2026-10-13 | high | architectural | moot-superseded | **Workflow skills in `buddy/skills/` become summonable specialists** — both discovery paths scan every SKILL.md there |
+| F-2 | 2026-10-13 | med | architectural | promoted-to-bug-tracker | **No named Claude Code context source on the skill route** — design names none; `UserPromptExpansion` and PreToolUse:`Skill` carry native `session_id` but are unused |
+| F-3 | 2026-10-13 | med | doc-vs-reality | moot-superseded | **Baseline omits that Buddy hooks already run under Codex** — `.buddy/` already holds a Codex rollout's state and summon spill |
 | F-4 | 2026-10-13 | high | doc-vs-reality | mitigated | **Buddy commands' `$1` is the second argument word (CC 2.1.296)** — `/buddy:remember a b c` delivers `b` |
-| F-5 | 2026-10-13 | high | doc-vs-reality | open | **Codex already loads Buddy + Companion via the Claude-compatible path** — overlays/new marketplace file change trusted hooks and marketplace lookup |
-| F-6 | 2026-10-13 | med | architectural | open | **`/buddy:focus` reads session id from "stdin JSON" a command never receives** — explicit-path focus cannot resolve its session |
+| F-5 | 2026-10-13 | high | doc-vs-reality | moot-superseded | **Codex already loads Buddy + Companion via the Claude-compatible path** — overlays/new marketplace file change trusted hooks and marketplace lookup |
+| F-6 | 2026-10-13 | med | architectural | promoted-to-bug-tracker | **`/buddy:focus` reads session id from "stdin JSON" a command never receives** — explicit-path focus cannot resolve its session |
 
 ## Wins Index
 
@@ -272,6 +272,7 @@ Codified so the Index column means the same thing across sessions.
 |---|---|
 | `open` | Observed, not yet resolved. Default for new entries. |
 | `wontfix-false-alarm` | Initial observation was wrong; documented for transparency rather than deleted. |
+| `moot-superseded` | The design or plan the entry reviewed was superseded and never built, so nothing built has the defect. The entry says where the lesson went. |
 | `mitigated` | Workaround in place; root cause not fully resolved. |
 | `fixed-verified` | Code / process fix landed AND empirically confirmed. (`fixed` alone is too weak — verification is part of the status.) |
 | `promoted-to-bug-tracker` | Moved to a formal tracker (`docs/issues/*`, `docs/TODO-*`, GitHub issue). The session log keeps the pointer; the formal tracker owns the lifecycle. |
@@ -307,7 +308,7 @@ Codified so the Index column means the same thing across sessions.
 
 **Severity:** high
 
-**Status:** open
+**Status:** moot-superseded — verified 2026-11-25: the design (`f8cfc0601374b062`) is `superseded`, `buddy/skills/` holds only the 12 specialists and no `buddy/workflows/` exists. The replacement (status, check and legend as Codex-converted commands) adds nothing to `buddy/skills/`.
 
 **Valid:** conditional — the design changes the workflow-skill location or both discovery paths gain an exclusion
 
@@ -336,7 +337,7 @@ Codified so the Index column means the same thing across sessions.
 
 **Severity:** med
 
-**Status:** open
+**Status:** promoted-to-bug-tracker — the design part is moot (the design was superseded). The code part is real: `session_id_from_env` reads only `$OPENCODE_SESSION_ID`, so on Claude Code `track_specialist._resolve_sid` takes the last-writer pointer. Filed as `2026-11-25-buddy-on-claude-code-the-model-driven-summon-and-buddy-focus` in the bugs box.
 
 **Valid:** conditional — the design names a per-route Claude Code context source and the plan tests it
 
@@ -360,7 +361,7 @@ Codified so the Index column means the same thing across sessions.
 
 **Severity:** med
 
-**Status:** open
+**Status:** moot-superseded — verified 2026-11-25: the baseline belonged to the superseded design. The fact (Buddy hooks run under Codex) is documented in CLAUDE.md § cs-hint-codex.
 
 **Valid:** dated 2026-10-13
 
@@ -442,7 +443,7 @@ Fix in the working tree, 2026-10-13, uncommitted: seven buddy commands (consolid
 
 **Severity:** high
 
-**Status:** open
+**Status:** moot-superseded — verified 2026-11-25: the finding is the reason the design was superseded, and the design's `## Superseded` section carries it, with the converter's skip rules. Nothing built has the defect.
 
 **Valid:** dated 2026-10-13
 
@@ -489,7 +490,7 @@ Fix in the working tree, 2026-10-13, uncommitted: seven buddy commands (consolid
 
 **Severity:** med
 
-**Status:** open
+**Status:** promoted-to-bug-tracker — `buddy/commands/focus.md:5-8` still tells the model to read stdin JSON first, then falls back to `resolve_session_id_for_command`, whose host-id step reads only `$OPENCODE_SESSION_ID`. Filed with F-2 as `2026-11-25-buddy-on-claude-code-the-model-driven-summon-and-buddy-focus` in the bugs box.
 
 **Valid:** conditional — focus.md resolves its session through a real channel
 
