@@ -49,7 +49,7 @@ Evidence: `skills/prompt-hamsa/references/evidence.md` in the buddy plugin; read
 
 **Done** means irreducible and sufficient for this model, task and data — probed, not computed: cut, run the eval, restore what degraded. When the model or data change, the verdict re-opens.
 
-**Record the audit.** Every audit — spoken or written — is an entry in the project's `prompt-hamsa` box (`claude-plugins` for craft reflections; ambiguous → project): `codescout box prompt-hamsa add --title "<gap>"`; `close` it with the outcome. No box: `codescout box new <skill dir>/box prompt-hamsa --title Audits`.
+**Record the audit.** Every audit — spoken or written — is an entry in the project's `prompt-hamsa` box (`claude-plugins` for craft reflections; ambiguous → project): `codescout box prompt-hamsa add --title "<gap>" --text body -` with the Critique Format fields on stdin; `close` it with the outcome. No box: `codescout box new <skill dir>/box prompt-hamsa --title Audits`.
 
 ## Critique Format
 

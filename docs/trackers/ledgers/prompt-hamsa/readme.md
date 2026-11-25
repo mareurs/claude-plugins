@@ -34,7 +34,7 @@ Score an entry with `codescout box <key> close <entry> <status> --text reason -`
 
 ## How to add
 
-Run `codescout box <key> add --title "<gap>"` and leave the body empty: the entry takes the skeleton below.
+Run `codescout box <key> add --title "<gap>" --text body -` and give the fields of the entry template below on stdin: `add` refuses an empty body.
 
 ## Entry template
 
