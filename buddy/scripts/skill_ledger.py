@@ -5,9 +5,11 @@ Two load classes, two sources of truth:
 - **Buddy summons** are recorded hook-side by ``summon_bootstrap`` into
   ``state.json:active_specialists`` (zero lag, deterministic). They do NOT
   appear in this ledger — the statusline already renders them.
-- **Skill-tool loads** (``Skill('plugin:skill')``) fire no hooks
-  (anthropics/claude-code#43630), so the only ground truth is the transcript
-  JSONL the harness writes. ``scan_transcript`` tail-reads it from a saved
+- **Skill-tool loads** (``Skill('plugin:skill')``) do fire PostToolUse on Claude Code
+  2.1.296 and 2.1.332 (measured 2026-10-13 and 2026-11-25; anthropics/claude-code#43630
+  reported that they did not). This ledger does not use that hook: a typed
+  ``/plugin:skill`` is not a tool call, so the transcript JSONL the harness writes is the one
+  ground truth for both. ``scan_transcript`` tail-reads it from a saved
   byte offset on each UserPromptSubmit and records:
     * assistant ``tool_use`` entries with ``name == "Skill"`` → ``input.skill``
     * ``<command-name>plugin:skill</command-name>`` user invocations

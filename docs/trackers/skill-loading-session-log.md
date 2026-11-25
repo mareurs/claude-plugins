@@ -41,7 +41,7 @@ entry_prefix:
 | F-4 | 2026-06-14 | high | architectural | fixed-verified | Summon payload overflows the CC hook-output cap; the "fully-loaded" marker is false for all 14 personas |
 | F-5 | 2026-09-01 | high | doc-vs-reality | fixed-verified | CLAUDE.md says plugin edits are live from the working tree; skills load from `installPath`'s cache dir, so the split shipped to nobody |
 | F-6 | 2026-10-13 | med | doc-vs-reality | mitigated | Skill tool reports the working tree as "Base directory" while `installPath` is the cache; served-byte source undetermined (cache == tree today) |
-| F-7 | 2026-10-13 | med | cc-hooks | open | PostToolUse now fires for Claude-initiated Skill calls (CC 2.1.296) — contradicts F-1 and `skill_ledger.py`'s "#43630: Skill fires no hooks" |
+| F-7 | 2026-10-13 | med | cc-hooks | fixed-verified | PostToolUse now fires for Claude-initiated Skill calls (CC 2.1.296) — contradicts F-1 and `skill_ledger.py`'s "#43630: Skill fires no hooks" |
 
 ## Wins Index
 
@@ -169,7 +169,7 @@ Codified so the Index column means the same thing across sessions.
 
 **Severity:** med — the spec would have shipped a non-existent mechanism; the dead-end surfaces only at implementation (the hook silently never fires), costing a design-rework cycle plus a debugging session on a no-op hook.
 
-**Status:** fixed-verified — design redirected to UserPromptSubmit before any spec was written.
+**Status:** fixed-verified — design redirected to UserPromptSubmit before any spec was written. **Note 2026-11-25:** the premise no longer holds; PostToolUse fires for model-initiated Skill calls (see F-7). The redirect stays correct, because a typed `/plugin:skill` is not a tool call.
 
 **Fix idea / Pointer:** Skill-loading bootstrap spec (this work stream); watch anthropics/claude-code#43630 for native PostToolUse:Skill support.
 
@@ -354,7 +354,11 @@ A first grep for `"Skill"` (with quotes) returned 0 against this file. That zero
 
 **Severity:** med
 
-**Status:** open
+**Re-measured:** 2026-11-25, Claude Code 2.1.332. This session made two model-initiated `Skill` calls (`tracker-hygiene`, `spec-drift`). The session's `.buddy/<sid>/narrative.jsonl`, which only `run_post_tool_use` writes, holds exactly two `{"type": "action", "text": "Claude Skill"}` records, at the times of those calls. So PostToolUse fires for model-initiated Skill calls on 2.1.332 as it did on 2.1.296. **Not measured:** the `PreToolUse:Skill` `tool_input` shape and `UserPromptExpansion`; a capture hook is still needed for either.
+
+**Fix applied:** the docstring of `buddy/scripts/skill_ledger.py` no longer says Skill loads fire no hooks. It states the measured fact and why the ledger still reads the transcript: a typed `/plugin:skill` is not a tool call, so the transcript is the one source for both. No behaviour changed; the 22 ledger tests pass. The dated 2026-06-12 design spec keeps its original claim as a record.
+
+**Status:** fixed-verified
 
 **Valid:** dated 2026-10-13
 
