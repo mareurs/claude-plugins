@@ -1,13 +1,15 @@
 ---
 kind: entry
-status: open
+status: wontfix
 title: no harness identification, and no tooling to clean up, route or migrate a project across Claude Code, Codex, Copilot, OpenCode and Pi
+closed: 2026-11-25
 created: 2026-11-24
 entry_kind: bug
 log:
 - '2026-11-24 open created codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
+- '2026-11-25 open -> wontfix codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
 severity: high
-status_since: 2026-11-24
+status_since: 2026-11-25
 ---
 
 Migrated from `docs/issues/2026-11-13-no-harness-identification-or-project-migration-tooling-across-harnesses.md` on 2026-11-24; opened 2026-11-13; priority high; tags harnesses, migration, instructions, priority-high; owners marius; old id da6eaaa69498077b.
@@ -46,3 +48,7 @@ Priority: **high**. This repo serves several agent harnesses (Claude Code, Codex
 
 - `docs/superpowers/specs/2026-11-12-private-setup-separation-design.md`: the sweep that found the Codex override behaviour. Its generator script is a first, small instance of the routing item.
 - `docs/issues/2026-10-09-harness-neutral-session-identity-and-provenance.md`.
+
+## Closed
+
+Decided 2026-11-25: a feature request, not a defect. The bugs box takes no feature ideas. Nothing is broken today, no owner or plan exists, and the load rules of Copilot, OpenCode and Pi are unmeasured, so the acceptance list cannot be written as tests. The Codex override finding stays in the 2026-11-12 private-setup-separation design (D3). Reopen as a spec, not as a bug, when a user needs a second harness for one project.
