@@ -13,7 +13,7 @@
 # buddy's 12 commands. status, check and legend take no argument, so they are
 # the buddy commands Codex CAN carry -- and one stray `$ARGUMENTS` or a few
 # hundred extra bytes drops them from Codex with no error anywhere.
-# (docs/trackers/portable-workflows-session-log.md F-5.)
+# (docs/trackers/archive/portable-workflows-session-log.md F-5.)
 #
 # THE ENV CHECK. Claude Code substitutes the TEXT `${CLAUDE_PLUGIN_ROOT}` in a
 # command body before the model reads it, but the variable is not in the

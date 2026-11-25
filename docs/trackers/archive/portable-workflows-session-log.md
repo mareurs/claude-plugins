@@ -1,5 +1,5 @@
 ---
-status: active
+status: archived
 title: Session Log — portable-workflows
 tags:
 - session-log
@@ -7,6 +7,7 @@ tags:
 - harness-compatibility
 - buddy
 topic: portable workflows and Codex integration
+archived_on: 2026-11-25
 entry_high_water_F: 6
 entry_high_water_W: 2
 entry_prefix:
@@ -96,6 +97,15 @@ entry_prefix:
 >   stream wraps.
 
 ---
+
+## Outcomes digest — 2026-11-25
+
+The work stream is wrapped: the design it reviewed was superseded on 2026-10-13 and never built. This log is archived under its stable name, because a design spec, a test and a bug cite it. Entry headings and ids are unchanged. Reading surface: the Index and Wins Index below, then the sections.
+
+- **Frictions:** `F-1`, `F-3` and `F-5` are `moot-superseded` (a status this log added on 2026-11-25). `F-2` and `F-6` are `promoted-to-bug-tracker`: they became one bug, `2026-11-25-buddy-on-claude-code-the-model-driven-summon-and-buddy-focus`, in the bugs box. `F-4` is `mitigated`: no command in `buddy/commands/` uses `$1` any more.
+- **Promoted or rehomed entries:** `F-2` and `F-6`, to the bug named above.
+- **Unfired promote-when criteria:** `W-1` needs the same consumer trace to catch a design gap in a second, unrelated design review. `W-2` needs a design-review checklist or skill in this repository to hold the line "probe each host claim once"; none exists. Both are `validated` with one datapoint and stay so.
+- **Open at archive:** nothing.
 
 ## Index
 

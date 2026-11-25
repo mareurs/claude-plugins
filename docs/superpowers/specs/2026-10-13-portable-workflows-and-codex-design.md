@@ -23,7 +23,7 @@ What replaced it:
 - Summon needs nothing new. In Codex, a typed `/buddy:summon <name>` already runs Buddy's prompt hook (full persona and session state); `$buddy:<specialist>` loads the persona only.
 - Not available in Codex after this change: dismiss, focus, remember, consolidate, create, introspect.
 
-Why, in short (evidence in `docs/trackers/portable-workflows-session-log.md`):
+Why, in short (evidence in `docs/trackers/archive/portable-workflows-session-log.md`):
 
 - Codex 0.160.0 already loads Buddy and Companion through the Claude-compatible path and trusts their hooks (F-5). Per-plugin overlays and a new marketplace file would change that live behavior.
 - Codex's command converter skips any command that uses `$ARGUMENTS` or `$`+digit, exceeds 4,000 bytes or lacks a frontmatter description (F-5; `codex-rs/core-plugins/src/command_migration.rs`). Only short, argument-free commands can use it.
