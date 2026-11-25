@@ -57,7 +57,7 @@ Pre-class `mentions.code` before you ask: a file under `tests/` or `fixtures/` g
 
 Show one screen. Fill every part from the inventory. Put what you are unsure about in part 10, not in questions before the screen.
 
-1. **Target:** collection key, lifecycle (`ledgers`, `streams` or `temp`), `archived`, `existing`.
+1. **Target:** `box` (the box under `docs/boxes/`), `lifetime` (`ledger` or `stream`), `collection` (when it is not the stem of the first source), `archived`, `existing`.
 2. **Schema:** entry kinds, declared statuses with their class, `initial_status`, `hot_cap`, `stale_after` (or `hot_view_none`), with a one-line reason for each number.
 3. **Status table:** raw value, declared status, class, count. Every `status_values` word has a row. Then `status_none` and how many records it covers.
 4. **Overrides:** each record that gets a status, date or slug of its own, with the value and why. A row-only record's `created` is labelled "from blame of row line N" with the blame date.
@@ -95,7 +95,8 @@ path = "docs/trackers/demo-log.md"
 kind = "file"
 
 [target]
-lifecycle = "ledgers"
+box = "demo"
+lifetime = "ledger"
 
 [schema]
 entry_kinds = ["finding"]
