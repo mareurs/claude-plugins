@@ -234,19 +234,38 @@ patch. Genuinely forked with no clear canonical → a D5 judgment, not an archiv
 **D10 distill-then-archive — the session-log decay policy.** A session log's value
 inverts once its work stream wraps: unpromoted content is index noise, and its
 per-file F-1/W-1 numbering pollutes citation resolution. When D10 fires, walk this
-sequence — each mutation is its own Phase-4 gate:
+sequence — each mutation is its own Phase-4 gate. The script
+`d10_extract.py` sits next to this file (`<skill-dir>` is the "Base directory for this
+skill" path printed when the skill loaded).
 
-1. **Promote wins.** For every W-N with `Status: validated`, check its
-   `Promote-when` criterion. Fired → promote (CLAUDE.md / skill / project memory,
-   per the win's own routing) and set `promoted-to-permanent-docs`. Not fired →
-   note it in the digest (step 4) so the criterion survives.
-2. **Rehome open frictions.** For every F-N with `Status: open`, run a verify-open
-   check against current code (distributed fixes leave entries zombie-open).
-   Still real → promote to a bug file (`docs/issues/`) or move to the successor
-   work stream's log; otherwise flip to `fixed-verified` / `wontfix-false-alarm`
-   with one line of evidence.
-3. **Confirm with the owner** that the work stream is actually wrapped (D3-style
-   question — an idle-but-planned stream gets `defer`, which resurfaces next sweep).
+1. **Owner first.** Confirm with the owner that the work stream is actually wrapped
+   (D3-style question — an idle-but-planned stream gets `defer`, which resurfaces next
+   sweep). Steps 2 to 5 spend work that a `defer` throws away.
+2. **Extract once.** Run `python3 <skill-dir>/d10_extract.py <log.md>`. It prints one row
+   per real F-N / W-N entry: id, line, status token, status tail, and `Promote-when`
+   (`-` when the entry has none), then the count and high-water mark of each kind.
+   Template headings and fenced examples are skipped, so the count matches the entries.
+   A row with status `(none)` is an entry with no `Status` line: report it, do not guess.
+   Never split the log yourself on `## F-`: that split carries the next `W-` entry along.
+   To fan out, give each agent one `--range W-1..W-82` and its own table, and require one
+   evidence line per row (a path:line, or a command and its result).
+3. **Give every entry one verdict from these lists.** Read the status by its first token:
+   `validated`, `open`, `mitigated`, `fixed-verified`, `promoted-to-bug-tracker`,
+   `promoted-to-permanent-docs` and `wontfix-false-alarm` are the log's own values, and
+   a free-text tail after the token is a note.
+   - **Win:** `already-promoted` (cite the path and heading you read), `fired-unpromoted`
+     (promote it to `docs/conventions/`, a box readme, a memory or a skill, per the win's
+     own routing, then set `promoted-to-permanent-docs`), `unfired` (quote the criterion
+     into the digest), `no-criterion` (no `Promote-when`: it stays in the digest as it is),
+     `obsolete` (its subject is gone). A recorded promotion whose text no longer holds is a
+     D11 finding, not a verdict. A criterion that counts datapoints ("after N") is
+     checked against the extraction table, never by recounting the corpus by hand.
+   - **Friction:** run a verify-open check against current code for each `open` one
+     (distributed fixes leave entries zombie-open), then `fixed` (flip to `fixed-verified`
+     with one line of evidence), `still-real` (file it in the bugs box with
+     `codescout box bugs add`, or move it to the successor stream's log), `lesson-only`
+     (a rule with no code to check: digest it, or promote it as for a win), `obsolete`,
+     or `false-alarm` (`wontfix-false-alarm`, one line of evidence).
 4. **Compact.** Never reduce an F-N / W-N entry to a bare row: every entry keeps
    its `## <ID> — <title>` heading in the archived file, because `link_scan` binds
    PREFIX-N to that heading and to nothing else — git history is not consulted, so
@@ -269,17 +288,17 @@ sequence — each mutation is its own Phase-4 gate:
       - **Stem-cited log:** code or any `<stem>:TOKEN` entry citation in the corpus
         (including archived documents) names the file stem. Keep the name:
         `docs/trackers/archive/<name>.md`. Before moving, record the day the stream
-        was declared wrapped in step 3 with
+        was declared wrapped in step 1 with
         `doc(update, patch={extra:{archived_on:"<YYYY-MM-DD>"}})`.
         A timestamp rename breaks those citations; `link_scan` reports them as
         `CrossRepoToken`, not `dangling`, so a zero dangling count misses the break.
         On a derived-index checkout they are `legacy_forms` items with
         `form: "stem_token"`, renamed or not: look for the stem in their `raw`.
       - **Uncited log:** `docs/trackers/archive/<name>-<YYYY-MM-DD>.md`, the date
-        being the day the stream was declared wrapped in step 3. The timestamp
+        being the day the stream was declared wrapped in step 1. The timestamp
         records when it wrapped and separates repeated wraps on different dates.
         `doc(move)` fails if the destination exists; check it before moving.
-      - **Recheck after step 1 and immediately before the move.** Promotions can
+      - **Recheck after step 3 and immediately before the move.** Promotions can
         write new `<stem>:TOKEN` citations after the initial dossier. Choose from
         the current corpus, not the dossier's earlier naming decision.
       - **If the stable destination already exists, stop and ask the owner.** Do
