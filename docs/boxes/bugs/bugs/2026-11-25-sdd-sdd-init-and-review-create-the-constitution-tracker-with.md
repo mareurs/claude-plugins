@@ -18,6 +18,8 @@ The same test gave 82 passed, 0 failed earlier on 2026-11-25/26, so the binary c
 
 **Effect:** `release.sh` stops at its test gate for every plugin. `codescout-companion` 1.23.9 had to go out with `SKIP_TESTS=1`. More important: `/sdd:sdd-init` cannot create the constitution tracker on a machine with this binary, so strict SDD cannot be set up.
 
+**Cause (read in the codescout source, branch experiments):** a codescout bug, filed there as `2026-11-25-constitution-check-reads-rules-from-augmentation-params`: `codescout constitution-check` reads rules from augmentation params, and `doc create` refuses to write them. The reader and the writer disagree, so no plugin-side edit makes the constitution work until codescout gives it a box.
+
 **Fix direction:** the constitution moves into a box (`codescout box constitution add`), and `sdd-init.md`, `review.md`, the constitution guard and brief hooks, and `case_sdd_calls` follow. This is a design change of the stable `sdd` plugin, not a one-line edit.
 
 **Repro:** `bash tests/test-skill-call-legality.sh 2>&1 | grep -E 'FAIL|Results'`.
