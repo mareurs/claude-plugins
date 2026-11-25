@@ -13,6 +13,17 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
+### Current release verification — 2026-11-25 (codescout-companion 1.23.6)
+
+_Measured at 5b61534, run with `NO_PUSH=1 SKIP_TESTS=1` (not pushed; the pre-flight suites were skipped on the operator's instruction). Evidence is the output of `scripts/release.sh`, not a per-row read of every install record._
+
+- `check-versions.sh`: all versions consistent; `codescout-companion` canonical `1.23.6`, readme and `package.json` `1.23.6`; `marketplace.json` has no version fields ✅
+- `bump-cache.sh`: `1.23.6` cached in 4 of 4 profiles ✅
+- `repoint-install-records.sh`: `1.23.6` recorded in `~/.claude`, `~/.claude-sdd`, `~/.claude-kat`, `~/.claude-stef` ✅
+- `check-profile-parity.sh`: parity across 4 profiles, one canonical version, caches present ✅; marketplace registrations own their profile ✅
+
+Contents of this release: the subagent text points at `codescout box` (Task 1 of the get_guide box-first plan), and tracker-hygiene D10 has an owner-first order, `d10_extract.py`, closed verdict lists and current routing. Not verified: the 39 rows of the 1.23.5 table for the other plugins, and a cold restart of the four profiles.
+
 ### Current release verification — 2026-11-25 (buddy 0.12.4, codescout-companion 1.23.5, codescout-redirect 0.1.1, session-toast 0.1.1)
 
 _Measured at 3a02239 (after the five releases of the day, commits 94e063f, 47f1edb, 35aec5c, e7e883b and 3a02239, not pushed). Every element of every install record was read. 39 profile rows. All rows are green._
