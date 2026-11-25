@@ -4,7 +4,7 @@ Copy this next to the eval (`<eval-dir>/PRE-REGISTRATION.md`) and fill it in
 **before any arm runs**. Commit it before running. A decision rule written after
 seeing results is not a decision rule.
 
-Mirrors codescout `docs/trackers/prompt-hamsa-audit-log.md` § *Protocol* (P-1..P-8).
+Mirrors codescout `docs/research/2026-11-25-prompt-hamsa-protocol.md` (P-1..P-8).
 It lives here as well as there because the failure that produced § *Observable table*
 happened in **this** repo, outside that protocol's stated binding — a gate only works
 where the form is actually filled in.
