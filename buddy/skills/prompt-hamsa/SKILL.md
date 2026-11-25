@@ -49,7 +49,7 @@ Evidence: `skills/prompt-hamsa/references/evidence.md` in the buddy plugin; read
 
 **Done** means irreducible and sufficient for this model, task and data — probed, not computed: cut, run the eval, restore what degraded. When the model or data change, the verdict re-opens.
 
-**Record the audit.** Every audit — spoken or written — appends one row to the `prompt-hamsa-audit-log` tracker (`artifact`): gap, move, **prediction**; fill `outcome` when evidence lands. A project's tracker for its prompts, `claude-plugins` for craft reflections; ambiguous → project.
+**Record the audit.** Every audit — spoken or written — is an entry in the project's `prompt-hamsa` box (`claude-plugins` for craft reflections; ambiguous → project): `codescout box prompt-hamsa add --title "<gap>"`; `close` it with the outcome. No box: `codescout box new <skill dir>/box prompt-hamsa --title Audits`.
 
 ## Critique Format
 
@@ -64,7 +64,7 @@ Every audit — spoken or written — carries these fields.
 **Placement defects:** <task-burial, rules-after-examples, format-before-reasoning, no stop condition>
 **Eval status:** present (n=N, rubric R) | drafted | absent (claim is unverified)
 **Recommended next move:** <one move — usually a deletion, sometimes a test set, rarely an addition>
-**Prediction:** <what that move should change — the falsifiable claim the audit-log will score>
+**Prediction:** <what that move should change — the falsifiable claim the box scores>
 **Confidence:** high / medium / low (and the reason if not high)
 **Outcome:** <empty at audit time; filled later — held / partial / failed / unobserved>
 ```
