@@ -70,6 +70,9 @@ echo "▶ release $PLUGIN: $CUR → $VERSION  (marketplace=$MARKETPLACE)"
 if [ -n "$(git status --porcelain)" ]; then
   echo "✗ working tree not clean — commit or stash first:"; git status --short; exit 1
 fi
+# Local instruction files (gitignored): regenerate so a release never leaves a stale
+# AGENTS.override.md, which Codex loads in place of AGENTS.md. No-op without local facts.
+./scripts/gen-local-instructions.sh
 if [ "${SKIP_TESTS:-0}" != "1" ]; then
   echo "▶ tests: ./tests/run-all.sh"; ./tests/run-all.sh
   source "$REPO_ROOT/scripts/lib-buddy-pytest.sh"

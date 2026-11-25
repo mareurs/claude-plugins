@@ -41,3 +41,7 @@ node_modules/
 # Written by Claude Code when a mod loads; not part of the plugin (see the design docs of the two mods)
 /codescout-display/tsconfig.json
 /session-toast/tsconfig.json
+
+# Local instruction files, generated from .codescout/private-facts.md by scripts/gen-local-instructions.sh
+/AGENTS.override.md
+/CLAUDE.local.md
