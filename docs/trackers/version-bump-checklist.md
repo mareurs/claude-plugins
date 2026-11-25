@@ -13,29 +13,29 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
-### Current release verification — 2026-11-25 (buddy 0.12.2)
+### Current release verification — 2026-11-25 (buddy 0.12.3, codescout-companion 1.23.5, codescout-redirect 0.1.1, session-toast 0.1.1)
 
-_Measured at 3591815 (after release buddy 0.12.2, commit 3591815, not pushed). Every element of every install record was read. 39 profile rows. All rows are green._
+_Measured at e7e883b (after the four releases below, commits 94e063f, 47f1edb, 35aec5c and e7e883b, not pushed). Every element of every install record was read. 39 profile rows. All rows are green._
 
-Changed since the verification of 0026f95: `buddy` 0.12.1 → 0.12.2. **Not pushed:** the release ran with `NO_PUSH=1`.
+Changed since the verification of 3591815: `buddy` 0.12.2 → 0.12.3, `codescout-companion` 1.23.4 → 1.23.5, `codescout-redirect` 0.1.0 → 0.1.1 and `session-toast` 0.1.0 → 0.1.1. **Not pushed:** the releases ran with `NO_PUSH=1`.
 
-**codescout-companion** — canonical `1.23.4` · readme `1.23.4` · marketplace clean ✅
-
-| profile | installed | cache dir | install_path ok | all entries |
-|---|---|---|---|---|
-| `~/.claude` | 1.23.4 ✅ | ✅ | ✅ | `1.23.4` ✅ |
-| `~/.claude-sdd` | 1.23.4 ✅ | ✅ | ✅ | `1.23.4` ✅ |
-| `~/.claude-kat` | 1.23.4 ✅ | ✅ | ✅ | `1.23.4` ✅ |
-| `~/.claude-stef` | 1.23.4 ✅ | ✅ | ✅ | `1.23.4` ✅ |
-
-**buddy** — canonical `0.12.2` · readme `0.12.2` · marketplace clean ✅
+**codescout-companion** — canonical `1.23.5` · readme `1.23.5` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 0.12.2 ✅ | ✅ | ✅ | `0.12.2` ✅ |
-| `~/.claude-sdd` | 0.12.2 ✅ | ✅ | ✅ | `0.12.2` ✅ |
-| `~/.claude-kat` | 0.12.2 ✅ | ✅ | ✅ | `0.12.2` ✅ |
-| `~/.claude-stef` | 0.12.2 ✅ | ✅ | ✅ | `0.12.2` ✅ |
+| `~/.claude` | 1.23.5 ✅ | ✅ | ✅ | `1.23.5` ✅ |
+| `~/.claude-sdd` | 1.23.5 ✅ | ✅ | ✅ | `1.23.5` ✅ |
+| `~/.claude-kat` | 1.23.5 ✅ | ✅ | ✅ | `1.23.5` ✅ |
+| `~/.claude-stef` | 1.23.5 ✅ | ✅ | ✅ | `1.23.5` ✅ |
+
+**buddy** — canonical `0.12.3` · readme `0.12.3` · marketplace clean ✅
+
+| profile | installed | cache dir | install_path ok | all entries |
+|---|---|---|---|---|
+| `~/.claude` | 0.12.3 ✅ | ✅ | ✅ | `0.12.3` ✅ |
+| `~/.claude-sdd` | 0.12.3 ✅ | ✅ | ✅ | `0.12.3` ✅ |
+| `~/.claude-kat` | 0.12.3 ✅ | ✅ | ✅ | `0.12.3` ✅ |
+| `~/.claude-stef` | 0.12.3 ✅ | ✅ | ✅ | `0.12.3` ✅ |
 
 **legible** — canonical `0.2.1` · readme `0.2.1` · marketplace clean ✅
 
@@ -82,14 +82,14 @@ Changed since the verification of 0026f95: `buddy` 0.12.1 → 0.12.2. **Not push
 | `~/.claude-kat` | 0.1.2 ✅ | ✅ | ✅ | `0.1.2` ✅ |
 | `~/.claude-stef` | 0.1.2 ✅ | ✅ | ✅ | `0.1.2` ✅ |
 
-**codescout-redirect** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
+**codescout-redirect** — canonical `0.1.1` · readme `0.1.1` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
-| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
-| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
-| `~/.claude-stef` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude` | 0.1.1 ✅ | ✅ | ✅ | `0.1.1` ✅ |
+| `~/.claude-sdd` | 0.1.1 ✅ | ✅ | ✅ | `0.1.1` ✅ |
+| `~/.claude-kat` | 0.1.1 ✅ | ✅ | ✅ | `0.1.1` ✅ |
+| `~/.claude-stef` | 0.1.1 ✅ | ✅ | ✅ | `0.1.1` ✅ |
 
 **session-bridge** — canonical `0.3.3` · readme `0.3.3` · marketplace clean ✅
 
@@ -100,14 +100,14 @@ Changed since the verification of 0026f95: `buddy` 0.12.1 → 0.12.2. **Not push
 | `~/.claude-kat` | 0.3.3 ✅ | ✅ | ✅ | `0.3.3` ✅ |
 | `~/.claude-stef` | 0.3.3 ✅ | ✅ | ✅ | `0.3.3` ✅ |
 
-**session-toast** — canonical `0.1.0` · readme `0.1.0` · marketplace clean ✅
+**session-toast** — canonical `0.1.1` · readme `0.1.1` · marketplace clean ✅
 
 | profile | installed | cache dir | install_path ok | all entries |
 |---|---|---|---|---|
-| `~/.claude` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
-| `~/.claude-sdd` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
-| `~/.claude-kat` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
-| `~/.claude-stef` | 0.1.0 ✅ | ✅ | ✅ | `0.1.0` ✅ |
+| `~/.claude` | 0.1.1 ✅ | ✅ | ✅ | `0.1.1` ✅ |
+| `~/.claude-sdd` | 0.1.1 ✅ | ✅ | ✅ | `0.1.1` ✅ |
+| `~/.claude-kat` | 0.1.1 ✅ | ✅ | ✅ | `0.1.1` ✅ |
+| `~/.claude-stef` | 0.1.1 ✅ | ✅ | ✅ | `0.1.1` ✅ |
 
 **cs-hint-codex** — canonical `0.1.1` · readme `0.1.1`: not installed in any profile (Codex-only plugin), so it has no params row.
 
