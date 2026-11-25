@@ -40,7 +40,7 @@ entry_prefix:
 | F-3 | 2026-06-14 | med | cc-hooks | fixed-verified | codescout-companion read-guard blocks reading back the persisted summon payload |
 | F-4 | 2026-06-14 | high | architectural | fixed-verified | Summon payload overflows the CC hook-output cap; the "fully-loaded" marker is false for all 14 personas |
 | F-5 | 2026-09-01 | high | doc-vs-reality | fixed-verified | CLAUDE.md says plugin edits are live from the working tree; skills load from `installPath`'s cache dir, so the split shipped to nobody |
-| F-6 | 2026-10-13 | med | doc-vs-reality | open | Skill tool reports the working tree as "Base directory" while `installPath` is the cache; served-byte source undetermined (cache == tree today) |
+| F-6 | 2026-10-13 | med | doc-vs-reality | mitigated | Skill tool reports the working tree as "Base directory" while `installPath` is the cache; served-byte source undetermined (cache == tree today) |
 | F-7 | 2026-10-13 | med | cc-hooks | open | PostToolUse now fires for Claude-initiated Skill calls (CC 2.1.296) — contradicts F-1 and `skill_ledger.py`'s "#43630: Skill fires no hooks" |
 
 ## Wins Index
@@ -322,11 +322,13 @@ Attempted discriminating probe, same session: after `buddy/commands/remember.md`
 
 **Probable cause:** Unknown. Either the host now serves skills from the directory-source location, or it reports that location as the base directory while reading text from the cache.
 
-**Workaround:** None needed today.
+**Re-measured:** 2026-11-25, Claude Code 2.1.332. A marker line that existed only in the working-tree `spec-drift/SKILL.md` (absent from the cache copy) did not appear in the text the Skill tool served, while the tool still printed the working tree as "Base directory". The served bytes come from the cache (`installPath`); the printed directory is the tree. This agrees with the 2026-09-01 measurement in memory `plugin-load-channels`. The probe file was reverted; tree and cache were byte-identical afterwards.
+
+**Workaround:** `scripts/check-skill-skew.sh` names every `skills/` and `commands/` file where the tree and an installed cache disagree, for every profile (test: `tests/test-check-skill-skew.sh`). A skew means the edit is committed, not live: release, or revert the edit. Positive control run on the real machine: one tree edit gave `SKEW` in all four profiles, exit 1.
 
 **Severity:** med
 
-**Status:** open
+**Status:** mitigated
 
 **Valid:** dated 2026-10-13
 
