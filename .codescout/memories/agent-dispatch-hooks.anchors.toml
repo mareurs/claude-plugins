@@ -7,7 +7,7 @@ hash = "f9ebc90adf9fe0ff38dd2e0a58ebb537cbae64b623276bc6e1ac6c86a66a7957"
 
 [[anchors]]
 path = "CLAUDE.md"
-hash = "8406ce5daea2754fe8490ad92344378561edbfd7941589a9e9359c0df4117946"
+hash = "16a53c25bd553336c243e48c113c6df24ef67d3ba444d8283b2353e05292beff"
 
 [[anchors]]
 path = "docs/issues/archive/2026-08-27-guide-ledger-bracket-is-inert-within-its-own-session.md"
