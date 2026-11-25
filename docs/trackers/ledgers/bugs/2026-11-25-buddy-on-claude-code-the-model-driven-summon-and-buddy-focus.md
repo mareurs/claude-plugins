@@ -6,7 +6,11 @@ created: 2026-11-25
 entry_kind: bug
 log:
 - '2026-11-25 open created codescout:9b880af2-23db-4b95-9e16-ebb0c6f8d466'
+- '2026-11-25 edited:severity codescout:9b880af2-23db-4b95-9e16-ebb0c6f8d466'
+- '2026-11-25 edited:unverified codescout:9b880af2-23db-4b95-9e16-ebb0c6f8d466'
+severity: medium
 status_since: 2026-11-25
+unverified: no run with two live Claude Code sessions in one project; found by reading the code
 ---
 
 **Summary:** Under Claude Code, two buddy paths find the session id through the `.buddy/.current_session_id` pointer (whichever session prompted last) or a sole-directory guess, not through the host's own id. With several Claude Code sessions in one project, which this machine runs, a persona or a focus can be written into another session's state.
