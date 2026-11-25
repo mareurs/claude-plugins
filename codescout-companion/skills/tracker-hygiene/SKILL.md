@@ -83,7 +83,7 @@ nothing, while 19 genuinely-empty augmentations generate no finding at all.
 *never been refreshed*. Treat a `list_stale` hit with a null age as a
 never-augmented-here signal, not a staleness one.
 
-**2. The ledger is in git; the catalog is not.** Phase 2 records `link_scan`'s
+**2. The box is in git; the catalog is not.** Phase 2 records `link_scan`'s
 `counts.edges_missing` / `counts.dangling` (on a derived-index checkout,
 `counts.dangling` alone) into the sweep entry, and treats a jump
 versus the previous sweep as worth a `meta` entry. On the unrepaired laptop those read
@@ -160,19 +160,16 @@ If no convention docs exist: announce it, run the **thin sweep** (D2/D3/D4/D9
 only — no index to diff), and emit a synthetic finding recommending a
 conventions bootstrap.
 
-If `codescout box` does not list `hygiene`, make the box now, then run the two
-commit lines the command prints:
+If `codescout box` does not list `hygiene`, make the box now:
 
 ```bash
 codescout box new worklog hygiene --title "Tracker hygiene sweeps" --exit-when "the repository stops running tracker hygiene"
 ```
 
-Then set its readme from `references/tracker-hygiene-log-template.md`
-(§ Box readme): the kinds `sweep` and `meta`, and the field `next_sweep_due`.
-The box holds the state of the project in its newest `sweep` entry: the due date
-and the detector trust table. When the box has no `sweep` entry yet, read the
-trust table from the flat log's `## Detector trust state` if that file exists,
-else start from the all-`individual` table of the template.
+Before you run the commit lines it prints, edit `docs/trackers/streams/hygiene/readme.md`: replace the
+frontmatter keys `entry_kinds` and `statuses` and add `fields` as the block in
+`references/tracker-hygiene-log-template.md` (§ Box readme) shows. Without it the box refuses a `sweep`
+entry. Then run the commit lines, with the readme path in the `git add`.
 
 ### Phase 2 — Inventory
 
@@ -303,7 +300,7 @@ sequence — each mutation is its own Phase-4 gate:
       Read all relevant findings if the report is truncated; a cut list cannot
       establish absence.
       `link_scan(write=true)` does not do this — markdown citations are not catalog
-      edges, and a derived-index checkout refuses it. HY-5 § 1 measured the cost of
+      edges, and a derived-index checkout refuses it. A sweep measured the cost of
       skipping it: 24 moves broke 8 path
       references across 7 live surfaces, none caught by `link_scan`, one failing CI on
       a release tip. Leave `docs/trackers/archive/**` and superseded session-log
@@ -369,7 +366,11 @@ that was never written. Also `docs/issues/2026-08-19-no-check-detects-a-fired-un
 
 ### Phase 4 — Triage (interactive, one finding at a time)
 
-Check the **detector trust table** of the newest `sweep` entry first. For detectors in
+Read the **detector trust table** of the newest `sweep` entry first: run
+`codescout box hygiene list --all` (a `sweep` is filed `done`, so the plain list hides it), then
+`codescout box hygiene show <newest key> --full`. When the box has no `sweep` entry, read the table from
+`## Detector trust state` of `docs/trackers/tracker-hygiene-log.md` if that file exists, else start from the
+all-`individual` table of `references/tracker-hygiene-log-template.md`. For detectors in
 `individual` mode (v1 default: all), present each finding as its own
 `AskUserQuestion`: the evidence pair, the proposed fix, the detector name.
 **Batching homogeneous findings:** when a detector produces several findings that
@@ -419,10 +420,13 @@ Nothing is edited before its verdict.
 - File the sweep entry and set the due date in one call. The body is the sweep
   entry of `references/tracker-hygiene-log-template.md`, ending with the
   detector trust table after this sweep (zero-reject streaks, demotions). The
-  field `next_sweep_due` is today plus 30 days:
+  field `next_sweep_due` is today plus 30 days. It must read `YYYY-MM-DD`: the box accepts any
+  text there, and the hook ignores a value that is not a date:
 
   ```bash
-  codescout box hygiene add --kind sweep --status done --title "Sweep YYYY-MM-DD" --text body - '{"fields":{"next_sweep_due":"YYYY-MM-DD"}}'
+  codescout box hygiene add --kind sweep --status done --title "Sweep YYYY-MM-DD" --text body - '{"fields":{"next_sweep_due":"YYYY-MM-DD"}}' <<'EOF'
+  <the sweep entry>
+  EOF
   ```
 
   The call commits the entry and prints its key.
@@ -431,7 +435,10 @@ Nothing is edited before its verdict.
   `proposal`. The body starts with the line `**Verdict:** <verdict>`:
 
   ```bash
-  codescout box hygiene add --kind meta --title "<one-line title>" --text body -
+  codescout box hygiene add --kind meta --title "<one-line title>" --text body - <<'EOF'
+  **Verdict:** <verdict>
+  <the observation>
+  EOF
   ```
 - One commit for the whole sweep, message referencing the sweep entry. Cite
   SHAs in the project's citation format for *external* references; the sweep
@@ -448,13 +455,13 @@ Nothing is edited before its verdict.
   gap is visible, not silent. (`link_scan` shipped on codescout `experiments`
   2026-07-05; not every build has it.)
 - **Interrupted sweep** → safe by construction: nothing applies ungated,
-  the ledger writes at the end, findings recompute next sweep.
+  the box entry is the last write, findings recompute next sweep.
 - **Foreign-project sweep (target ≠ session home)** → the catalog detectors
   (D4, D9) run via `doc()` / `doc(action="list_stale")`, which query only the
   ACTIVE project and take **no** `workspace=` param. So you MUST
   `workspace(action="activate", path=<target>, read_only=false)` before Phase 2,
   and confirm the response shows `read_only: false` — a read-only activation
-  blocks Phase 5 apply and the ledger bootstrap. Restore the home project before
+  blocks Phase 5 apply and the box bootstrap. Restore the home project before
   the turn ends (`get_guide("workspace-state")`). Pinning `workspace=` reaches only
   the file-based detectors (D1/D2/D3 via `run_command`/`read_file`), never the
   catalog — so a pinned-not-activated sweep silently runs at most half the detectors.
@@ -467,7 +474,7 @@ Nothing is edited before its verdict.
 - More than ~25 findings total — present counts per detector first and ask
   which detectors to triage this session; the rest defer.
 
-## The ledger (per project)
+## The box (per project)
 
 The box `hygiene` (`docs/trackers/streams/hygiene/`), made from this skill's
 `references/tracker-hygiene-log-template.md`. Holds `sweep` entries and `meta`

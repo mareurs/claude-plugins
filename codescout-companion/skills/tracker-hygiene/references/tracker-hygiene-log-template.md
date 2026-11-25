@@ -4,7 +4,23 @@ Templates for `codescout box hygiene add`, the box of the `codescout-companion:t
 
 ## Box readme
 
-Make the box with `codescout box new worklog hygiene --title "Tracker hygiene sweeps" --exit-when "the repository stops running tracker hygiene"`. Then set its readme frontmatter to `entry_kinds: [sweep, meta]` and the field `next_sweep_due` with `type: scalar`, and keep the statuses `open`, `done`, `promoted`, `dropped`. Keep the readme body under 2000 bytes (`codescout box hygiene check`). The body says: a `sweep` is filed with `--status done`, its body ends with the detector trust table, and its frontmatter field `next_sweep_due` is the sweep date plus 30 days; the newest `sweep` entry is the state of the project; a `meta` entry is an observation about the skill and starts with `**Verdict:**`.
+Make the box with `codescout box new worklog hygiene --title "Tracker hygiene sweeps" --exit-when "the repository stops running tracker hygiene"`. Before you commit, set these keys in the frontmatter of the readme it wrote (replace `entry_kinds` and `statuses`, add `fields`):
+
+```yaml
+entry_kinds:
+- sweep
+- meta
+fields:
+  next_sweep_due:
+    type: scalar
+statuses:
+  open: open
+  done: terminal
+  promoted: terminal
+  dropped: terminal
+```
+
+Keep the readme body under 2000 bytes (`codescout box hygiene check`). The body says: a `sweep` is filed with `--status done`; its body ends with the detector trust table; its field `next_sweep_due` is the sweep date plus 30 days, as `YYYY-MM-DD`; the newest `sweep` entry is the state of the project; a `meta` entry is an observation about the skill and starts with `**Verdict:**`.
 
 ## Detector trust table (default)
 

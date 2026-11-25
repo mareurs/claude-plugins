@@ -383,9 +383,9 @@ hbox_entry 2026-01-01-sweep "next_sweep_due: 2099-01-01" ""
 hbox_silent && pass "box future date → silent" || fail "box future date must not nudge"
 
 hbox_reset
-hbox_entry 2026-01-01-a "next_sweep_due: 2020-01-01" ""
-hbox_entry 2026-02-01-b "next_sweep_due: 2099-01-01" ""
-hbox_silent && pass "box takes the greatest date, not the first file" || fail "box must use the greatest date"
+hbox_entry 2026-01-01-a "next_sweep_due: 2099-01-01" ""
+hbox_entry 2026-02-01-b "next_sweep_due: 2020-01-01" ""
+hbox_silent && pass "box takes the greatest date, not the last file read" || fail "box must use the greatest date"
 
 hbox_reset
 hbox_entry 2026-01-01-a "next_sweep_due: soonish" ""
@@ -413,6 +413,31 @@ hbox_silent && pass "a date in the entry body does not count" || fail "a body li
 hbox_reset
 mkdir -p "$HBOX"; printf -- '---\nnext_sweep_due: 2020-01-01\n---\n# readme\n' > "$HBOX/readme.md"
 hbox_silent && pass "a date in readme.md does not count" || fail "readme.md counted as an entry"
+
+# A broken file in the box never hides a valid entry or the flat-log fallback.
+hbox_reset
+hbox_entry 2026-02-01-ok "next_sweep_due: 2020-01-01" ""
+ln -s /nonexistent/target "$HBOX/2026-01-01-dangling.md"
+mkdir "$HBOX/2026-03-01-dir.md"
+hbox_nudges 2020-01-01 && pass "a dangling symlink and a directory beside a valid entry → the valid entry decides" || fail "a broken file in the box silenced the nudge"
+
+hbox_reset
+mkdir -p "$HBOX"; ln -s /nonexistent/target "$HBOX/2026-01-01-dangling.md"
+printf -- '---\nnext-sweep-due: 2020-01-01\n---\n' > "$LEDGER"
+hbox_nudges 2020-01-01 && pass "only a broken box file → falls back to the flat log" || fail "a broken box file silenced the flat-log fallback"
+
+# Values as a hand edit may leave them: quotes, a trailing comment, a byte-order mark.
+for v in '"2020-01-01"' "'2020-01-01'" '2020-01-01 # due'; do
+  hbox_reset
+  hbox_entry 2026-01-01-sweep "next_sweep_due: $v" ""
+  hbox_nudges 2020-01-01 && pass "box value $v is read" || fail "box value $v was ignored"
+done
+hbox_reset
+mkdir -p "$HBOX"; printf '\357\273\277---\nkind: entry\nnext_sweep_due: 2020-01-01\n---\n' > "$HBOX/2026-01-01-bom.md"
+hbox_nudges 2020-01-01 && pass "box entry with a byte-order mark is read" || fail "a byte-order mark hid the date"
+hbox_reset
+hbox_entry 2026-01-01-sweep "next_sweep_due: \"2026-13\"" ""
+hbox_silent && pass "a quoted malformed value stays silent" || fail "a quoted malformed value nudged"
 hbox_reset
 
 # --- Post-compact injection: names the cost, the condition, and the remedy ---

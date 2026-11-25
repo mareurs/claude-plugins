@@ -244,27 +244,37 @@ if (sessionMayHaveSkillTool()) {
 // hygiene box; when no entry carries a valid date, the flat log's `next-sweep-due:` decides.
 const readHygieneDue = (root) => {
   const ISO = /^\d{4}-\d{2}-\d{2}$/;
+  // A value as a hand edit may leave it: optional quotes, optional trailing `# comment`.
+  const isoOf = (raw) => {
+    const v = raw.replace(/\s+#.*$/, '').trim().replace(/^(["'])(.*)\1$/, '$2');
+    return ISO.test(v) ? v : '';
+  };
+  let best = '';
+  const boxDir = join(root, 'docs', 'trackers', 'streams', 'hygiene');
+  let entries = [];
   try {
-    const boxDir = join(root, 'docs', 'trackers', 'streams', 'hygiene');
-    let best = '';
-    if (existsSync(boxDir)) {
-      for (const entry of readdirSync(boxDir)) {
-        if (!entry.endsWith('.md') || entry === 'readme.md') continue;
-        const fm = readFileSync(join(boxDir, entry), 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---/);
-        const mm = fm && fm[1].match(/^next_sweep_due:[ \t]*(.+?)[ \t]*$/m);
-        if (mm && ISO.test(mm[1]) && mm[1] > best) best = mm[1];
-      }
-    }
-    if (best) return best;
-    const flat = join(root, 'docs', 'trackers', 'tracker-hygiene-log.md');
-    if (existsSync(flat)) {
-      const mm = readFileSync(flat, 'utf8').match(/^next-sweep-due:[ \t]*(.+?)[ \t]*$/m);
-      if (mm && ISO.test(mm[1])) return mm[1];
-    }
+    entries = readdirSync(boxDir);
   } catch {
-    /* silent on read/parse error */
+    /* no box */
   }
-  return '';
+  for (const entry of entries) {
+    if (!entry.endsWith('.md') || entry === 'readme.md') continue;
+    try {
+      const fm = readFileSync(join(boxDir, entry), 'utf8').replace(/^﻿/, '').match(/^---\r?\n([\s\S]*?)\r?\n---/);
+      const mm = fm && fm[1].match(/^next_sweep_due:[ \t]*(.+?)[ \t]*$/m);
+      const d = mm ? isoOf(mm[1]) : '';
+      if (d && d > best) best = d;
+    } catch {
+      /* one unreadable entry never hides the others */
+    }
+  }
+  if (best) return best;
+  try {
+    const mm = readFileSync(join(root, 'docs', 'trackers', 'tracker-hygiene-log.md'), 'utf8').match(/^next-sweep-due:[ \t]*(.+?)[ \t]*$/m);
+    return mm ? isoOf(mm[1]) : '';
+  } catch {
+    return '';
+  }
 };
 {
   const due = readHygieneDue(cwd);
