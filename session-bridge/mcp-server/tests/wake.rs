@@ -425,3 +425,40 @@ fn polling_uses_the_poll_interval() {
     assert_eq!(out, WatchOutcome::Done);
     assert_eq!(first.get(), T0 + POLL_MS as i64);
 }
+
+#[test]
+fn a_guard_block_releases_the_claim() {
+    let w = W::alive();
+    update(&w.path(), |s| s.wake_ms = vec![T0 - 1_000]).unwrap();
+    w.post_to("s1", "held back");
+    let now = Cell::new(T0);
+    assert_eq!(w.watch(&input("s1"), &now), WatchOutcome::Done);
+    assert_eq!(load_or_default(&w.path()).watcher_pid, None);
+}
+
+#[test]
+fn a_wake_keeps_a_wake_exactly_one_hour_old_and_drops_an_older_one() {
+    let w = W::alive();
+    update(&w.path(), |s| {
+        s.wake_ms = vec![T0 - 3_600_000, T0 - 3_600_001];
+    })
+    .unwrap();
+    w.post_to("s1", "hello");
+    let now = Cell::new(T0);
+    assert!(matches!(w.watch(&input("s1"), &now), WatchOutcome::Wake(_)));
+    assert_eq!(load_or_default(&w.path()).wake_ms, vec![T0 - 3_600_000, T0]);
+}
+
+#[test]
+fn a_watcher_that_lost_its_claim_exits_and_leaves_the_new_claim() {
+    let w = W::alive();
+    let now = Cell::new(T0);
+    let out = w.run(&input("s1"), &now, &|n| {
+        if n == 1 {
+            update(&w.path(), |s| s.watcher_pid = Some(999_999)).unwrap();
+        }
+    });
+    assert_eq!(out, WatchOutcome::Done);
+    assert!(now.get() < T0 + DEADLINE_MS, "exited before the deadline");
+    assert_eq!(load_or_default(&w.path()).watcher_pid, Some(999_999));
+}

@@ -1,6 +1,7 @@
 //! Wake of an idle session by an addressed notice: opt-in marker and loop guard.
 
 use crate::cursor::get_direct;
+use crate::diag;
 use crate::direct::take;
 use crate::endpoints::{pid_alive, process_start_ms, Roots};
 use crate::hook::HookInput;
@@ -119,11 +120,12 @@ pub fn watch(
     if !claim_watcher(&path, roots, own, (clock.now_ms)()) {
         return WatchOutcome::Done;
     }
-    let out = watch_loop(input, me, roots, state, store, clock, &path);
+    let out = watch_loop(input, me, roots, state, store, clock, &path, own);
     release_watcher(&path, own);
     out
 }
 
+#[allow(clippy::too_many_arguments)]
 fn watch_loop(
     input: &HookInput,
     me: (&str, u32),
@@ -132,12 +134,16 @@ fn watch_loop(
     store: &Store,
     clock: &Clock,
     path: &Path,
+    own: u32,
 ) -> WatchOutcome {
     loop {
         if !pid_alive(roots, me.1) {
             return WatchOutcome::Done;
         }
         let st = load_or_default(path);
+        if st.watcher_pid != Some(own) {
+            return WatchOutcome::Done;
+        }
         let now = (clock.now_ms)();
         if now >= st.watch_until_ms {
             return WatchOutcome::Done;
@@ -158,10 +164,12 @@ fn watch_loop(
                 return WatchOutcome::Done;
             }
             if let Some(text) = take(&ids, me, roots, state, store) {
-                let _ = update(path, |s| {
+                if let Err(e) = update(path, |s| {
                     s.wake_ms.retain(|&w| now - w <= HOUR_MS);
                     s.wake_ms.push(now);
-                });
+                }) {
+                    diag::note(&format!("wake: record wake time: {e}"));
+                }
                 return WatchOutcome::Wake(text);
             }
         }

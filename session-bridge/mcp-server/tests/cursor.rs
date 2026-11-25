@@ -1,4 +1,6 @@
-use session_bridge_mcp::cursor::{get, get_direct, on_session_start, set, set_direct, StartRule};
+use session_bridge_mcp::cursor::{
+    advance_direct, get, get_direct, on_session_start, set, set_direct, StartRule,
+};
 use session_bridge_mcp::paths::is_safe_component;
 use session_bridge_mcp::state::{endpoint_path, update};
 use tempfile::TempDir;
@@ -244,4 +246,23 @@ fn direct_cursor_never_moves_backward_under_a_race() {
         h.join().unwrap();
     }
     assert_eq!(get_direct(&root, STEF, "S"), 7 * 1000 + 24);
+}
+
+#[test]
+fn advance_direct_succeeds_once_per_expected_value() {
+    let d = TempDir::new().unwrap();
+    assert!(advance_direct(d.path(), "p", "s1", 0, 5).unwrap());
+    assert_eq!(get_direct(d.path(), "p", "s1"), 5);
+    assert!(!advance_direct(d.path(), "p", "s1", 0, 5).unwrap());
+    assert_eq!(get_direct(d.path(), "p", "s1"), 5);
+    assert!(advance_direct(d.path(), "p", "s1", 5, 7).unwrap());
+    assert_eq!(get_direct(d.path(), "p", "s1"), 7);
+}
+
+#[test]
+fn advance_direct_refuses_unsafe_components() {
+    let d = TempDir::new().unwrap();
+    assert!(advance_direct(d.path(), "p", "a/b", 0, 5).is_err());
+    assert!(advance_direct(d.path(), "../p", "s1", 0, 5).is_err());
+    assert!(!d.path().join("cursors").exists(), "nothing was written");
 }

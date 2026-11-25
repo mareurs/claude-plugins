@@ -5,7 +5,7 @@
 //! id: the direct cursor moves before the text is returned, so a failed cursor write delivers
 //! nothing and the next trigger tries again.
 
-use crate::cursor::{get_direct, set_direct};
+use crate::cursor::{advance_direct, get_direct};
 use crate::deliver::render_direct_all;
 use crate::diag;
 use crate::endpoints::Roots;
@@ -34,22 +34,32 @@ pub fn take(
             continue;
         }
         seen.push(id);
-        let after = get_direct(state, me.0, id);
-        let found = match store.direct_after(id, after, DIRECT_LIMIT) {
-            Ok(found) => found,
-            Err(e) => {
-                diag::note(&format!("direct: read notices for {id}: {e}"));
-                continue;
+        // Read, then advance only if nobody else moved the cursor meanwhile; a lost race
+        // re-reads, so a notice goes to one caller. After 3 lost races the notices wait.
+        for _ in 0..3 {
+            let after = get_direct(state, me.0, id);
+            let found = match store.direct_after(id, after, DIRECT_LIMIT) {
+                Ok(found) => found,
+                Err(e) => {
+                    diag::note(&format!("direct: read notices for {id}: {e}"));
+                    break;
+                }
+            };
+            let Some(last) = found.last().map(|n| n.seq) else {
+                break;
+            };
+            match advance_direct(state, me.0, id, after, last) {
+                Ok(true) => {
+                    items.extend(found);
+                    break;
+                }
+                Ok(false) => continue,
+                Err(e) => {
+                    diag::note(&format!("direct: cursor for {id}: {e}"));
+                    break;
+                }
             }
-        };
-        let Some(last) = found.last().map(|n| n.seq) else {
-            continue;
-        };
-        if let Err(e) = set_direct(state, me.0, id, last) {
-            diag::note(&format!("direct: cursor for {id}: {e}"));
-            continue;
         }
-        items.extend(found);
     }
     items.sort_by_key(|n| n.seq);
     render_direct_all(roots, &items)
