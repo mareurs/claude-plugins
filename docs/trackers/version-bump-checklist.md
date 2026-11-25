@@ -13,6 +13,10 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
+### Current release verification — 2026-11-25 (codescout-companion 1.23.7)
+
+_Run with `NO_PUSH=1 SKIP_TESTS=1` (not pushed). Evidence is the output of `scripts/release.sh`: `check-versions.sh` consistent at `1.23.7`, cached in 4 of 4 profiles, install records repointed in `~/.claude`, `~/.claude-sdd`, `~/.claude-kat`, `~/.claude-stef`, `check-profile-parity.sh` green ✅. Adds the hygiene nudge path fix (1329122) to 1.23.6. Not verified: per-row reads of the other plugins, and a cold restart._
+
 ### Current release verification — 2026-11-25 (codescout-companion 1.23.6)
 
 _Measured at 5b61534, run with `NO_PUSH=1 SKIP_TESTS=1` (not pushed; the pre-flight suites were skipped on the operator's instruction). Evidence is the output of `scripts/release.sh`, not a per-row read of every install record._
