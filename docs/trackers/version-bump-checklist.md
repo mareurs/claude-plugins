@@ -1196,7 +1196,7 @@ Published 7b898e6 after fix d9712b9. Delta: native PostToolUse launch now emits 
 ### 2026-10-29 (second) — companion 1.20.23 released and pushed by `release.sh`
 
 **Deltas, all measured:**
-- codescout-companion 1.20.22→1.20.23 (`209584f`) ships one skill fix: `reconnaissance/SKILL.md` no longer says a fresh `session-log` template is directly editable. The real template declares `entry_prefix`, and `edit_file` refuses a copy of it (`3c917a6`, `dff6cec`). The skill-call legality test now asserts this (bug `af3292c4ea2d4712`, status `investigating`).
+- codescout-companion 1.20.22→1.20.23 (`209584f`) ships one skill fix: `reconnaissance/SKILL.md` no longer says a fresh `session-log` template is directly editable. The real template declares `entry_prefix`, and `edit_file` refuses a copy of it (`3c917a6`, `dff6cec`). The skill-call legality test now asserts this (bug [[2026-11-24-no-automated-check-that-the-tool-calls-a-skill-prescribes]], status `investigating` at release time).
 - The first `release.sh` run stopped at step 0 and changed nothing: `test-recon-skill-split.sh` failed because my first wording made the core file 14172 B, over the 14056 B cap. `dff6cec` shortened the sentence; the second run passed `tests/run-all.sh` and pushed `fafc0e0..209584f`.
 - `check-profile-parity.sh` after the release: `Profile parity holds across 4 plugin(s).` It printed one `WARN`: `statusline` is installed in 3 of 4 profiles, not in `~/.claude-stef`.
 - All 4 cache dirs show 0 lines under `diff -rq`; positive control in the State note. `~/.claude-stef` is now covered by `release.sh` (`f37b91e`).

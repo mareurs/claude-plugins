@@ -1,6 +1,6 @@
 """Run the tool calls that skills prescribe against a real codescout and check they are legal.
 
-Bug af3292c4ea2d4712 (option 2). Prints `PASS:` / `FAIL:` / `SKIP:` / `INFO:` lines; exits 1 on any
+Bug 2026-11-24-no-automated-check-that-the-tool-calls-a-skill-prescribes (option 2). Prints `PASS:` / `FAIL:` / `SKIP:` / `INFO:` lines; exits 1 on any
 FAIL. Called by tests/test-skill-call-legality.sh.
 
 What it establishes: the call, as the skill text spells it, is accepted by the server and has the

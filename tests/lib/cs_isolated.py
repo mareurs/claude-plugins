@@ -1,6 +1,6 @@
 """Run codescout's MCP tools against a throwaway sandbox.
 
-WHY THIS EXISTS: skills prescribe tool calls, and nothing ran them (bug af3292c4ea2d4712).
+WHY THIS EXISTS: skills prescribe tool calls, and nothing ran them (bug 2026-11-24-no-automated-check-that-the-tool-calls-a-skill-prescribes).
 A real server is the only judge of whether a call is legal — some rules live in server state
 (a ledger must declare `entry_prefix`) or in value grammar (`dated` takes an ISO date), and
 appear in no tool schema.
