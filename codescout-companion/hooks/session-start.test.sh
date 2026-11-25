@@ -370,7 +370,7 @@ hbox_entry() { # name, frontmatter line (may be empty), body line (may be empty)
   mkdir -p "$HBOX"
   printf -- '---\nkind: entry\nentry_kind: sweep\n%s\n---\n%s\n' "$2" "$3" > "$HBOX/$1.md"
 }
-hbox_reset() { rm -rf "$TMP/docs/trackers/streams"; rm -f "$LEDGER"; }
+hbox_reset() { rm -rf "$TMP/docs/boxes/hygiene"; rm -f "$LEDGER"; }
 hbox_nudges() { ctx startup | grep -q "TRACKER HYGIENE: sweep overdue (due $1)"; }
 hbox_silent() { ! ctx startup | grep -q "TRACKER HYGIENE"; }
 

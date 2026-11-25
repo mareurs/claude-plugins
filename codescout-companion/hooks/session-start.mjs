@@ -250,7 +250,7 @@ const readHygieneDue = (root) => {
     return ISO.test(v) ? v : '';
   };
   let best = '';
-  const boxDir = join(root, 'docs', 'trackers', 'streams', 'hygiene');
+  const boxDir = join(root, 'docs', 'boxes', 'hygiene', 'hygiene');
   let entries = [];
   try {
     entries = readdirSync(boxDir);
