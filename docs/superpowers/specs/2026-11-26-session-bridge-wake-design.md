@@ -1,6 +1,6 @@
 # session-bridge: wake an idle Claude Code session on an addressed notice
 
-Status: draft, not approved. Nothing in it is built. Gates G1 to G3 are measured (below), G4 is not, G5 failed and changed the design.
+Status: draft, not approved. Nothing in it is built. Gates G1 to G3 pass in headless mode and in the interactive TUI, G4 is measured for a short timeout only, G5 failed for a crash and changed the design.
 
 ## Problem
 
@@ -38,13 +38,13 @@ Codex and OpenCode targets do not have this gap: `send_message` queues a prompt 
 
 **Revisit-when:** the host adds a documented way to inject a prompt into an idle session; or measurement gate G2 fails.
 
-**Confidence:** medium-high. G1 to G3 pass in headless mode; the interactive TUI and the timeout limit (G4) are unmeasured.
+**Confidence:** medium-high. G1 to G3 pass in both modes. The wake window is bounded by the hook timeout, whose maximum is unmeasured.
 
 ## Behaviour
 
 1. **Arm.** `hooks.json` gets two `asyncRewake` entries that run `run.sh watch`: `SessionStart` (a fresh session that never ran a turn) and `Stop` (after each turn, which is when the session becomes idle; this also re-arms the watcher after each wake). Both measured (G1, G3).
 2. **Singleton.** `watch` takes a lock keyed by endpoint (profile, pid) and exits 0 at once when a live watcher holds it. `EndpointState` records the watcher pid next to `worker_pid`.
-3. **Wait.** `watch` polls `direct_after` for every session id of the endpoint (the current id and earlier ids after `/clear`, as `take` does) without moving a cursor. It stops at its deadline with exit 0. It also exits 0 when the endpoint's Claude pid is gone (gate G5: a killed host leaves the watcher running).
+3. **Wait.** `watch` polls `direct_after` for every session id of the endpoint (the current id and earlier ids after `/clear`, as `take` does) without moving a cursor. It stops at its own deadline with exit 0, set below the hook `timeout` so the host never has to send TERM (the companion does the same: 7000 s under 7200 s). It also exits 0 when the endpoint's Claude pid is gone (gate G5: a killed host leaves the watcher running).
 4. **Wake.** On a notice it calls `take`. When `take` returns text, it writes the text to stderr and exits 2. When `take` returns nothing, it keeps waiting.
 5. **Opt-in on the receiver.** The watcher arms only when the receiver's profile enables it (setting name open, default off). The receiver owner decides who may spend its tokens.
 6. **Sender feedback.** `post_notice(to=...)` says in one line whether the receiver has a live watcher: `queued: wakes the session if idle` or `queued: shows at its next prompt or tool call`. It never says `delivered`.
@@ -64,19 +64,19 @@ No new tool parameter. The sender does not choose to wake: the receiver's opt-in
 
 ## Measurement gates
 
-Measured 2026-11-26 on Claude Code 2.1.332, linux, **headless** (`claude -p --input-format stream-json`, model haiku, user and project settings plus a probe `--settings` file). Not measured in the interactive TUI. The probe hook slept, then wrote a marker to stderr and exited 2. Probe scripts: scratchpad of the authoring session, not committed.
+Measured 2026-11-26 on Claude Code 2.1.332, linux, in two modes: **headless** (`claude -p --input-format stream-json`, model haiku, user and project settings plus a probe `--settings` file) and the **interactive TUI** (`claude --model haiku --settings <probe>` inside `tmux`). The probe hook slept, then wrote a marker to stderr and exited 2. Probe scripts: scratchpad of the authoring session, not committed.
 
 | Gate | Question | Result |
 | --- | --- | --- |
-| G1 | An `asyncRewake` hook from `SessionStart` keeps running after the event returns | **Pass.** Started at t=0, alive until its own exit at t=12 s. |
-| G2 | Exit 2 wakes an **idle** session; the stderr text reaches the model | **Pass.** Turn 1 ended at 3.8 s. The hook exited 2 at 12.8 s. A new turn started at 13.0 s and the model answered the exact marker the stderr asked for. |
-| G3 | A `Stop` hook entry with `asyncRewake` re-arms the watcher | **Pass.** Watcher 1 woke the session, the wake turn ended, `Stop` started watcher 2, which woke it again (`WAKE-ACK-1`, `WAKE-ACK-2`). A counter file stopped the chain. |
-| G4 | Largest accepted `timeout`, and the behaviour at the deadline | **Not measured.** The probes used `timeout: 120`. The companion ships `7200` (`hooks.json:176`). |
-| G5 | The watcher dies with its session | **Fail for a crash.** After `kill -9` of the host, the watcher process stayed alive (it would have exited 2 into nothing). A graceful stdin close did send TERM to the watcher, but the host took more than 20 s to exit while the watcher slept; the cause is not investigated. |
+| G1 | An `asyncRewake` hook from `SessionStart` keeps running after the event returns | **Pass** in both modes. Headless: alive until its own exit at 12 s. TUI: alive until its own exit at 20 s, in a session that never ran a turn. |
+| G2 | Exit 2 wakes an **idle** session; the stderr text reaches the model | **Pass** in both modes. Headless: turn 1 ended at 3.8 s, the hook exited 2 at 12.8 s, a new turn started at 13.0 s and the model answered the exact marker. TUI: with no prompt typed, the exit 2 produced a `Stop hook feedback` line and the model answered `WAKE-ACK-1`. The wake text shows to the user under that label. |
+| G3 | A `Stop` hook entry with `asyncRewake` re-arms the watcher | **Pass** in both modes. A `SessionStart` watcher woke the session, the wake turn ended, `Stop` started watcher 2, which woke it again (`WAKE-ACK-1`, `WAKE-ACK-2`). A counter file stopped the chain. |
+| G4 | Largest accepted `timeout`, and the behaviour at the deadline | **Partly.** At the deadline the host sends TERM to the watcher, silently: with `timeout: 6` the watcher got TERM at 6 s and the TUI showed nothing. An idle session then has **no watcher** until its next turn ends. The largest accepted value is not measured; the companion ships `7200` (`hooks.json:176`). |
+| G5 | The watcher dies with its session | **Fail for a crash, pass for `/exit`.** After `kill -9` of the host (headless), the watcher stayed alive. After `/exit` in the TUI the watcher got TERM within 1 s. (A headless stdin close was slow, more than 20 s; that is not the TUI path.) |
 
 Consequence of G5: the watcher must check that its Claude pid is alive on each poll and exit 0 when it is not (Behaviour step 3). The job-end wake of the companion has the same defect, measured with a real `run_command` background job: the MCP server exits after the host `kill -9`, but the watcher and the job stay alive (bugs box, `2026-11-25-wake-on-job-end-watcher-outlives-a-killed-host-it-never`). A fix of the host-liveness check should serve both watchers.
 
-Still open: repeat G1 to G3 in the interactive TUI before build, and measure G4. Windows stays `unverified`.
+Still open: the largest accepted `timeout` (G4). The wake window after the last arm is that timeout: past it the notice stays queued and shows at the next prompt or tool call, as today. Windows stays `unverified`.
 
 ## Risks
 
