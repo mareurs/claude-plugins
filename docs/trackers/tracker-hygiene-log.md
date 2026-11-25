@@ -340,6 +340,8 @@ a sibling project's ledger hitting the same miss).
 
 **Promote-when:** a third sweep meets an open entry whose condition has already come true.
 
+**Outcome (2026-11-25, later the same day):** The verify-open pass ran on both entries, and `F-1` and `F-2` are now `fixed-verified` (commit `2739260`). The checks were: `hot-view` run on the binary that the server command of all four profiles names (a symlink to a dev build that still reports 0.15.0), the `find` that the entry itself quotes, and `hot-view.test.mjs`, whose fake binary covers every exit path. `F-4` and `F-6` of the same log still read `open`. The hook keeps a view quiet only when the header is its only line, and the test `quiet_view_with_problems_is_shown_verbatim` passes, which bears on `F-6`. This pass did not check whether the contract text that `F-4` asks about has changed.
+
 ## HY-6 — The precondition gate blocks on a memory read that no detector uses, and does not name stale rows after a deletion
 
 **Valid:** dated 2026-11-25
