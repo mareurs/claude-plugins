@@ -1,17 +1,18 @@
 ---
-id: '6a68ed5aa51727b5'
+id: 1b6344a618880a59
 kind: tracker
-status: active
+status: archived
 title: Session Log — S4 systematic debugging
 tags:
 - systematic-debugging
 - effort-steering
 topic: s4-debug
+archived_on: 2026-11-25
+entry_high_water_F: 3
 entry_prefix:
 - F
 - W
 snapshot_anchor: '| ID | Date | Severity | Status | Finding |'
-entry_high_water_F: 3
 ---
 
 # S4 systematic debugging

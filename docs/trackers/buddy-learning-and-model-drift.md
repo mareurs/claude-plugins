@@ -36,7 +36,7 @@ status: draft
 depends_on:
   - buddy-introspection.md      # S-1..S-6 findings this generalizes from
   - active-plan.md              # Phase 4/4 still open; do not duplicate its task list
-  - eval-bringup.md             # harness this reuses for cross-model runs
+  - archive/eval-bringup.md     # harness this reuses for cross-model runs
 scope:
   - token_efficiency_resweep          # confirm/extend S-1..S-4 fixes are still holding
   - live_tracking_and_promotion       # new: recon-style F-N/W-N + project/system promotion for specialists

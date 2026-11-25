@@ -1,18 +1,19 @@
 ---
-id: '123777f0a66237ba'
+id: 79e07e7a99e44b52
 kind: tracker
-status: active
+status: archived
 title: PR19 OpenCode session-bridge audit
 tags:
 - pr19
 - opencode
 - review
 topic: pr19-opencode
+archived_on: 2026-11-25
+entry_high_water_F: 9
 entry_prefix:
 - F
 - W
 snapshot_anchor: '| ID | Date | Severity | Status | Finding |'
-entry_high_water_F: 9
 ---
 
 ## Scope

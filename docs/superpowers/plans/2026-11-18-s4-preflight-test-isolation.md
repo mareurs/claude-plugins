@@ -15,7 +15,7 @@ title: S4 preflight budgets and runtime deadline
 
 **Tech Stack:** Dependency-free Node ESM, native child processes and temporary Git fixtures.
 
-**Spec / evidence:** docs/trackers/s4-debug-session-log.md, entry s4-debug-session-log:F-1; natural ETIMEDOUT → adapter_timeout → prompt_not_steerable → zero calls.
+**Spec / evidence:** docs/trackers/archive/s4-debug-session-log.md, entry s4-debug-session-log:F-1; natural ETIMEDOUT → adapter_timeout → prompt_not_steerable → zero calls.
 
 ## Approaches and scope
 

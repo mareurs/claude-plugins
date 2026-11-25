@@ -1,7 +1,8 @@
 ---
 kind: tracker
-status: active
-title: "Tracker: Fixture Expansion"
+status: archived
+title: 'Tracker: Fixture Expansion'
+archived_on: 2026-11-25
 ---
 
 # Tracker: Fixture Expansion

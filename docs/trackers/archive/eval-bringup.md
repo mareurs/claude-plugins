@@ -1,7 +1,8 @@
 ---
 kind: tracker
-status: active
+status: archived
 title: Buddy Eval Harness — Bringup Tracker
+archived_on: 2026-11-25
 ---
 
 # Buddy Eval Harness — Bringup Tracker

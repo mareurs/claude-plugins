@@ -1,4 +1,5 @@
 ---
+status: active
 title: Session Log — portable-workflows
 tags:
 - session-log
@@ -6,11 +7,11 @@ tags:
 - harness-compatibility
 - buddy
 topic: portable workflows and Codex integration
+entry_high_water_F: 6
+entry_high_water_W: 2
 entry_prefix:
 - F
 - W
-entry_high_water_F: 6
-entry_high_water_W: 2
 ---
 # Session Log — portable-workflows
 

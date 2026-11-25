@@ -1,7 +1,7 @@
 ---
-id: eb42e9449da1708f
+id: c2adf4d4f123e524
 kind: tracker
-status: active
+status: archived
 title: Passover — roster-audit + release-integrity — 2026-08-26
 tags:
 - passover
@@ -10,6 +10,7 @@ tags:
 - reconnaissance
 topic: roster-audit-release-integrity
 time_scope: dated:2026-08-26
+archived_on: 2026-11-25
 branch: main
 origin_session_id: f6ae2d77-3ee3-46f9-ab0d-270afd61c592
 ---
@@ -234,3 +235,7 @@ the original seven-item list is outstanding:
 - Sibling thread: `docs/trackers/archive/passover-validation-spine-2026-08-26.md` — concurrent session, VG-9 spine measurement; **archived 2026-09-01**, its one open action now tracked as `repo-remediation-backlog` `RM-10`. Different thread; its anti-goals are its own.
 - Key commits: `f53aaea` (recon SKILL fix), `448a1b8` (1.16.17 bump), `cb7d3f4` (tracker refresh), `ce83dfd` (parity check + CLAUDE.md), `0fd8eb1` (VG-7).
 - Back-link: `.buddy/f6ae2d77-3ee3-46f9-ab0d-270afd61c592/` and the session transcript.
+
+## Consumed — 2026-11-25
+
+Tracker-hygiene sweep 2026-11-25 consumed this passover. Its Next actions read CLEARED 2026-08-26 with nothing outstanding. The open threads live on in `roster-audit-session-log` (`F-5`, `F-6`).

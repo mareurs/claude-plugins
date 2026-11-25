@@ -8,7 +8,7 @@ entry_prefix: T
 
 > **Tracker schema:** hybrid (task_list spine + reflective methodology + metric_baseline once eval is live).
 > Plain-markdown fallback because `claude-plugins` is not registered as a codescout artifact repo.
-> Indexed in [INDEX.md](INDEX.md). Companion to [buddy-introspection.md](buddy-introspection.md) — that one names the gaps; this one resolves them. Runtime execution of Phase 0 (T-6..T-11) tracked in [eval-bringup.md](eval-bringup.md).
+> Indexed in [INDEX.md](INDEX.md). Companion to [buddy-introspection.md](buddy-introspection.md) — that one names the gaps; this one resolves them. Runtime execution of Phase 0 (T-6..T-11) tracked in [eval-bringup.md](archive/eval-bringup.md) (archived 2026-11-25).
 
 ## Done-condition
 
@@ -61,8 +61,8 @@ eval_baseline:
   known_issues:
     - "openai/gpt-5 parse rate now 100% in v3 (15/15). Earlier issue (12/15 in v1, 14/15 in v2) was the parse_judge_output rfind bug — fully resolved. Issue closed."
 all_specialists_refactored: true   # 10/11 ibex-promoted; security-ibex IS the source pattern
-runtime_bringup_tracker: docs/trackers/eval-bringup.md
-fixture_expansion_tracker: docs/trackers/fixture-expansion.md
+runtime_bringup_tracker: docs/trackers/archive/eval-bringup.md
+fixture_expansion_tracker: docs/trackers/archive/fixture-expansion.md
 human_anchor_TODO: "Replace D-7 strong-panel calibration with human labels when feasible — current κ inflates above κ-vs-human due to shared LLM biases"
 last_updated: 2026-05-16
 ```
@@ -412,7 +412,7 @@ Each task is a **deliverable** (planning-crane Method 2), sized to one focus ses
 | T-6 | Run variance-floor measurement (N=5 identical reruns × 3 cases × pilot specialist) | `eval/baselines/<date>/ml-training-takin/variance.json` | 30m | |
 | T-7 | Hand-label 3 cases × 5 specialists = 15 cases for calibration | `eval/judge/calibration/human-labels.csv` | 120m | Highest manual-effort task |
 | T-8 | Run panel on calibration set; compute κ; iterate judge prompt until κ ≥ 0.6 | `eval/judge/calibration/kappa-run-<n>.json` | 120m | May need 2–3 iterations |
-| T-9 | ~~Expand fixtures: 5 cases × each of 10 specialists~~ **DEFERRED** to [fixture-expansion.md](fixture-expansion.md) — backfilled on-demand per Phase 2/3 refactor | `docs/trackers/fixture-expansion.md` | — | 2026-05-16: deferred; takin baseline alone gates Phase 2 |
+| T-9 | ~~Expand fixtures: 5 cases × each of 10 specialists~~ **DEFERRED** to [fixture-expansion.md](archive/fixture-expansion.md) — backfilled on-demand per Phase 2/3 refactor | `docs/trackers/archive/fixture-expansion.md` | — | 2026-05-16: deferred; takin baseline alone gates Phase 2 |
 | T-10 | ✅ Freeze takin baseline v1 | `eval/baselines/frozen/ml-training-takin@v1/` | 30m | Done 2026-05-16. κ=1.0, floor 0.200 |
 | T-11 | Wire Promptfoo into CI; gate merges on no-regression | `.github/workflows/eval.yml` + `promptfoo.yaml` | 60m | Run subset on changed files only |
 
@@ -560,8 +560,8 @@ May need 2–3 iterations. History records `T-8 (degraded substitute path under 
 
 #### T-9 — ~~Expand fixtures: 5 cases × each of 10 specialists~~ DEFERRED
 
-**Deliverable:** `docs/trackers/fixture-expansion.md` · **Est:** — · **Phase:** 0
-**Deferred** to [fixture-expansion.md](fixture-expansion.md); backfilled on-demand per
+**Deliverable:** `docs/trackers/archive/fixture-expansion.md` · **Est:** — · **Phase:** 0
+**Deferred** to [fixture-expansion.md](archive/fixture-expansion.md); backfilled on-demand per
 Phase 2/3 refactor. 2026-05-16: takin baseline alone gates Phase 2.
 
 #### T-10 — Freeze takin baseline v1

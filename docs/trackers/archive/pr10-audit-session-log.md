@@ -1,18 +1,19 @@
 ---
-id: c9ff21c00592bc7f
+id: 106dc05899dcc299
 kind: tracker
-status: done
+status: archived
 title: Session Log — PR 10 audit
 tags:
 - pr-review
 - reconnaissance
 - systematic-debugging
 topic: pr10-audit
+archived_on: 2026-11-25
+entry_high_water_F: 1
 entry_prefix:
 - F
 - W
 snapshot_anchor: '| ID | Date | Severity | Status | Finding |'
-entry_high_water_F: 1
 ---
 
 # PR 10 audit session log

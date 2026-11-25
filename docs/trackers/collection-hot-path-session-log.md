@@ -1,13 +1,14 @@
 ---
+status: active
 title: Session Log — collection hot path (hot-view hook, Plan L-E)
 tags:
 - session-log
 topic: collection-hot-path
+entry_high_water_F: 6
+entry_high_water_W: 1
 entry_prefix:
 - F
 - W
-entry_high_water_F: 6
-entry_high_water_W: 1
 ---
 # Session Log — collection hot path (hot-view hook, Plan L-E)
 

@@ -8,7 +8,7 @@ tags:
 - lifecycle
 entry_high_water_HY: 3
 entry_prefix: HY
-next-sweep-due: 2026-11-18
+next-sweep-due: 2026-12-25
 sweep-interval-days: 30
 ---
 
@@ -38,10 +38,10 @@ neutral (streak unchanged).
 
 | Detector | Mode | Consecutive zero-reject sweeps | Last reject (sweep, reason) |
 |----------|------|-------------------------------|------------------------------|
-| D1 index-drift | batch | 2 | — |
-| D2 terminal-not-archived | individual | 1 | — |
-| D3 stale-active | individual | 0 | 2026-09-05, both rejected (confirmed still-live, not stale) |
-| D4 frontmatter-catalog-mismatch | individual | 1 | — |
+| D1 index-drift | batch | 3 | — |
+| D2 terminal-not-archived | batch | 2 | — |
+| D3 stale-active | individual | 1 | 2026-09-05, both rejected (confirmed still-live, not stale) |
+| D4 frontmatter-catalog-mismatch | batch | 2 | — |
 | D5 canonical-conflict | individual | 0 | — |
 | D9 augmentation-stale | individual | 0 | — |
 | D10 session-log-decay | individual | 0 | — |
@@ -262,6 +262,55 @@ a sibling project's ledger hitting the same miss).
 **Proposal (if any):** Phase 2 should read `librarian(action="doctor")` and list its non-zero `validity_unparseable` findings for `docs/trackers/`. A D10 candidate with this defect should have it repaired before the digest or archive step.
 
 **Promote-when:** the same shape is found in a second sweep, or by a sibling project's ledger.
+
+## Sweep 2026-11-25
+
+**Scope:** docs/trackers/ | **Files inventoried:** 34 live files (including INDEX.md) | **Convention sources:** `docs/trackers/INDEX.md` + `get_guide("tracker-conventions")`
+
+**Precondition (passed):** `augmentation_declared_but_absent` 0 and `link_scan` `edges_missing` 29. `index(verify)` reported `memories.missing_count` 2 (`plugin-load-channels`, `session-passover`) and one orphan point (`research/hold-ack-probe-20261124`). That is a memory-index gap, not a catalog gap, so the sweep went on. The repair is `codescout migrate-memories --in-place`; it was not run.
+
+| Detector | Findings | Approved | Rejected | Deferred |
+|----------|----------|----------|----------|----------|
+| D1 index-drift | 9 | 9 | 0 | 0 |
+| D2 terminal-not-archived | 2 | 2 | 0 | 0 |
+| D3 stale-active | 3 | 3 | 0 | 0 |
+| D4 frontmatter-catalog-mismatch | 3 | 3 | 0 | 0 |
+| D5 canonical-conflict | 0 | 0 | 0 | 0 |
+| D9 augmentation-stale | 1 | 0 | 0 | 1 |
+| D10 session-log-decay | 3 | 0 | 0 | 3 |
+| D11 promotion-pointer drift | 0 | 0 | 0 | 0 |
+
+**D1 (9, approved):** nine live files had no row in `INDEX.md`. Before approving, the operator asked what the seven non-D2 files contain and whether they are still actual. Each was checked against the repository: four were finished or obsolete and were archived (below), and three stayed live (`collection-hot-path-session-log`, `harness-identification-session-log`, `session-bridge-codex-session-log`). Nine rows were added: three live, six archived.
+
+**D2 (2, approved):** `pr16-opencode-session-log` (status `archived`) and `pr10-audit-session-log` (status `done`) sat in the live directory. Both moved to `docs/trackers/archive/` under their stable names. The one path citation of `pr10-audit-session-log` (a plan) was repointed.
+
+**D3 (3, approved):** `passover-roster-audit-release-integrity-2026-08-26` (82 days idle, its Next actions read CLEARED) was consumed and archived. `eval-bringup` and `fixture-expansion` (80 days idle, no commit since 2026-09-05) were archived; the 2026-09-05 sweep had rejected the same finding as still live, and this operator chose archive. **`fixture-expansion` had 10 of 11 fixtures pending.** `validation-domain-coverage` still says it "owns closing" that gap, so the work now has no live tracker.
+
+**Also archived through the D1 check (4):** `pr19-opencode-session-log` (PR #19 merged, 0 open), `s4-debug-session-log` (closed after PR 20), `session-channel-handover` (the plan shipped in `session-bridge` 0.3.x; worktree and branch gone) and `passover-codex-daemon-0169-install-2026-11-18` (the install journal no longer exists; CLI is 0.171.0; a Consumed section was added). The passover's two citers, a memory and its anchors file, were repointed.
+
+**D4 (3, approved):** `collection-hot-path-session-log` and `portable-workflows-session-log` got `status: active` in their frontmatter. `session-channel-handover` had no frontmatter and was resolved by its archive.
+
+**D5 (0):** not examined in depth. Absence of a finding is not evidence here.
+
+**D9 (1, deferred):** `prompt-hamsa-audit-log`, `age_hours: null`, `refresh_count: 0`. Domain-expert audit log, so the skill says defer. Same finding and same verdict as 2026-10-19.
+
+**D10 (3, deferred):** `codescout-usage-audit-session-log` (79 days, 5 open frictions, deferred a third time), `skill-loading-session-log` (43 days, 4 open) and `portable-workflows-session-log` (43 days, 7 open). Each needs a verify-open pass over its frictions before any archive; the operator chose to do that as its own task.
+
+**D11 (0):** every `promoted-to-permanent-docs` hit in the live trackers is a template or vocabulary line.
+
+**Outside the detectors:**
+- `collection-hot-path-session-log` still marks `F-1` ("no `hot-view`") and `F-2` ("no collection exists") `open`, while the hot-view hook runs today. `harness-identification-session-log:F-2` (root `AGENTS.md` stale) is also fixed. Both need a verify-open pass.
+- `doctor` reports 16 defects (`frontmatter_id_mismatch` 6, `row_behind_file` 4, `terminal_status_with_caveat` 2, `retired_object_still_present` 2, `entry_dated_stale` 3 in scope). They were not triaged.
+
+**link_scan:** before the moves `edges_missing` 29, `edges_stale` 20, `dangling` 121, `ambiguous` 130. The first write added 38 edges and pruned 20. After the last pass: `edges_missing` 0, `edges_stale` 0, `edges_added` 0, `edges_pruned` 0, `dangling` 121, `ambiguous` 134. The checkout is not derived-index. The `ambiguous` rise comes from the moved files' own tokens, and `dangling` did not move.
+
+**Rejects (verbatim reasons):** none.
+
+**Fixes applied:** this commit. Citations repointed in the same pass: `docs/superpowers/plans/2026-11-18-pr10-current-bootstrap.md`, `docs/superpowers/plans/2026-11-18-s4-preflight-test-isolation.md`, `docs/trackers/active-plan.md` (its Live state, Phase 0 and T-9 pointers), `docs/trackers/buddy-learning-and-model-drift.md`, `eval/scripts/calibrate.sh`, and the codex-daemon memory with its anchors file. Dated records were left alone: `active-plan.md` history lines, the older sweep entries, `roster-audit-session-log:695` and `docs/issues/archive/**`.
+
+**Detector trust updates:** D1 advanced to streak 3 (batch). D2 advanced to streak 2 and entered `batch`. D3 advanced to streak 1. D4 advanced to streak 2 and entered `batch`. D9, D10 are neutral (deferred). D5 and D11 are unchanged.
+
+**Next sweep due:** 2026-12-25 (frontmatter updated in this edit)
 
 ## Template for new entries
 

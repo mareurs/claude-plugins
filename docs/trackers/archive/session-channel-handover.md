@@ -1,3 +1,9 @@
+---
+id: d1ee23136f6e8c80
+kind: tracker
+status: archived
+archived_on: 2026-11-25
+---
 # Handover: session channel (execute the plan in a claude-plugins session)
 
 From: session `4bbde027` (codescout checkout, profile `.claude-stef`), 2026-11-15.

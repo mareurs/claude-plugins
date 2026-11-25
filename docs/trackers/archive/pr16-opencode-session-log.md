@@ -1,5 +1,5 @@
 ---
-id: df79b4050afa39c9
+id: 05a908d9fb08e31b
 kind: tracker
 status: archived
 title: PR16 OpenCode audit session log
@@ -8,11 +8,12 @@ tags:
 - opencode
 - review
 topic: pr16-opencode
+archived_on: 2026-11-25
+entry_high_water_F: 5
 entry_prefix:
 - F
 - W
 snapshot_anchor: '| ID | Date | Severity | Status | Finding |'
-entry_high_water_F: 5
 ---
 
 ## Scope

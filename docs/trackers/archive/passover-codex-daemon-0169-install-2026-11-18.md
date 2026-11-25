@@ -1,7 +1,7 @@
 ---
-id: '6e8335e75833bcef'
+id: 488e460c5575fc73
 kind: tracker
-status: active
+status: archived
 title: Passover — Codex 0.169 daemon activation — 2026-11-18
 tags:
 - passover
@@ -9,6 +9,7 @@ tags:
 - installation
 topic: codex-daemon-0169-install
 time_scope: dated:2026-11-18
+archived_on: 2026-11-25
 branch: main
 ---
 
@@ -52,3 +53,7 @@ User explicitly requested installing0.169 and then selected activation only when
 - docs/evidence/2026-11-18-codex-native-approval-0169-patch-check.json
 - session-bridge-codex-session-log:F-10
 - /home/marius/.cache/cc-tmp/codex-daemon-install-0169-20261118/install-journal.json
+
+## Consumed — 2026-11-25
+
+Tracker-hygiene sweep 2026-11-25 consumed this passover without executing it. The install journal named in Pointers no longer exists. The installed Codex CLI is `0.171.0`, and the app-server daemon process started on 2026-11-23, after this handoff. The 0.170 work (`session-bridge-codex-session-log:F-11`, `F-12`) came after it. No step here can run as written.

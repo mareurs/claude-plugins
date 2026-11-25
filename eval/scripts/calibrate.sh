@@ -30,7 +30,7 @@ Expected CSV columns (header required):
 Where score is 0 or 1 (binary criterion, human-annotated).
 
 T-7 (hand-label 15 calibration cases) writes this file. See
-docs/trackers/eval-bringup.md § Setup checklist for the procedure.
+docs/trackers/archive/eval-bringup.md § Setup checklist for the procedure.
 EOM
   exit 2
 fi
