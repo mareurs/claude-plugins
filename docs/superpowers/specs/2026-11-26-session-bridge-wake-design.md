@@ -74,7 +74,7 @@ Measured 2026-11-26 on Claude Code 2.1.332, linux, **headless** (`claude -p --in
 | G4 | Largest accepted `timeout`, and the behaviour at the deadline | **Not measured.** The probes used `timeout: 120`. The companion ships `7200` (`hooks.json:176`). |
 | G5 | The watcher dies with its session | **Fail for a crash.** After `kill -9` of the host, the watcher process stayed alive (it would have exited 2 into nothing). A graceful stdin close did send TERM to the watcher, but the host took more than 20 s to exit while the watcher slept; the cause is not investigated. |
 
-Consequence of G5: the watcher must check that its Claude pid is alive on each poll and exit 0 when it is not (Behaviour step 3).
+Consequence of G5: the watcher must check that its Claude pid is alive on each poll and exit 0 when it is not (Behaviour step 3). The job-end wake of the companion has the same defect, measured with a real `run_command` background job: the MCP server exits after the host `kill -9`, but the watcher and the job stay alive (bugs box, `2026-11-25-wake-on-job-end-watcher-outlives-a-killed-host-it-never`). A fix of the host-liveness check should serve both watchers.
 
 Still open: repeat G1 to G3 in the interactive TUI before build, and measure G4. Windows stays `unverified`.
 
