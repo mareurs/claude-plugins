@@ -1,12 +1,14 @@
 ---
 kind: entry
-status: open
+status: fixed
 title: 'tracker-hygiene D10: the procedure has no verdict or method for a log of 400 entries'
+closed: 2026-11-25
 created: 2026-11-24
 entry_kind: bug
 log:
 - '2026-11-24 open created codescout:be5c3984-2bd4-45c8-897a-3b17ba6e951e'
-status_since: 2026-11-24
+- '2026-11-25 open -> fixed codescout:f28fefc6-99c0-4659-8dd2-25250cd05f33'
+status_since: 2026-11-25
 ---
 
 **Summary:** The D10 distill-then-archive procedure in `codescout-companion/skills/tracker-hygiene/SKILL.md` (lines 237-316) was run for the first time on a log of 413 entries (`docs/trackers/bug-fix-session-log.md` in codescout, 1.66 MB). Four read-only agents walked steps 1 and 2 and each hit the same gaps. The procedure gives no verdict for most entries, no way to extract them, and a step order that wastes the work. Whoever runs D10 on a large log is affected.
@@ -44,3 +46,7 @@ status_since: 2026-11-24
 **Tests added:** none.
 
 **Resume:** Rewrite SKILL.md lines 237-316 as above, and add the extraction as a script next to the skill (or a box verb), with one fixture log that holds a template heading, a win without `Promote-when` and a free-text status.
+
+## Closed
+
+Fixed in 2be54ca (released in codescout-companion 1.23.6). Checked against the shipped SKILL.md: owner-first order (step 1), one extraction script `d10_extract.py` (step 2), closed verdict lists for wins and frictions including `no-criterion`, `lesson-only` and `false-alarm`, the log's own status vocabulary (`mitigated`, `promoted-to-bug-tracker`), current routing (`docs/conventions/`, box readmes, memories, skills; bugs to `codescout box bugs add`), and the fan-out rule (id range, one table per agent, one evidence line per row). `d10-extract.test.sh` passes 11 of 11 and its fixture holds a template heading, a win without Promote-when, a free-text status tail, and an entry after a 4-backtick line. Not run on a real 400-entry log in this check.
