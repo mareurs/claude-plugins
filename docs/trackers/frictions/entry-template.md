@@ -9,7 +9,7 @@ tags:
 
 # Frictions — entry template and vocabularies
 
-This tracker holds the template of a friction entry and the vocabularies of its fields. The rules and the verbs are in [the frictions ledger](../ledgers/frictions/readme.md).
+This tracker holds the template of a friction entry and the vocabularies of its fields. The rules and the verbs are in [the frictions ledger](../../boxes/frictions/frictions/readme.md).
 
 ## Vocabularies
 

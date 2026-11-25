@@ -23,7 +23,7 @@ Make ordinary Codex owned formatting usable while retaining the existing refusal
 - Existing IDE root: native Codex 0.160.0; automatic MCP context agrees with its actual root/workspace.
 - Fresh installed CLI: 0.167.0, existing saved authentication, ordinary workspace-write sandbox and configured MCP server. A native writer produced the exact requested Rust bytes in a disposable checkout.
 - The same root resumed and invoked the unchanged formatter once. The real tool exited 1/UNKNOWN, retained THIS-session attribution and preserved the file hash. The decoder sees three opaque wrappers after writing and five after resume. Neither outer turn's successful completion means formatting succeeded.
-- Evidence and exact IDs are in [the issue](../../trackers/ledgers/bugs/2026-11-24-harness-neutral-session-identity-and-provenance-are-needed.md#fresh-native-reproduction--2026-11-07). Private raw histories and scratch logs remain outside tracked documentation.
+- Evidence and exact IDs are in [the issue](../../boxes/bugs/bugs/2026-11-24-harness-neutral-session-identity-and-provenance-are-needed.md#fresh-native-reproduction--2026-11-07). Private raw histories and scratch logs remain outside tracked documentation.
 - No Kat authentication retry, credential copy, synthetic context/history/identity, exclusive declaration, trust bypass or installed-profile edit was used.
 
 ## Goals, non-goals and anti-goals
