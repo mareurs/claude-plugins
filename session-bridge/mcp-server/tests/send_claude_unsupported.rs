@@ -132,3 +132,13 @@ fn leftover_direct_messages_table_still_opens() {
         .unwrap();
     assert_eq!(n, 1);
 }
+
+#[test]
+fn send_message_args_accept_to_as_an_alias_for_target() {
+    for key in ["target", "to"] {
+        let args: SendMessageArgs =
+            serde_json::from_value(serde_json::json!({ key: "stef:20", "message": "hi" }))
+                .unwrap_or_else(|e| panic!("{key}: {e}"));
+        assert_eq!(args.target, "stef:20");
+    }
+}

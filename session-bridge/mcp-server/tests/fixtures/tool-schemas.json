@@ -99,7 +99,7 @@
   },
   {
     "name": "send_message",
-    "description": "Send a peer message into an original loaded Codex thread or a live OpenCode session, potentially starting a normal tool-using turn under its existing account/model/permissions. Does not fork, interrupt, steer a busy turn or resume dormant threads; OpenCode messages are queued behind any running turn. Returns queued, observed or unknown evidence; never retries a possibly enqueued message. Direct Claude targets are unsupported; use post_notice(to=...) for a Claude Code session, or ask_session for a question.",
+    "description": "Send a peer message into an original loaded Codex thread or a live OpenCode session, potentially starting a normal tool-using turn under its existing account/model/permissions. Not for a Claude Code session: use post_notice(to=...) for a message, or ask_session for a question. Does not fork, interrupt, steer a busy turn or resume dormant threads; OpenCode messages are queued behind any running turn. Returns queued, observed or unknown evidence; never retries a possibly enqueued message.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -108,7 +108,7 @@
           "type": "string"
         },
         "target": {
-          "description": "Exact loaded Codex thread address, OpenCode address, UUID/prefix or unambiguous name.",
+          "description": "Codex or OpenCode session only (a Claude Code session: use post_notice(to=...)). Exact loaded Codex thread address, OpenCode address, UUID/prefix or unambiguous name. `to` is accepted as an alias.",
           "type": "string"
         },
         "timeout_s": {

@@ -42,7 +42,8 @@ pub struct AskArgs {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct SendMessageArgs {
-    /// Exact loaded Codex thread address, OpenCode address, UUID/prefix or unambiguous name.
+    /// Codex or OpenCode session only (a Claude Code session: use post_notice(to=...)). Exact loaded Codex thread address, OpenCode address, UUID/prefix or unambiguous name. `to` is accepted as an alias.
+    #[serde(alias = "to")]
     pub target: String,
     /// Peer message, at most 16000 characters. Starts a normal target turn.
     pub message: String,
