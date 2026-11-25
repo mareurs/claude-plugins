@@ -13,6 +13,9 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
+### Current release verification — 2026-11-26 (codescout-companion 1.23.9)
+
+_Run with `NO_PUSH=1 SKIP_TESTS=1` (not pushed). The pre-flight run stopped at `test-skill-call-legality.sh`: 3 `sdd` cases fail on codescout 0.15.0 (bug `2026-11-25-sdd-sdd-init-and-review-create-the-constitution-tracker-with`), none in `tracker-hygiene`. Evidence is the output of `scripts/release.sh` and a fresh `check-profile-parity.sh`: `check-versions.sh` consistent at `1.23.9`, install records repointed, parity green ✅. Ships the D12 oversized-tracker detector (7db77be) and the hygiene-box change. Not verified: per-row reads of the other plugins._
 ### Current release verification — 2026-11-25 (buddy 0.12.5, codescout-companion 1.23.8)
 
 _Run with `NO_PUSH=1`, **pre-flight suites on** (not skipped; the first attempt stopped at `migrating-trackers.test.sh`, fixed in 2f620c7). Evidence is the output of `scripts/release.sh` and a fresh `check-profile-parity.sh`: `check-versions.sh` consistent, `buddy` `0.12.5` and `codescout-companion` `1.23.8` cached in 4 of 4 profiles, install records repointed in `~/.claude`, `~/.claude-sdd`, `~/.claude-kat`, `~/.claude-stef`, parity across 10 plugins ✅, marketplace registrations clean ✅. Contents: the `prompt-hamsa` skill looks for its box first (1c86aa0); the `migrating-trackers` mapping example uses `target.box` and `target.lifetime` (2f620c7). Not verified: per-row reads of every install record, and a cold restart. Not pushed._
