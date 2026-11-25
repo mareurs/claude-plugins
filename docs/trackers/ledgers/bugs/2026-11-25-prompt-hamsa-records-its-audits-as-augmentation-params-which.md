@@ -34,12 +34,11 @@ status_since: 2026-11-25
 **Done 2026-11-25:**
 - The 24 audits are entries of the box `prompt-hamsa` (`04052ab`), made from the template `buddy/skills/prompt-hamsa/box` (`f2f6772`). Each entry holds its row fields verbatim, and A-1 to A-6 hold their record section verbatim; a body-compare script found no loss.
 - The flat tracker is moved to `docs/research/2026-11-25-prompt-hamsa-audit-history.md` and holds only its History section; the augmentation sidecar is removed; citations are re-pointed (`aebb689`).
-- buddy 0.12.3 (`94e063f`) is released and recorded in all four profiles (verification `2f5d5ac`); a plugin reload showed the new skill text. Not pushed.
-
-**First live audit (after the reload) found a defect in what we shipped:** the line the skill prescribes, `add --title "<gap>"`, exits 2 with `body is missing or empty`; the skill and the box template had copied the sentence "leave the body empty: the entry takes the skeleton" from codescout's `issues` template, which is wrong for `box add` (codescout bug `2026-11-25-the-issues-template-tells-an-agent-to-leave-the-body-empty`). Fixed in `40c87e1` (`--text body -`, the fields on stdin). The audit itself is filed: `2026-11-25-the-always-loaded-core-carried-the-measuring-how-to-and`.
+- The first live audit (after buddy 0.12.3) found that the prescribed line `add --title "<gap>"` exits 2 (`body is missing or empty`). Fixed in `40c87e1` (`--text body -`, the fields on stdin); the audit itself is filed (`2026-11-25-the-always-loaded-core-carried-the-measuring-how-to-and`). The cause sits in codescout's `issues` template (codescout bug `2026-11-25-the-issues-template-tells-an-agent-to-leave-the-body-empty`).
+- buddy 0.12.4 (`3a02239`) is released with that fix and recorded in all four profiles; verification `6b6d0be`, 39 rows green. **Not pushed.**
 
 **Open, in this order:**
-1. Release the fix: `./scripts/release.sh buddy` (0.12.4, `NO_PUSH=1` unless the operator asks for the push). Until then the live skill (0.12.3) prescribes a call that fails. It must ship before the codescout release that refuses params.
-2. Close this entry as `fixed` only after the push, a cold restart of the four profiles, and one audit filed through the box by a restarted session with the corrected line and no help from the conversation (the entry has no regression test).
+1. The operator pushes, and cold-restarts the four profiles. A reload is not enough for a skill: a session that loaded the skill before the release still holds the 0.12.3 text.
+2. Close this entry as `fixed` only after item 1 and one audit filed through the box by a restarted session, with the corrected line and no help from the conversation (the entry has no regression test). The first audit filed this way after a restart is the proof.
 3. The catalog row of the moved document still carries `entry_collection: audits` and its params, grafted by `doc move`. It ends with codescout E7b-2.
 4. codescout migrates its own `prompt-hamsa-audit-log` into a box with the same key `prompt-hamsa` (E7b-2 step 1). Then `references/eval.md` and `docs/templates/eval-pre-registration.md` cite a path there that no longer exists; point them at the box entry or the file that holds P-1..P-8.
