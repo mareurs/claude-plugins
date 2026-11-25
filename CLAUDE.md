@@ -202,7 +202,7 @@ File at once what you notice and will not fix in this session. A note in your re
 
 - **A bug** goes in the bugs box. Search first: `codescout box bugs find "<words>"`. Then `codescout box bugs add --title "…"`. The box readme holds the entry rules.
 - **A friction** (a hook, deny message, skill or mod that costs an agent calls, work or trust) goes in the frictions box: `codescout box frictions add`.
-- **A migration lesson** (moving a tracker or a query to a box cost you a step, a citation or a surprise, or a move worked and is worth repeating) goes in the `box-migration` stream: `codescout box box-migration add --kind friction|win|residual --title "…"`. List first with `codescout box box-migration list`. Filing it is part of the move, not a later chore.
+- **A migration lesson** (moving a tracker or a query to a box cost you a step, a citation or a surprise, or a move worked and is worth repeating) goes in the one migration box, `context-migration`, which lives in the codescout checkout (`~/work/claude/codescout` on this machine), not in this repository. Run `cd ~/work/claude/codescout && codescout box context-migration add --kind friction|win|residual|lesson|script|decision --title "…"`, and list first with `codescout box context-migration list`. Commit only your own paths there. Filing it is part of the move, not a later chore.
 - Not here: a typo (the commit message is enough), a feature idea, a dislike.
 
 ## Git Workflow
