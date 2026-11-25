@@ -47,7 +47,7 @@ origin_session_id: f8faad8d-37ec-40c6-a9dd-fe3ecec9ec5f
 
 - Plan: `~/.claude-sdd/plans/zany-soaring-key.md`
 - Work-stream log: `docs/trackers/research-skills-refactor-session-log.md` (research-skills-refactor-session-log:F-1 = pi surfaces; research-skills-refactor-session-log:F-2 = L-7 / eval, fixed-verified)
-- Hamsa audit-log: `prompt-hamsa-audit-log` (id `720408ecd2391251`), row `date=2026-07-04`, `outcome=held`
+- Hamsa audit-log: `prompt-hamsa-audit-log` (id `e34f27e925bf516b`), row `date=2026-07-04`, `outcome=held`
 - Eval: prompt-engineering `scenarios/skills/researcher-tool-dialect/` + `docs/trackers/skill-eval-log.md` § research-subagent
 - Back-link: `.buddy/f8faad8d-37ec-40c6-a9dd-fe3ecec9ec5f/` + the session transcript
 

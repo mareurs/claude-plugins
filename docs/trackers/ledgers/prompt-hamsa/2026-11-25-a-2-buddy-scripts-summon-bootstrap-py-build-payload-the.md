@@ -11,7 +11,9 @@ log:
 status_since: 2026-11-25
 ---
 
-Migrated from `docs/trackers/prompt-hamsa-audit-log.md` (`params.audits` row 20, id `A-2`) on 2026-11-25; audited 2026-08-27.
+Migrated from the flat tracker `prompt-hamsa-audit-log` (`params.audits` row 20, id `A-2`) on 2026-11-25; audited 2026-08-27.
+
+**History:** `docs/research/2026-11-25-prompt-hamsa-audit-history.md` § 2026-08-27 — advisor projection rule: base arm first, eval HELD, clause no-shipped (row `A-2`)
 
 **Artifact:** buddy/scripts/summon_bootstrap.py::build_payload — the advisor projection rule, as assembled into a summon payload
 

@@ -9,7 +9,9 @@ log:
 status_since: 2026-11-25
 ---
 
-Migrated from `docs/trackers/prompt-hamsa-audit-log.md` (`params.audits` row 21, id `A-3`) on 2026-11-25; audited 2026-08-27.
+Migrated from the flat tracker `prompt-hamsa-audit-log` (`params.audits` row 21, id `A-3`) on 2026-11-25; audited 2026-08-27.
+
+**History:** `docs/research/2026-11-25-prompt-hamsa-audit-history.md` § 2026-08-27 — self-audit: the rule was present three times and still did not fire (row `A-3`)
 
 **Artifact:** prompt-hamsa's own craft surface — H12 (claude-plugins skill) and codescout P-6 (`docs/trackers/prompt-hamsa-audit-log.md` § Protocol). Audited after A-2's eval concluded.
 

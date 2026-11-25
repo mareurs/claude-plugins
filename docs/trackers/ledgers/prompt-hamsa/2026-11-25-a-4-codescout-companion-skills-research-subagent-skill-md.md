@@ -11,7 +11,7 @@ log:
 status_since: 2026-11-25
 ---
 
-Migrated from `docs/trackers/prompt-hamsa-audit-log.md` (`params.audits` row 22, id `A-4`) on 2026-11-25; audited 2026-10-29.
+Migrated from the flat tracker `prompt-hamsa-audit-log` (`params.audits` row 22, id `A-4`) on 2026-11-25; audited 2026-10-29.
 
 **Artifact:** codescout-companion/skills/research-subagent/SKILL.md § Worker prompt (the fenced `text` block, steps 1-4), as dispatched to claude-haiku-5-5 (Claude Code) or gpt-6-luna with reasoning_effort=low (Codex).
 

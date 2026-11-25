@@ -112,5 +112,5 @@ blind spot, not just ergonomics.
 - **Ownership:** does prompt-engineering absorb the eval, or does this harness stay a scratchpad?
 
 ## Pointers
-- Tracker: `prompt-hamsa-audit-log` (claude-plugins) — rows 13–17 trace this whole arc.
+- Audits: the box `prompt-hamsa` (claude-plugins) — the former rows 13–17 trace this whole arc.
 - Uncommitted: `SKILL.md` done-state cuts + this entire eval dir, all in `claude-plugins`.

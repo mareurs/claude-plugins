@@ -25,7 +25,7 @@ Evidence: `skills/prompt-hamsa/references/evidence.md` in the buddy plugin; read
 
 6. **No graded set and the task mutates? Split it.** `scout` proposes a plan with zero mutations; `apply` consumes the approved plan. The plan is the eval. (`references/eval.md` § P6)
 
-7. **Write in the native register.** When the prompt drives an agent with files and a shell, shape it like what the model learned from — a README, a design note, a brief to a capable colleague: the goal, why it matters, what done looks like, one organising idea. Point it at what it can read or run instead of pasting it; let it plan the steps it can plan. One coherent abstraction beats an exhaustive procedure. (Operator experience, 2026-11-17; unverified — base arm showed no deficit, audit-log A-5.)
+7. **Write in the native register.** When the prompt drives an agent with files and a shell, shape it like what the model learned from — a README, a design note, a brief to a capable colleague: the goal, why it matters, what done looks like, one organising idea. Point it at what it can read or run instead of pasting it; let it plan the steps it can plan. One coherent abstraction beats an exhaustive procedure. (Operator experience, 2026-11-17; unverified — base arm showed no deficit, audit A-5 in the `prompt-hamsa` box.)
 
 ## Method — Three Phases
 

@@ -87,11 +87,11 @@
 
 **Files:**
 - Modify: `buddy/tests/prompt-hamsa-eval/prompt-tdd/RESULTS-2026-11-17.md`
-- Update (via `doc`): tracker `720408ecd2391251` (`prompt-hamsa-audit-log`)
+- Update (via `doc`): tracker `e34f27e925bf516b` (`prompt-hamsa-audit-log`)
 
 - [ ] **Step 1: Run** in background, the treatment arm only: same command as Task 1 Step 2 without `--paired`.
 - [ ] **Step 2: Append** the new-skill rows to the results table with a verdict per scenario: `held` (old pass → new pass), `regressed` (old pass → new fail), `gained` (old fail → new pass). Any `regressed` on `critique-weak-prompt` or `resist-adding-to-tight-prompt` → stop, report, do not proceed to Step 4.
-- [ ] **Step 3: Audit row.** `doc(action="get", id="720408ecd2391251", heading="## Row schema")`, read the existing `audits[*].id` values, then append the next free `A-N` row via `doc(action="update", …)`: gap = Hamsa over-specified for capable agents; move = native-register rewrite, 23,038 B → final size; prediction = both existing scenarios hold and the new one passes on treatment; outcome = the Step 2 verdicts, with `n=1`.
+- [ ] **Step 3: Audit row.** `doc(action="get", id="e34f27e925bf516b", heading="## Row schema")`, read the existing `audits[*].id` values, then append the next free `A-N` row via `doc(action="update", …)`: gap = Hamsa over-specified for capable agents; move = native-register rewrite, 23,038 B → final size; prediction = both existing scenarios hold and the new one passes on treatment; outcome = the Step 2 verdicts, with `n=1`.
 - [ ] **Step 4: Commit** `RESULTS-2026-11-17.md` and the tracker file: `docs(buddy): prompt-hamsa refactor eval results + audit row`.
 
 ### Follow-up (operator decision, not in this plan)

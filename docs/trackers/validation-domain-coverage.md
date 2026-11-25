@@ -284,7 +284,7 @@ being made well, but an arbitrary number filling the space a contract used to oc
 So the block's other rules are decoration for a current frontier model, and the one added at
 the top of the pasteable text is the measured deficit. Full record:
 `prompt-engineering:skill-eval-log` § data-contract base arm, and
-`prompt-hamsa-audit-log` `A-1` (outcome `held`).
+the box `prompt-hamsa`, entry `A-1` (status `held`).
 
 ### Domain block D — Ordinary code
 

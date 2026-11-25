@@ -11,7 +11,7 @@ log:
 status_since: 2026-11-25
 ---
 
-Migrated from `docs/trackers/prompt-hamsa-audit-log.md` (`params.audits` row 2) on 2026-11-25; audited 2026-06-14.
+Migrated from the flat tracker `prompt-hamsa-audit-log` (`params.audits` row 2) on 2026-11-25; audited 2026-06-14.
 
 **Artifact:** CLAUDE.md (repo)
 

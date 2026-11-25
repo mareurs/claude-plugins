@@ -197,7 +197,7 @@ Both 2026-09-01 bug files are in this set.
 
 ## RM-8 — Give the prompt-hamsa audit log's entries citable headings
 
-`docs/trackers/prompt-hamsa-audit-log.md` (`720408ecd2391251`) has **no `A-N` heading
+`docs/trackers/prompt-hamsa-audit-log.md` (`e34f27e925bf516b`) has **no `A-N` heading
 anywhere in its body**, so all three entries in its `audits` collection are uncitable and
 every citation of any of them resolves to nothing. This is the ledger's entry *format*,
 not one row's omission.

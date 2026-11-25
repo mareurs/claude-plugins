@@ -83,7 +83,7 @@ specs/plans dated 2026-06-12 · `docs/trackers/version-bump-checklist.md:83`.
   (justified by "subagents don't get server_instructions") may be redundant or aimed at a dead
   concept; the "SessionStart pointer is redundant" reasoning changes.
 - **Blocks** the deferred Hamsa `server_instructions` prose consolidation in `CLAUDE.md` — that
-  refactor must wait on this verdict (Hamsa audit-log tracker `720408ecd2391251`).
+  refactor must wait on this verdict (Hamsa audit-log tracker `e34f27e925bf516b`).
 
 ## Resolution criteria
 

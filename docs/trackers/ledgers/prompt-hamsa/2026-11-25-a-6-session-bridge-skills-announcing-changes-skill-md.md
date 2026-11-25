@@ -9,7 +9,7 @@ log:
 status_since: 2026-11-25
 ---
 
-Migrated from `docs/trackers/prompt-hamsa-audit-log.md` (`params.audits` row 24, id `A-6`) on 2026-11-25; audited 2026-11-17.
+Migrated from the flat tracker `prompt-hamsa-audit-log` (`params.audits` row 24, id `A-6`) on 2026-11-25; audited 2026-11-17.
 
 **Artifact:** session-bridge/skills/announcing-changes/SKILL.md -> coordinating-sessions/SKILL.md (+ references/commit-backup.md)
 

@@ -11,7 +11,7 @@ log:
 status_since: 2026-11-25
 ---
 
-Migrated from `docs/trackers/prompt-hamsa-audit-log.md` (`params.audits` row 19, id `A-1`) on 2026-11-25; audited 2026-08-26.
+Migrated from the flat tracker `prompt-hamsa-audit-log` (`params.audits` row 19, id `A-1`) on 2026-11-25; audited 2026-08-26.
 
 **Artifact:** drafting — data-contract-marmot (SKILL.md + _schema.md + _drift.md), previewed, NOT written to disk
 
