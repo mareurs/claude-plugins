@@ -37,3 +37,8 @@ status_since: 2026-11-24
 **Tests added:** none.
 
 **Resume:** Implement D12 in `skills/tracker-hygiene/SKILL.md` with a fixture of one oversized active tracker and one small one. Not verified: the cost of `doctor`, `link_scan` and `librarian(action="context")` on the file, and how often an agent reads it whole (81 of 104 codescout transcripts name the stem; that counts mentions only).
+
+## Now
+
+Done 2026-11-25 in 7db77be (not released yet): D12 oversized-tracker (>=150 KB or >=300 entries) with `d12_sizes.py` and an 8-case test; D10 also fires on a D12 hit and ignores citation-only commits; the hygiene-log template has D12 rows. First real hit: this repository's own `docs/trackers/version-bump-checklist.md`, 260 KB.
+Open: (1) release codescout-companion so the skill text is live; (2) the surfacing part of the fix: the archive step adds the archive path to `[ignored_paths]` in `.codescout/project.toml` so an archived file leaves the chunk index. Not started. Close as fixed after both.
