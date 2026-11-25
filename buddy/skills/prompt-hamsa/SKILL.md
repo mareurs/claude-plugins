@@ -15,15 +15,15 @@ Evidence: `skills/prompt-hamsa/references/evidence.md` in the buddy plugin; read
 
 1. **Read what was heard, not what was meant.** The model sees only the tokens — no project context, no charity. Audit from that stranger's reading; the bug lives in the gap between intent and tokens.
 
-2. **Cut toward completeness, not toward minimum.** Most underperforming prompts are too long. A sentence whose removal does not worsen output was noise — but over-cutting fails as hard as over-adding. Stop where one more cut would remove signal; add only after the cut, only to close a named gap.
+2. **Cut toward completeness, not toward minimum.** Most underperforming prompts are too long. A sentence whose removal does not worsen output was noise — but over-cutting fails as hard as over-adding. Stop where one more cut would remove signal; add only after the cut, only to close a named gap the unchanged prompt is shown to fail.
 
-3. **No eval = guess. Declare it.** Without graded examples every "improvement" is an inspection. Help draft the eval; never pass inspection off as a result. If the user declines, the verdict says *unverified*.
+3. **No eval = guess. Declare it.** Without graded examples every "improvement" is an inspection; 20–50 graded examples beat any clever technique. Help draft the eval; never pass inspection off as a result. If the user declines, the verdict says *unverified*. How to measure — scout/apply, the unchanged prompt first, breaking your own eval, the `prompt-tdd` harness, and `prompt-engineering:skill-eval-playbook` for anything that is not a Claude Code artifact: `skills/prompt-hamsa/references/eval.md` in the buddy plugin.
 
 4. **Pin what the model cannot infer or discover.** Input and output shape, failure mode, a legal escape hatch ("I don't know"), hard constraints, budgets and the stop condition are explicit — a prompt without an output schema and an escape hatch hallucinates under load. What the model can infer from the task or find in its environment stays unpinned.
 
 5. **Ask before chasing.** When the symptom may come from something the prompt does not control — a tool, retrieval, the model choice — ask before rewriting. Many "bad prompt" reports are bad pipelines.
 
-6. **Substitute the eval when a graded set is not feasible.** For a read-then-mutate task, split the prompt into `scout` (a plan, zero mutations) and `apply` (consumes the approved plan). The plan is the eval, scored on real data at the gate; the gate comes off once trust is earned. (evidence: `references/evidence.md` § P6)
+6. **No graded set and the task mutates? Split it.** `scout` proposes a plan with zero mutations; `apply` consumes the approved plan. The plan is the eval. (`references/eval.md` § P6)
 
 7. **Write in the native register.** When the prompt drives an agent with files and a shell, shape it like what the model learned from — a README, a design note, a brief to a capable colleague: the goal, why it matters, what done looks like, one organising idea. Point it at what it can read or run instead of pasting it; let it plan the steps it can plan. One coherent abstraction beats an exhaustive procedure. (Operator experience, 2026-11-17; unverified — base arm showed no deficit, audit-log A-5.)
 
@@ -74,28 +74,13 @@ If the Hamsa cannot fill **Read-as-stranger gap**, **Eval status** and **Predict
 ## Heuristics
 
 1. **A negation-only rule gets ignored.** "Don't be verbose" gives nothing to aim at; "respond in ≤3 sentences" does.
-2. **Role priming that changes no output is decoration.** Delete it unless removing it measurably hurts.
-3. **When an example contradicts a rule, the model follows the example.** Demonstrations dominate prose.
-4. **A critical instruction buried deep should move** to the top and near the user turn; primacy and recency still bias.
-5. **Format demanded before reasoning looks right and is wrong.** Reason, then format, or two passes; never strict-JSON the whole chain of thought.
-6. **An agent with no stop condition loops.** "You are done when X" plus a tool-call budget.
-7. **No eval, no improvement claim.** 20–50 graded examples beat any clever technique.
-8. **Same-model, same-turn self-critique is weak.** "Is this good?" is not a critique; "score 1–5 against rubric R, cite the failing criterion" is — ideally on a separate model.
-9. **Break your own eval by mutating the output, not the prompt.** Feed it a known-bad answer and watch the score fall. (evidence: `references/evidence.md` § H9)
-10. **Packaging is inert; fix merit and placement.** Authority costumes, freshness stamps and delivery channel do not move a capable model; a clearer directive, better placement, or a structural gate does. For on-demand guidance the lever is discoverability. (evidence: `references/evidence.md` § H10)
-11. **A forced binary verdict on unverifiable ground engineers false certainty.** Name the honest middle ("cannot determine from here") and pin a report contract with one exemplar sentence. (evidence: `references/evidence.md` § H11)
-12. **If the base arm doesn't show the failure, the addition doesn't ship.** Run the no-change arm first on a stimulus that tempts the failure; deletions carry the inverse burden — prove nothing regressed. (evidence: `references/evidence.md` § H12)
-13. **A step script for a tool-using agent is a cut candidate.** Keep the goal, the done-condition, and what it cannot discover.
-
-## Harness
-
-For a Claude Code skill, hook or `CLAUDE.md` section, `prompt-tdd` runs the eval H7 and H9 ask for: headless `claude -p`, assertions on the output, GEPA to optimise.
-
-1. Register the prompt (`type: skill | hook | claude-md-section`).
-2. Write a scenario: `setup.skills` makes the artifact active; assert on a marker the *base* model would not produce (artifact present vs absent).
-3. `prompt-tdd run` (`--paired` adds the control); `prompt-tdd optimize` to improve.
-
-Recipe: prompt-tdd's `docs/integrations/claude-code-skills.md`. An eval harness for anything else is a different request: route it to `prompt-engineering:skill-eval-playbook` (`references/evidence.md` § Harness).
+2. **When an example contradicts a rule, the model follows the example.** Demonstrations dominate prose.
+3. **A critical instruction buried deep should move** to the top and near the user turn; primacy and recency still bias.
+4. **Format demanded before reasoning looks right and is wrong.** Reason, then format, or two passes; never strict-JSON the whole chain of thought.
+5. **An agent with no stop condition loops.** "You are done when X" plus a tool-call budget.
+6. **Same-model, same-turn self-critique is weak.** "Is this good?" is not a critique; "score 1–5 against rubric R, cite the failing criterion" is — ideally on a separate model.
+7. **Packaging is inert; fix merit and placement.** Authority costumes, freshness stamps and delivery channel do not move a capable model; a clearer directive, better placement, or a structural gate does. For on-demand guidance the lever is discoverability. (evidence: `references/evidence.md` § H7)
+8. **A forced binary verdict on unverifiable ground engineers false certainty.** Name the honest middle ("cannot determine from here") and pin a report contract with one exemplar sentence. (evidence: `references/evidence.md` § H8)
 
 ## Reactions
 
@@ -110,12 +95,7 @@ Non-exhaustive; anchor a novel signal to the same principles.
 
 ## Self-Traps (Failure Modes to Avoid)
 
-1. **Editing prose instead of closing gaps.** No named symptom, no edit.
-2. **Adding before cutting.** Subtraction is the default direction.
-3. **Praising or condemning.** Separate signal, decoration and contradiction; judgment is not the deliverable.
-4. **Skipping the stranger's reading.** Charity hides the bug.
-5. **Validating by inspection.** Reads cleaner is not measured better; state the unverified flag.
-6. **Rewriting what was not asked.** Critique first; rewrite on request.
-7. **Inventing model behaviour.** Cite only behaviour you ran or have in a trace.
-8. **Skipping the eval gate to be helpful.** The unverified flag is part of the deliverable.
-9. **Over-specifying a capable agent.** Inlining what it can read, scripting what it can plan, enumerating what one idea covers.
+1. **Breaking a principle while applying it.** Skipping the stranger's reading (P1), editing with no named gap (Phase 1), adding before cutting (P2), validating by inspection or skipping the eval gate to be helpful (P3), over-specifying a capable agent (P7).
+2. **Praising or condemning.** Separate signal, decoration and contradiction; judgment is not the deliverable.
+3. **Rewriting what was not asked.** Critique first; rewrite on request.
+4. **Inventing model behaviour.** Cite only behaviour you ran or have in a trace.
