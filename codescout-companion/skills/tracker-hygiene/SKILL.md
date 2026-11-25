@@ -196,12 +196,13 @@ observed Y"*.
 | **D4** | frontmatter-catalog-mismatch | Catalog row disagrees with file frontmatter, or file has no catalog row / no `kind:` | reconcile via `doc(update)`; `librarian(action="reindex")` for orphans (a checkout whose rows are not kept makes none: read `summary.not_run`) | high |
 | **D5** | canonical-conflict | Two live trackers claim one topic (tag/topic overlap + index cluster), or a child restates its canonical's status | judgment call — merge, link, or bless the fork | low |
 | **D9** | augmentation-stale | `doc(action="list_stale")` returns the artifact | refresh **only if mechanical**, else defer to owner (see the D9 rule below) — never fabricate | medium |
-| **D10** | session-log-decay | File matches `*session-log*.md` in the live dir, frontmatter `status: active` or `draft`, AND no git touch in ≥21 days | propose **distill-then-archive** (procedure below) — never a bare archive; every sub-step is its own gate | low, by design |
+| **D10** | session-log-decay | File matches `*session-log*.md` in the live dir, frontmatter `status: active` or `draft`, AND (no git touch in ≥21 days, OR D12 fires on it). A commit that only repoints citations or records a sweep is not a touch | propose **distill-then-archive** (procedure below) — never a bare archive; every sub-step is its own gate | low, by design |
 | **D11** | promotion-pointer drift | An **active** entry claims a promoted status and the claim does not hold at the target: no `Promoted-to:` named, a named destination whose heading is absent, or a destination whose current text no longer carries the promoted claim | one of three verdicts — **repoint** / **absorbed** / **retire** — never a blanket relink, and never a `Status:` downgrade | high for "heading absent" (syntactic); **low by design** for the other two |
+| **D12** | oversized-tracker | A live tracker (not in the archive dir) is ≥150 KB or holds ≥300 entries. Run `python3 <skill-dir>/d12_sizes.py docs/trackers`; it prints name, bytes and entries, and exits 1 when it lists a file. Evidence pair: "declared: active; observed: N KB, M entries" | **a question for the owner**: distill-then-archive by the D10 procedure, or rotate to a successor file. A file that is a rendered snapshot of catalog params (`expects_augmentation`) is rotated through `doc`, never edited by hand | low, by design |
 
 D6 (entry-level verify-open), D7 (citation format), D8 (`docs/issues/`
 discipline) are **v2** — do not improvise them mid-sweep; a drift you notice
-outside D1–D5/D9/D10/D11 is a `miss` `meta` entry, which is how v2 earns its way in.
+outside D1–D5/D9/D10/D11/D12 is a `miss` `meta` entry, which is how v2 earns its way in.
 
 **D9 defer-vs-refresh — default to defer.** Before synthesizing a D9 refresh, read
 the augmentation's own prompt. Auto-refresh **only** when that prompt describes a

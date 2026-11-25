@@ -36,6 +36,7 @@ Batch-approval graduation is per detector, earned from this table. A detector en
 | D9 augmentation-stale | individual | 0 | — |
 | D10 session-log-decay | individual | 0 | — |
 | D11 promotion-pointer drift | individual | 0 | — |
+| D12 oversized-tracker | individual | 0 | — |
 
 ## Verdict vocabulary of a `meta` entry
 
@@ -71,6 +72,8 @@ Manual flow — no automated cross-project aggregation. The skill is the canonic
 | D5 canonical-conflict | 0 | 0 | 0 | 0 |
 | D9 augmentation-stale | 0 | 0 | 0 | 0 |
 | D10 session-log-decay | 0 | 0 | 0 | 0 |
+| D11 promotion-pointer drift | 0 | 0 | 0 | 0 |
+| D12 oversized-tracker | 0 | 0 | 0 | 0 |
 
 **Rejects (verbatim reasons — the training signal):**
 - <detector>: "<finding one-line>" → rejected: <reason>
