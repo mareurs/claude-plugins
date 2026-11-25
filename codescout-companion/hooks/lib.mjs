@@ -10,7 +10,7 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSy
 import { join, isAbsolute, dirname, delimiter, resolve as resolvePath } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { detect } from './detect.mjs';
 
 // Read the hook event JSON from stdin. Returns null on empty/parse error.
@@ -116,6 +116,29 @@ export function detectFor(cwd) {
     // gates on HAS_CODESCOUT/BLOCK_READS before doing anything else.
     return { HAS_CODESCOUT: 'false', BLOCK_READS: 'false' };
   }
+}
+
+// Run a codescout command that prints one JSON object. Returns the parsed object, or null on
+// any failure: no binary, a timeout, a non-zero exit, output that is not JSON. A caller that
+// needs the answer to decide something treats null as "not known" and falls back, because a
+// hook never fails the session.
+export function codescoutJson(binary, args, timeoutMs = 3000) {
+  if (!binary) return null;
+  try {
+    const r = spawnSync(binary, args, { encoding: 'utf8', timeout: timeoutMs, stdio: ['ignore', 'pipe', 'ignore'] });
+    if (r.status !== 0 || typeof r.stdout !== 'string') return null;
+    return JSON.parse(r.stdout);
+  } catch {
+    return null;
+  }
+}
+
+// True when the repository at `root` has a bugs box that codescout shows. codescout answers
+// `box --project <root> bugs --json` with `shown: true` for one. Before `codescout box migrate`
+// a repository on the old layout gets `{"done":false,...}` instead, which is false here.
+export function hasBugsBox(root, binary, timeoutMs = 3000) {
+  if (!root) return false;
+  return codescoutJson(binary, ['box', '--project', root, 'bugs', '--json'], timeoutMs)?.shown === true;
 }
 
 // Locate the codescout binary. A hook process often has a narrower PATH than the

@@ -23,11 +23,21 @@ write_routing_config "$T/proj" '{"server_name":"codescout"}'
 # Gate CLOSED for $T/bare (git repo, no routing config).
 make_git_repo "$T/bare"
 
-# run_hook <cwd> <agent_type> → raw stdout, env sealed so only the fixture decides.
+# $PATH minus every directory that holds a `codescout`: the fixture must not see a host binary.
+clean_path() {
+  local d out="" IFS=:
+  for d in $PATH; do
+    [ -n "$d" ] && [ ! -x "$d/codescout" ] && out="${out:+$out:}$d"
+  done
+  printf '%s' "$out"
+}
+
+# run_hook <cwd> <agent_type> → raw stdout, env sealed so only the fixture decides. PATH holds no
+# codescout unless the caller sets HOOK_PATH: the hook asks the binary whether a bugs box exists.
 run_hook() {
   local _rc
   printf '{"cwd":"%s","agent_type":"%s","agent_id":"a1","session_id":"s1"}' "$1" "$2" \
-    | HOME="$T" CLAUDE_CONFIG_DIR="$T/empty" node "$HOOK" 2>/dev/null
+    | PATH="${HOOK_PATH:-$(clean_path)}" HOME="$T" CLAUDE_CONFIG_DIR="$T/empty" node "$HOOK" 2>/dev/null
   _rc=$?
   return $_rc
 }
@@ -97,7 +107,7 @@ if assert_context_contains "$OUT" "\"investigating\" (no live owner)" && assert_
   pass "bug ledger: explains investigating and zombie"
 else fail "bug ledger: explains investigating and zombie" "$OUT"; fi
 
-# --- A project that keeps its bugs in a bugs box (docs/trackers/ledgers/bugs/readme.md): the entries are
+# --- A project that keeps its bugs in a bugs box (`codescout box --project <root> bugs --json` says `shown`): the entries are
 # --- catalog kind `entry`, so the old `doc find kind="bug"` query returns nothing for it (measured
 # --- 2026-11-24, claude-plugins after the bug migration: 0 items, 3 live bugs). It must be told the
 # --- box verb instead, with the same status meanings. A project without the box keeps the old query.
@@ -106,9 +116,21 @@ if assert_context_contains "$OUT" "kind=\"bug\"" && ! assert_context_contains "$
 else fail "bug ledger: a project without a bugs box keeps the doc find query" "$OUT"; fi
 make_git_repo "$T/boxproj"
 write_routing_config "$T/boxproj" '{"server_name":"codescout"}'
-mkdir -p "$T/boxproj/docs/trackers/ledgers/bugs"
-printf -- '---\nkind: collection\ntitle: Bugs\n---\n' > "$T/boxproj/docs/trackers/ledgers/bugs/readme.md"
-OUTB=$(run_hook "$T/boxproj" "general-purpose")
+make_git_repo "$T/oldproj"
+write_routing_config "$T/oldproj" '{"server_name":"codescout"}'
+# A fake codescout that answers the one call the hook makes. boxproj has a bugs box; oldproj gets the
+# old-layout refusal (exit 0, no `shown`, what a repository gets before `codescout box migrate`); any other
+# project gets a refusal with exit 2. No file or folder of the project decides anything.
+mkdir -p "$T/bin"
+cat > "$T/bin/codescout" <<EOF
+#!/usr/bin/env bash
+if [ "\$*" = "box --project $T/boxproj bugs --json" ]; then printf '{"shown":true,"key":"bugs"}'; exit 0; fi
+if [ "\$*" = "box --project $T/oldproj bugs --json" ]; then printf '{"done":false,"not_done":"the boxes use the old layout (docs/trackers/<lifecycle>/); run codescout box migrate (a dry run) first"}'; exit 0; fi
+echo 'NOT SHOWN — no box bugs'; exit 2
+EOF
+chmod +x "$T/bin/codescout"
+BOX_PATH="$T/bin:$(clean_path)"
+OUTB=$(HOOK_PATH="$BOX_PATH" run_hook "$T/boxproj" "general-purpose")
 if assert_context_contains "$OUTB" "codescout box bugs list" && ! assert_context_contains "$OUTB" "kind=\"bug\""; then
   pass "bug ledger: a project with a bugs box is sent to codescout box bugs list, not to kind=bug"
 else fail "bug ledger: a project with a bugs box is sent to codescout box bugs list" "$OUTB"; fi
@@ -116,6 +138,26 @@ if assert_context_contains "$OUTB" "\"investigating\" (no live owner)" && assert
   && assert_context_contains "$OUTB" "Ledger checked:"; then
   pass "bug ledger (box): keeps the status meanings and the Ledger checked line"
 else fail "bug ledger (box): keeps the status meanings and the Ledger checked line" "$OUTB"; fi
+# The binary answers, and says no bugs box: the old query stays (a project with bug files; a refusal; the old layout).
+for p in proj oldproj; do
+  OUTN=$(HOOK_PATH="$BOX_PATH" run_hook "$T/$p" "general-purpose")
+  if assert_context_contains "$OUTN" "kind=\"bug\"" && ! assert_context_contains "$OUTN" "codescout box bugs"; then
+    pass "bug ledger: $p (the binary shows no bugs box) keeps the doc find query"
+  else fail "bug ledger: $p (the binary shows no bugs box) keeps the doc find query" "$OUTN"; fi
+done
+# A path no longer decides: a readme at the old place does not make a bugs box when the binary says there is none.
+mkdir -p "$T/proj/docs/trackers/ledgers/bugs"
+printf -- '---\nkind: collection\ntitle: Bugs\n---\n' > "$T/proj/docs/trackers/ledgers/bugs/readme.md"
+OUTP=$(HOOK_PATH="$BOX_PATH" run_hook "$T/proj" "general-purpose")
+if assert_context_contains "$OUTP" "kind=\"bug\"" && ! assert_context_contains "$OUTP" "codescout box bugs"; then
+  pass "bug ledger: a readme at the old path does not make a bugs box"
+else fail "bug ledger: a readme at the old path does not make a bugs box" "$OUTP"; fi
+rm -rf "$T/proj/docs"
+# Without a binary on PATH even boxproj falls back to the old query, and the payload stays small.
+OUTX=$(run_hook "$T/boxproj" "general-purpose")
+if assert_context_contains "$OUTX" "kind=\"bug\"" && ! assert_context_contains "$OUTX" "codescout box bugs"; then
+  pass "bug ledger: no binary on PATH keeps the doc find query"
+else fail "bug ledger: no binary on PATH keeps the doc find query" "$OUTX"; fi
 
 # --- Gate CLOSED → silent, with the environment sealed (not ambient config). ---
 OUT=$(run_hook "$T/bare" "general-purpose")

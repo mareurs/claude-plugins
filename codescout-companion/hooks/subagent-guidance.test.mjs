@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import { hasBugsBox } from './lib.mjs';
 
 // History: this test used to prove the hook DRAINED a 2.3 MB payload (the system prompt, copied
 // verbatim) to a slow consumer. Since 2026-11-23 the hook sends a pointer and never copies the
@@ -47,5 +48,53 @@ test('subagent guidance stays small and complete when the system prompt is huge'
   } finally {
     child?.kill();
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// hasBugsBox asks the binary; it never looks for a path. The fake answers only the exact call
+// `box --project <root> bugs --json`, so a wrong call shape reads as "no bugs box".
+function fakeBox(dir, reply, status = 0) {
+  const bin = join(dir, 'fake-codescout');
+  writeFileSync(
+    bin,
+    `#!/usr/bin/env bash\n[ "$*" = "box --project ${dir} bugs --json" ] || exit 101\ncat <<'EOF'\n${reply}\nEOF\nexit ${status}\n`,
+  );
+  chmodSync(bin, 0o755);
+  return bin;
+}
+
+test('hasBugsBox is true only when codescout shows the bugs box', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'has-bugs-box-'));
+  try {
+    assert.equal(hasBugsBox(dir, fakeBox(dir, '{"shown":true,"key":"bugs","address":"quality/bugs"}')), true);
+    // Not shown: a box that exists but is not shown, a refusal with exit 2, the old-layout refusal (exit 0, no `shown`),
+    // output that is not JSON, and a failing binary.
+    assert.equal(hasBugsBox(dir, fakeBox(dir, '{"shown":false}')), false);
+    assert.equal(hasBugsBox(dir, fakeBox(dir, 'NOT SHOWN — no box bugs', 2)), false);
+    assert.equal(hasBugsBox(dir, fakeBox(dir, '{"done":false,"not_done":"the boxes use the old layout","old_layout":["docs/trackers/ledgers/bugs"]}')), false);
+    assert.equal(hasBugsBox(dir, fakeBox(dir, 'not json')), false);
+    assert.equal(hasBugsBox(dir, fakeBox(dir, '{"shown":true}', 101)), false);
+    // No binary, no root, and a call shape the fake does not know.
+    assert.equal(hasBugsBox(dir, ''), false);
+    assert.equal(hasBugsBox(dir, null), false);
+    assert.equal(hasBugsBox(dir, '/nonexistent/codescout'), false);
+    assert.equal(hasBugsBox('', fakeBox(dir, '{"shown":true}')), false);
+    assert.equal(hasBugsBox(join(dir, 'other'), fakeBox(dir, '{"shown":true}')), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('hasBugsBox gives up at the timeout', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'has-bugs-box-slow-'));
+  try {
+    const bin = join(dir, 'slow-codescout');
+    writeFileSync(bin, '#!/usr/bin/env bash\nsleep 5\necho \'{"shown":true}\'\n');
+    chmodSync(bin, 0o755);
+    const t = Date.now();
+    assert.equal(hasBugsBox(dir, bin, 300), false);
+    assert.ok(Date.now() - t < 2000, 'returned too late');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });

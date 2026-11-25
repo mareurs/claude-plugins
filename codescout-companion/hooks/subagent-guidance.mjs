@@ -17,9 +17,9 @@
 // enter the project, pick a tool by intent). Long, project-specific text is named by
 // path, and the subagent reads it on demand. Output size must not depend on any file
 // the user edits. tests/test-subagent-guidance.sh pins this.
-import { realpathSync, existsSync } from 'node:fs';
-import { resolve, join } from 'node:path';
-import { readInput, detectFor, git, emit } from './lib.mjs';
+import { realpathSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { readInput, detectFor, git, emit, resolveCodescoutBinary, hasBugsBox } from './lib.mjs';
 
 const input = readInput();
 if (!input) process.exit(0);
@@ -44,8 +44,10 @@ const root = (cwd && git(cwd, ['rev-parse', '--show-toplevel'])) || cwd;
 // so `doc find kind="bug"` returns nothing for it (measured 2026-11-24, claude-plugins after its bug
 // migration: 0 items for 3 live bugs, and a subagent was told that no bug was open). Every other project
 // keeps bug files with kind bug. Both texts are the same size: the payload must not grow with a project.
-const hasBugsBox = Boolean(root) && existsSync(join(root, 'docs/trackers/ledgers/bugs/readme.md'));
-const bugLine = hasBugsBox
+// Whether a bugs box exists is for codescout to say: the hook builds no path under docs/trackers/ or
+// docs/boxes/. Without a binary, or before `codescout box migrate`, the answer is no and the old query stays.
+const bugsBox = hasBugsBox(root, resolveCodescoutBinary(cwd));
+const bugLine = bugsBox
   ? `run_command(command="codescout box bugs list") lists the live bugs. "taken" (a live session holds it), "investigating" (no live owner) and "zombie" (a recurrence check, not a task) are open too.`
   : `doc(action="find", kind="bug", filter={"status": {"in": ["open", "taken", "investigating", "zombie"]}}) — status="open" alone hides "taken" (a live session holds it), "investigating" (no live owner) and "zombie" (a recurrence check, not a task).`;
 
