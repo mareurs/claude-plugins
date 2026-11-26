@@ -12,7 +12,8 @@ hook approval required"). This script does both halves:
 
   1. Run `codex plugin add` if the plugin should be installed and is missing or stale.
      For local marketplaces, a temporary Codex profile supplies the reference bytes,
-     including generated command skills. Compare the live cache before renewing approvals.
+     including generated command skills. Stage Companion with the shared release copy rules
+     before comparing or installing it. Compare the live cache before renewing approvals.
      With `--check`, report missing or stale plugins and leave the live profile read-only.
   2. Through `codex app-server` (stdio JSON-RPC, the same write path as `/hooks`): list the
      plugin's hooks. A hook that is `modified` AND whose declaration half of `currentHash`
@@ -39,6 +40,8 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -141,14 +144,45 @@ def cache_payload(cache: Path) -> dict[str, bytes | str]:
     return payload
 
 
-def local_payload(config: dict, selector: str, plugin: str, version: str) -> dict[str, bytes | str] | None:
-    """Let Codex prepare the reference install, including generated command skills."""
+@contextmanager
+def packaged_marketplace(config: dict, plugin: str) -> Iterator[tuple[str | None, tuple[str, ...]]]:
+    """Stage Companion with the release copy rules for both comparison and installation."""
     marketplace = config.get("marketplaces", {}).get(MARKETPLACE, {})
     if marketplace.get("source_type") != "local":
-        return None
+        yield None, ()
+        return
     source = marketplace.get("source")
     if not source:
         raise RuntimeError(f"local marketplace {MARKETPLACE} has no source path")
+
+    root = Path(source)
+    catalog = root / ".claude-plugin" / "marketplace.json"
+    if plugin != "codescout-companion" or not catalog.is_file():
+        yield source, ()
+        return
+    entries = json.loads(catalog.read_text()).get("plugins", [])
+    if not any(entry.get("name") == plugin and entry.get("source") == f"./{plugin}" for entry in entries):
+        yield source, ()
+        return
+
+    with tempfile.TemporaryDirectory(prefix="codex-package-") as scratch:
+        stage = Path(scratch)
+        (stage / ".claude-plugin").mkdir()
+        shutil.copy2(catalog, stage / ".claude-plugin" / "marketplace.json")
+        subprocess.run(
+            ["bash", "-e", "-c", 'source "$1"\ncopy_plugin_tree "$2" "$3"', "copy-plugin",
+             str(REPO / "scripts" / "lib-copy-plugin.sh"), str(root / plugin), str(stage / plugin)],
+            check=True,
+            timeout=TIMEOUT,
+        )
+        override = f"marketplaces.{MARKETPLACE}.source={json.dumps(str(stage))}"
+        yield str(stage), ("-c", override)
+
+
+def local_payload(source: str | None, selector: str, plugin: str, version: str) -> dict[str, bytes | str] | None:
+    """Let Codex prepare the reference install, including generated command skills."""
+    if source is None:
+        return None
     with tempfile.TemporaryDirectory(prefix="codex-parity-") as scratch:
         profile = Path(scratch)
         run_codex(profile, "plugin", "marketplace", "add", source)
@@ -202,18 +236,19 @@ def main(argv: list[str]) -> int:
 
     cache = plugin_cache(HOME, plugin, version)
     try:
-        expected = local_payload(config, sel, plugin, version) if not check or cache.is_dir() else None
-        difference = cache_difference(cache, expected)
-        if check and difference:
-            print(f"STALE: {plugin} in Codex at {version}: {difference}; run scripts/sync-codex.py {plugin} {version}")
-            return 1
-        if settings is None or difference:
-            action = "refreshed" if cache.is_dir() else "seeded"
-            run_codex(HOME, "plugin", "add", sel)
+        with packaged_marketplace(config, plugin) as (source, install_options):
+            expected = local_payload(source, sel, plugin, version) if not check or cache.is_dir() else None
             difference = cache_difference(cache, expected)
-            if difference:
-                raise RuntimeError(f"codex plugin add did not refresh {sel} {version}: {difference}")
-            print(f"  ✓ codex plugin add {sel}: cache {version} {action}")
+            if check and difference:
+                print(f"STALE: {plugin} in Codex at {version}: {difference}; run scripts/sync-codex.py {plugin} {version}")
+                return 1
+            if settings is None or difference:
+                action = "refreshed" if cache.is_dir() else "seeded"
+                run_codex(HOME, "plugin", "add", *install_options, sel)
+                difference = cache_difference(cache, expected)
+                if difference:
+                    raise RuntimeError(f"codex plugin add did not refresh {sel} {version}: {difference}")
+                print(f"  ✓ codex plugin add {sel}: cache {version} {action}")
     except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
         print(f"✗ codex cache: {exc}")
         return 1
