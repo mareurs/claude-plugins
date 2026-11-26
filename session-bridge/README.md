@@ -136,7 +136,7 @@ An OpenCode session reaches a Claude Code session through `ask_session` (a read-
 
 ### Settings
 
-The wake of an idle Claude Code session is on when the file `<config-dir>/session-bridge-wake` exists, with `<config-dir>` = `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`. It is a file, not an environment variable. Create it with `touch`; its content is not read. Remove it to turn the wake off.
+The wake of an idle Claude Code session is on when the file `<config-dir>/session-bridge-wake` exists, with `<config-dir>` = `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`. It is a file, not an environment variable. Create it with `touch`; its content is not read. Remove it to turn the wake off: an armed watcher ends within one poll (2 s).
 
 ### Limits
 
@@ -182,10 +182,11 @@ works across repositories and profiles, for Claude Code sessions and Codex threa
 - An idle Claude Code session is woken by it when its profile has the file
   `<config-dir>/session-bridge-wake` (see Settings). The plugin's `SessionStart` and `Stop` hooks
   run `session-bridge watch`, which waits for a notice and exits with code 2 and the notice text.
-  At most one wake per 60 s and ten per hour per session apply; over the limit the notice stays
-  queued and shows at the next prompt or tool call. A watcher runs for at most 7000 s after the
-  last arm; after that, the notice shows at the next prompt or tool call. Without the file nothing
-  wakes. The result of `post_notice` says `an idle session is woken` when a watcher is armed on the
+  A session is woken at most once per 60 s and ten times per hour. Over the limit a guard hold
+  delays the wake: the notice is not taken, it shows at the next prompt or tool call as usual, and
+  the watcher wakes the session once the limit allows. A watcher runs for at most 7000 s after the
+  last arm, and the newest arm wins (an older watcher exits within one poll); after the 7000 s, the
+  notice shows at the next prompt or tool call. Without the file nothing wakes. The result of `post_notice` says `an idle session is woken` when a watcher is armed on the
   receiver.
 - At most 8 addressed notices show per call, oldest first. The rest show at the next call.
 - Delivery is at most once. The result of the call says `queued`, never `delivered`.
@@ -381,7 +382,8 @@ with the config dir of the session it serves.
 of `<dir>` with a seq above `<seq>`: one line each (`<seq> HH:MM UTC <short profile>:<pid> <title>`),
 or with `--json` the page (notices, next cursor, gap). It shows the whole log, no author is left
 out. It prints nothing and exits 0 when there is no store or no repository. `serve`, `hook` and
-`filter` are started by the plugin; do not run them by hand.
+`filter` are started by the plugin; do not run them by hand. `watch` is started by the plugin
+hooks too (`SessionStart` and `Stop`); do not run it by hand.
 
 ## Skill
 

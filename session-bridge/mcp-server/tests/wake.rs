@@ -434,9 +434,16 @@ fn a_guard_hold_delays_the_wake_until_the_guard_allows() {
         WatchOutcome::Wake(t) => assert!(t.contains("held back"), "{t}"),
         o => panic!("expected a wake after the hold, got {o:?}"),
     }
-    assert!(now.get() >= T0 - HELD_AT + GUARD_MIN_INTERVAL_MS, "woke only once the guard allowed");
+    assert!(
+        now.get() >= T0 - HELD_AT + GUARD_MIN_INTERVAL_MS,
+        "woke only once the guard allowed"
+    );
     assert!(w.cursor("s1") > 0);
-    assert_eq!(load_or_default(&w.path()).watcher_pid, None, "released after the wake");
+    assert_eq!(
+        load_or_default(&w.path()).watcher_pid,
+        None,
+        "released after the wake"
+    );
     // the notice was taken once: a second watch only runs to its deadline
     assert_eq!(w.watch(&input("s1"), &now), WatchOutcome::Done);
 }
@@ -461,7 +468,10 @@ fn a_held_notice_taken_by_the_prompt_hook_does_not_wake() {
         }
     });
     assert_eq!(out, WatchOutcome::Done);
-    assert!(now.get() >= T0 + DEADLINE_MS, "kept waiting to the deadline");
+    assert!(
+        now.get() >= T0 + DEADLINE_MS,
+        "kept waiting to the deadline"
+    );
     assert!(w.cursor("s1") > 0);
     assert_eq!(load_or_default(&w.path()).watcher_pid, None);
 }

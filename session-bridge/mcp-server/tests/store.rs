@@ -711,3 +711,29 @@ fn addressed_result_ignores_an_expired_watch() {
     let text = addressed_result(3, "kat:5", &st, now);
     assert!(!text.contains("woken"), "{text}");
 }
+
+#[test]
+fn addressed_result_with_an_armed_watcher_skips_the_no_hook_warning() {
+    // At session start the watcher can arm before the first hook records the session id.
+    let now = 1_000_000;
+    let st = EndpointState {
+        session_id: String::new(),
+        watch_until_ms: now + 1,
+        ..EndpointState::default()
+    };
+    let text = addressed_result(3, "kat:5", &st, now);
+    assert!(!text.contains("Warning"), "{text}");
+    assert!(text.contains("idle session is woken"), "{text}");
+}
+
+#[test]
+fn addressed_result_treats_a_watch_ending_now_as_expired() {
+    let now = 1_000_000;
+    let st = EndpointState {
+        session_id: "S".into(),
+        watch_until_ms: now,
+        ..EndpointState::default()
+    };
+    let text = addressed_result(3, "kat:5", &st, now);
+    assert!(!text.contains("woken"), "{text}");
+}

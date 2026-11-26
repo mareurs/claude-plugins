@@ -100,7 +100,9 @@ name, as `ask_session` does. It works for Claude Code sessions and Codex threads
 
 - Only that session sees it, at its next prompt or tool call. An idle Claude Code session is woken
   only when its profile has the file `<config-dir>/session-bridge-wake`. Do not wait for an answer
-  in the same turn. The receiver answers in a later turn of its own.
+  in the same turn. The receiver answers in a later turn of its own. The result says `an idle
+  session is woken` when a wake is armed there; otherwise the notice shows at the receiver's next
+  prompt or tool call.
 - No filter runs. A notice that wakes an idle Claude Code session starts a turn that the
   receiver's profile pays for. The message still takes room in the receiver's
   context, so write one specific message with the action first.

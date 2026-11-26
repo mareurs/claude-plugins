@@ -6,7 +6,7 @@
 //! the other's position. `dir` is always the state root, never the `cursors/` directory.
 //!
 //! Addressed notices have their own cursor, `<profile>__<session>.direct`, with no pid and no
-//! twins: see `get_direct` and `set_direct`.
+//! twins: see `get_direct`, `set_direct` and `advance_direct`.
 
 use crate::error::Result;
 use crate::paths::is_safe_component;
@@ -174,7 +174,8 @@ pub fn set_direct(dir: &Path, profile: &str, session_id: &str, value: i64) -> Re
 
 /// Compare-and-set of the direct cursor: under the exclusive lock of `set_direct` it re-reads
 /// the cursor (missing = 0) and writes `new` only when the stored value equals `expected`.
-/// `Ok(true)` when it wrote, `Ok(false)` when another process moved the cursor first.
+/// `Ok(true)` when it wrote, `Ok(false)` when another process moved the cursor first. `new` must
+/// be greater than `expected`: the cursor only moves forward.
 pub fn advance_direct(
     dir: &Path,
     profile: &str,

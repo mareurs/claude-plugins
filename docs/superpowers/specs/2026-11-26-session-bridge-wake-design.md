@@ -43,12 +43,12 @@ Codex and OpenCode targets do not have this gap: `send_message` queues a prompt 
 ## Behaviour
 
 1. **Arm.** `hooks.json` gets two `asyncRewake` entries that run `run.sh watch`: `SessionStart` (a fresh session that never ran a turn) and `Stop` (after each turn, which is when the session becomes idle; this also re-arms the watcher after each wake). Both measured (G1, G3).
-2. **Singleton.** `watch` takes a lock keyed by endpoint (profile, pid) and exits 0 at once when a live watcher holds it. `EndpointState` records the watcher pid next to `worker_pid`.
-3. **Wait.** `watch` polls `direct_after` for every session id of the endpoint (the current id and earlier ids after `/clear`, as `take` does) without moving a cursor. It stops at its own deadline with exit 0, set below the hook `timeout` so the host never has to send TERM (the companion does the same: 7000 s under 7200 s). The hook entries use `timeout: 7200` and the watcher deadline is 7000 s. It also exits 0 when the endpoint's Claude pid is gone (gate G5: a killed host leaves the watcher running).
+2. **Singleton, newest arm wins.** `watch` takes the slot of its endpoint (profile, pid) at once: it writes its own pid and a deadline 7000 s ahead into `EndpointState`, next to `worker_pid`, and replaces any older claim. The older watcher sees a foreign pid on its next pass and exits 0 within one poll, without touching the newer claim. A `Stop` arm therefore always restarts the 7000 s window.
+3. **Wait.** `watch` polls `direct_after` for every session id of the endpoint (the current id and earlier ids after `/clear`, as `take` does) without moving a cursor. Every pass checks, in order: the Claude pid of the endpoint is alive (gate G5: a killed host leaves the watcher running), the marker file still exists (step 5), the watcher still owns the claim (step 2), and its deadline has not passed. Any failed check ends the watcher with exit 0. The deadline is set below the hook `timeout` so the host never has to send TERM (the companion does the same: 7000 s under 7200 s). The hook entries use `timeout: 7200` and the watcher deadline is 7000 s.
 4. **Wake.** On a notice it calls `take`. When `take` returns text, it writes the text to stderr and exits 2. When `take` returns nothing, it keeps waiting.
-5. **Opt-in on the receiver: a marker file.** The watcher arms only when `<config-dir>/session-bridge-wake` exists (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}`, as CLAUDE.md § Config Dir Resolution requires). The receiver owner decides who may spend its tokens, with `touch` and `rm`. Default: no file, no wake. This follows the operator rule that every plugin setting is a marker file in the profile (bugs box, `2026-11-25-plugin-settings-are-env-vars-a-plugin-file-and-a-profile`).
+5. **Opt-in on the receiver: a marker file.** The watcher arms only when `<config-dir>/session-bridge-wake` exists (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}`, as CLAUDE.md § Config Dir Resolution requires). The receiver owner decides who may spend its tokens, with `touch` and `rm`. Default: no file, no wake. Removing the file ends an armed watcher within one poll. This follows the operator rule that every plugin setting is a marker file in the profile (bugs box, `2026-11-25-plugin-settings-are-env-vars-a-plugin-file-and-a-profile`).
 6. **Sender feedback.** `post_notice(to=...)` says in one line whether the receiver has a live watcher: `queued: wakes the session if idle` or `queued: shows at its next prompt or tool call`. It never says `delivered`.
-7. **Loop guard.** The receiver wakes at most once per 60 s and at most 10 times per hour. Over the limit, the notice stays queued and shows at the next prompt or tool call.
+7. **Loop guard.** The receiver wakes at most once per 60 s and at most 10 times per hour. Over the limit the notice waits: the watcher does not take it and keeps polling, the notice shows at the next prompt or tool call as before, and the watcher wakes the session once the limit allows. When the prompt hook takes the notice first, the watcher finds nothing pending and keeps waiting.
 8. **Text.** The wake text is the existing addressed-notice rendering: peer data, not an instruction, with the reply route `post_notice(to=<sender>)`.
 
 No new tool parameter. The sender does not choose to wake: the receiver's opt-in decides.
@@ -95,8 +95,10 @@ Decided 2026-11-26 by the operator: opt-in is a marker file (step 5), loop guard
 ## Tests required before build
 
 - `watch` exits 2 with the rendered text for one addressed notice, and `take` moves the cursor first (no second wake for the same notice).
-- A second `watch` for the same endpoint exits 0 at once.
+- A later `watch` for the same endpoint takes the slot; the older watcher exits within one poll and leaves the newer claim in place.
+- Removing the marker file ends an armed watcher within one poll, without taking a notice.
 - `watch` exits 0 when the endpoint's Claude pid is gone (G5).
 - A notice for another session id does not wake.
-- A notice over the loop guard stays queued and shows through the existing prompt hook.
+- A notice over the loop guard is not taken while the guard holds, stays deliverable through the existing prompt hook, and wakes the session once the guard allows; the claim stays held during the hold.
+- `run.sh watch` exits 0 silently without the marker file and on a binary that lacks the watch mode.
 - A `/clear` between post and wake still delivers (old id).
