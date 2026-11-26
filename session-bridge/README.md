@@ -60,12 +60,14 @@ The bridge uses the installed Codex CLI; no Codex source patch is required. Linu
 Build and preview installation into each existing Codex home:
 
 ```bash
-cargo build --release --manifest-path session-bridge/mcp-server/Cargo.toml
+session-bridge/scripts/build.sh
 python3 session-bridge/scripts/install-codex.py \
   --profile "${CODEX_HOME:-$HOME/.codex}" \
-  --binary "$PWD/session-bridge/mcp-server/target/release/session-bridge"
+  --binary "$HOME/.cargo/bin/session-bridge"
 # Add --apply to install the previewed MCP entry and three notice hooks.
 ```
+
+`build.sh` builds into `~/.cache/session-bridge/target`, outside the plugin directory. Keep it there: when you run `cargo` by hand, set `CARGO_TARGET_DIR` first. A `target/` inside `session-bridge/` makes `codex plugin add` copy it into the Codex cache.
 
 The installer preserves other servers, hook groups and trust settings and refuses absent profiles. Review/enable the new commands in Codex's normal hook trust UI, enable hooks if needed, then reconnect the MCP server. Existing connections need a reconnect to see new tools. Claude keeps its existing plugin registration; its configured executable must also be rebuilt and its MCP connection restarted.
 

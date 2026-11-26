@@ -9,8 +9,12 @@
 # file there that points anywhere else is refused, never replaced. SB_BUILD_SKIP_CARGO=1 skips
 # test/clippy/install
 # and only links (used by the tests).
+# Build output goes to ${CARGO_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/session-bridge/target},
+# never into the plugin directory: `codex plugin add` copies the whole plugin directory, and a
+# target/ inside it is 20 GB.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/session-bridge/target}"
 if [ -z "${SB_BUILD_SKIP_CARGO:-}" ]; then
   cd "$ROOT/mcp-server"
   cargo test --quiet
