@@ -1,11 +1,13 @@
 ---
 kind: entry
-status: open
+status: fixed
 title: The release preflight reports three baseline hook-suite failures under Codex
+closed: 2026-11-26
 created: 2026-11-26
 entry_kind: bug
 log:
 - '2026-11-26 open created codescout:anonymous'
+- '2026-11-26 open -> fixed codescout:anonymous'
 status_since: 2026-11-26
 ---
 
@@ -18,3 +20,9 @@ status_since: 2026-11-26
 **Evidence:** Each control suite exited 1 with the same assertion failures as the full run. The codescout-display native suite passed, and Buddy pytest passed separately.
 
 **Expected:** The hook suites give the same result from supported release harnesses, and their assertions reflect the current SessionStart payload.
+
+## Closed
+
+Fixed in `675b513`. The suites use explicit Claude Code and Codex process fixtures. Session Bridge also checks the fallback for unrecognized process names.
+
+The complete `./tests/run-all.sh` run from Codex ran all 207 discovered suites and exited 0. The release helper reported 587 Buddy Python tests passed. SessionStart was rerun successfully after gating its Codex process assertion on Linux.

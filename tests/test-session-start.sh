@@ -188,12 +188,15 @@ else
   fail "Claude Code: reconnaissance pointer missing" "$OUT"
 fi
 
-OUT=$(printf '%s' "$INPUT" | "$T/bin/codex" node "$HOOK" 2>/dev/null)
-if assert_context_contains "$OUT" "project_hints" &&
-   ! assert_context_contains "$OUT" "codescout-companion:reconnaissance"; then
-  pass "Codex: bootstrap emitted without the reconnaissance Skill pointer"
-else
-  fail "Codex: expected bootstrap without the reconnaissance Skill pointer" "$OUT"
+# Codex host detection reads /proc on Linux.
+if [ "$(uname -s)" = Linux ]; then
+  OUT=$(printf '%s' "$INPUT" | "$T/bin/codex" node "$HOOK" 2>/dev/null)
+  if assert_context_contains "$OUT" "project_hints" &&
+     ! assert_context_contains "$OUT" "codescout-companion:reconnaissance"; then
+    pass "Codex: bootstrap emitted without the reconnaissance Skill pointer"
+  else
+    fail "Codex: expected bootstrap without the reconnaissance Skill pointer" "$OUT"
+  fi
 fi
 
 # --- Test 13: reconnaissance recon-loaded marker is dropped at SessionStart ---
