@@ -1,12 +1,14 @@
 ---
 kind: entry
-status: open
+status: fixed
 title: Codex release parity accepts stale companion files at the same version
+closed: 2026-11-26
 created: 2026-11-26
 entry_kind: bug
 last_observed: 2026-11-26
 log:
 - '2026-11-26 open created codescout:anonymous'
+- '2026-11-26 open -> fixed codescout:anonymous'
 severity: medium
 status_since: 2026-11-26
 ---
@@ -41,12 +43,14 @@ The active app-server located companion hooks under `~/.codex/plugins/cache/sdd-
 
 ## Fix
 
-Pending.
+For a registered local marketplace, `sync-codex.py` builds a reference cache with the Codex installer in a temporary profile. Comparing both file sets and their contents covers omitted, obsolete and modified files, including skills Codex generates from commands. `--check` reports stale bytes and leaves the live profile read-only. Applied sync refreshes through `codex plugin add` and checks the new cache before evaluating existing hook approvals.
 
-## Tests added
+## Verification
 
-None for this filing. Reproduce with an installed trusted plugin and two same-version payloads. Pin applied sync and read-only check separately, with an unchanged-payload control.
+The scratch-profile suite went from five failing stale-cache cases to 26 passing checks. It covers same-version source drift, stale generated skills, obsolete files, read-only checking, trusted fresh copies, content-only approval renewal, changed declarations, disabled plugins and registration when a cache already exists. The release guard passed five checks and the installed-profile suite passed 20.
 
-## Resume
+Against the existing Companion 1.23.9 profile on Codex 0.172.0, `--check` returned exit 1 and reported `hooks/host-text.test.sh` as the first differing path.
 
-Decide what local-marketplace contents the release parity check must compare. Preserve Codex's native hook approval flow when a re-copy changes the installed content.
+## Closed
+
+Fixed in the release scripts and verified against Codex 0.172.0.

@@ -48,9 +48,22 @@ if ! command -v codex >/dev/null 2>&1; then
   print_summary "sync-codex"; exit 0
 fi
 
-# --- real codex, scratch home ---
+# --- real codex, scratch home and local marketplace ---
+MARKET_ROOT="$H/market"
+mkdir -p "$MARKET_ROOT/.claude-plugin"
+cp "$ROOT/.claude-plugin/marketplace.json" "$MARKET_ROOT/.claude-plugin/"
+cp -R "$ROOT/$PLUGIN" "$MARKET_ROOT/"
+SOURCE="$MARKET_ROOT/$PLUGIN"
+mkdir "$SOURCE/commands"
+cat > "$SOURCE/commands/demo.md" <<'COMMAND'
+---
+description: A fixture command
+---
+
+Print the fixture message.
+COMMAND
 rm -rf "$H/home"; mkdir -p "$H/home"
-run codex plugin marketplace add "$ROOT" >/dev/null 2>&1
+run codex plugin marketplace add "$MARKET_ROOT" >/dev/null 2>&1
 run codex plugin add "$PLUGIN@$MKT" >/dev/null 2>&1
 CACHE="$H/home/plugins/cache/$MKT/$PLUGIN/$VER"
 [ -d "$CACHE" ] || { fail "fixture: codex plugin add seeds the cache" "no $CACHE"; print_summary "sync-codex"; exit 1; }
@@ -85,8 +98,47 @@ out="$(sync 9.9.9 --check 2>&1)"; rc=$?
 [ "$rc" = 1 ] && printf '%s' "$out" | grep -q "STALE" && pass "check: a cache without the released version fails as STALE" \
   || fail "check: a cache without the released version fails as STALE" "rc=$rc $out"
 
-# content-only change: the approval is renewed
-echo "# change" >> "$CACHE/scripts/cs_tool_log.py"
+# An approved cache can contain older bytes at the same manifest version.
+cp "$CACHE/scripts/cs_tool_log.py" "$H/cached-before.py"
+cp "$H/home/config.toml" "$H/config-before.toml"
+echo "# same-version update" >> "$SOURCE/scripts/cs_tool_log.py"
+out="$(sync "$VER" --check 2>&1)"; rc=$?
+[ "$rc" = 1 ] && printf '%s' "$out" | grep -q 'STALE:.*scripts/cs_tool_log.py' \
+  && cmp -s "$CACHE/scripts/cs_tool_log.py" "$H/cached-before.py" \
+  && cmp -s "$H/home/config.toml" "$H/config-before.toml" \
+  && pass "check: same-version stale payload is reported without writing" \
+  || fail "check: same-version stale payload is reported without writing" "rc=$rc $out"
+out="$(sync "$VER" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && cmp -s "$SOURCE/scripts/cs_tool_log.py" "$CACHE/scripts/cs_tool_log.py" \
+  && printf '%s' "$out" | grep -q "(1 renewed)" \
+  && pass "sync: refreshes same-version files and renews their prior approval" \
+  || fail "sync: refreshes same-version files and renews their prior approval" "rc=$rc $out"
+out="$(sync "$VER" --check 2>&1)"; rc=$?
+[ "$rc" = 0 ] && printf '%s' "$out" | grep -q "1 hook(s) trusted, 0 to renew" \
+  && pass "check: freshly installed payload with generated command skill passes" \
+  || fail "check: freshly installed payload with generated command skill passes" "rc=$rc $out"
+
+# Codex generates a skill from a legacy command. Check its actual installed bytes.
+GENERATED="$CACHE/.codex-plugin/migrated-command-skills/source-command-demo/SKILL.md"
+cp "$GENERATED" "$H/generated-before.md"
+echo "stale generated skill" >> "$GENERATED"
+out="$(sync "$VER" --check 2>&1)"; rc=$?
+[ "$rc" = 1 ] && printf '%s' "$out" | grep -q 'STALE:.*source-command-demo/SKILL.md' \
+  && pass "check: catches stale generated command skill" \
+  || fail "check: catches stale generated command skill" "rc=$rc $out"
+out="$(sync "$VER" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && cmp -s "$GENERATED" "$H/generated-before.md" \
+  && pass "sync: refreshes the generated skill through Codex" \
+  || fail "sync: refreshes the generated skill through Codex" "rc=$rc $out"
+rm "$SOURCE/commands/demo.md"
+out="$(sync "$VER" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && [ ! -e "$GENERATED" ] && [ ! -e "$CACHE/commands/demo.md" ] \
+  && pass "sync: removes obsolete command and generated skill" \
+  || fail "sync: removes obsolete command and generated skill" "rc=$rc $out"
+
+# Reinstalling directly through Codex leaves a modified approval for matching bytes.
+echo "# fresh content with old approval" >> "$SOURCE/scripts/cs_tool_log.py"
+run codex plugin add "$PLUGIN@$MKT" >/dev/null 2>&1
 out="$(sync "$VER" --check 2>&1)"; rc=$?
 [ "$rc" = 1 ] && printf '%s' "$out" | grep -q "MODIFIED" && pass "check: a content change reads MODIFIED and fails" \
   || fail "check: a content change reads MODIFIED and fails" "rc=$rc $out"
@@ -104,7 +156,8 @@ p = sys.argv[1]; t = open(p).read()
 t = re.sub(r'(trusted_hash = "sha256:)[0-9a-f]{4}', r'\g<1>0000', t, count=1)
 open(p, "w").write(t)
 PY
-echo "# change 2" >> "$CACHE/scripts/cs_tool_log.py"
+echo "# change 2" >> "$SOURCE/scripts/cs_tool_log.py"
+run codex plugin add "$PLUGIN@$MKT" >/dev/null 2>&1
 out="$(sync "$VER" 2>&1)"; rc=$?
 after="$(run python3 -c "import tomllib,sys;print(tomllib.load(open('$H/home/config.toml','rb'))['hooks']['state']['$KEY']['trusted_content_hash'])")"
 [ "$rc" = 0 ] && printf '%s' "$out" | grep -q "its declaration changed" && [ "$before" = "$after" ] \
@@ -133,10 +186,18 @@ out="$(sync "$VER" 2>&1)"; rc=$?
 
 # --- listed and absent: the sync installs it (config.toml has the marketplace, not the plugin) ---
 rm -rf "$H/home"; mkdir -p "$H/home"
-run codex plugin marketplace add "$ROOT" >/dev/null 2>&1
+run codex plugin marketplace add "$MARKET_ROOT" >/dev/null 2>&1
+cp "$H/home/config.toml" "$H/market-only.toml"
 out="$(TARGETS="$H/want.json" sync "$VER" 2>&1)"; rc=$?
 [ "$rc" = 0 ] && [ -d "$H/home/plugins/cache/$MKT/$PLUGIN/$VER" ] \
   && pass "sync: a plugin listed in harness-targets.json and absent is installed" \
   || fail "sync: a plugin listed in harness-targets.json and absent is installed" "rc=$rc $out"
+
+# A leftover cache does not register an otherwise absent plugin.
+cp "$H/market-only.toml" "$H/home/config.toml"
+out="$(TARGETS="$H/want.json" sync "$VER" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && grep -Fq "[plugins.\"$PLUGIN@$MKT\"]" "$H/home/config.toml" \
+  && pass "sync: registers a listed plugin when a matching cache already exists" \
+  || fail "sync: registers a listed plugin when a matching cache already exists" "rc=$rc $out"
 
 print_summary "sync-codex"

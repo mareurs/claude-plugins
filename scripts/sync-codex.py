@@ -10,9 +10,10 @@ upgrade` does nothing for a local marketplace. Every `add` that changes content 
 plugin's hook approvals (`trustStatus: modified`, hooks fail with "plugin contents changed;
 hook approval required"). This script does both halves:
 
-  1. If the plugin is installed in Codex, or listed under "codex" in scripts/harness-targets.json,
-     and the cache lacks <version>: `codex plugin add`. A listed plugin that is absent is installed;
-     with `--check` it is reported as MISSING (exit 1).
+  1. Run `codex plugin add` if the plugin should be installed and is missing or stale.
+     For local marketplaces, a temporary Codex profile supplies the reference bytes,
+     including generated command skills. Compare the live cache before renewing approvals.
+     With `--check`, report missing or stale plugins and leave the live profile read-only.
   2. Through `codex app-server` (stdio JSON-RPC, the same write path as `/hooks`): list the
      plugin's hooks. A hook that is `modified` AND whose declaration half of `currentHash`
      equals its recorded `trusted_hash` changed in content only; its `trusted_content_hash`
@@ -30,11 +31,13 @@ Env: HARNESS_TARGETS (default scripts/harness-targets.json), CODEX_HOME (default
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -109,6 +112,66 @@ def classify(hooks: list[dict]) -> tuple[list[tuple[dict, str]], list[str], int]
     return renew, review, trusted
 
 
+def run_codex(profile: Path, *args: str) -> None:
+    result = subprocess.run(
+        [CODEX, *args],
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT,
+        env={**os.environ, "CODEX_HOME": str(profile)},
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"codex {' '.join(args)} failed (rc={result.returncode}): {result.stderr.strip()[:300]}")
+
+
+def plugin_cache(profile: Path, plugin: str, version: str) -> Path:
+    return profile / "plugins" / "cache" / MARKETPLACE / plugin / version
+
+
+def cache_payload(cache: Path) -> dict[str, bytes | str]:
+    """Fingerprint the files and symlink targets in a Codex cache."""
+    payload = {}
+    for path in cache.rglob("*"):
+        name = path.relative_to(cache).as_posix()
+        if path.is_symlink():
+            payload[name] = os.readlink(path)
+        elif path.is_file():
+            with path.open("rb") as stream:
+                payload[name] = hashlib.file_digest(stream, "sha256").digest()
+    return payload
+
+
+def local_payload(config: dict, selector: str, plugin: str, version: str) -> dict[str, bytes | str] | None:
+    """Let Codex prepare the reference install, including generated command skills."""
+    marketplace = config.get("marketplaces", {}).get(MARKETPLACE, {})
+    if marketplace.get("source_type") != "local":
+        return None
+    source = marketplace.get("source")
+    if not source:
+        raise RuntimeError(f"local marketplace {MARKETPLACE} has no source path")
+    with tempfile.TemporaryDirectory(prefix="codex-parity-") as scratch:
+        profile = Path(scratch)
+        run_codex(profile, "plugin", "marketplace", "add", source)
+        run_codex(profile, "plugin", "add", selector)
+        reference = plugin_cache(profile, plugin, version)
+        if not reference.is_dir():
+            raise RuntimeError(f"local marketplace did not produce {plugin} {version}")
+        return cache_payload(reference)
+
+
+def cache_difference(cache: Path, expected: dict[str, bytes | str] | None) -> str | None:
+    if not cache.is_dir():
+        return f"cache directory is missing ({cache})"
+    if expected is None:
+        return None
+    actual = cache_payload(cache)
+    for name in sorted(expected.keys() | actual.keys()):
+        if expected.get(name) != actual.get(name):
+            return f"cache differs from the local marketplace at {name}"
+    return None
+
+
+
 def main(argv: list[str]) -> int:
     check = "--check" in argv
     args = [a for a in argv if not a.startswith("--")]
@@ -122,7 +185,8 @@ def main(argv: list[str]) -> int:
         print(f"= no Codex install on this machine ({HOME}/config.toml or `{CODEX}` missing): skipping")
         return 0
     with open(HOME / "config.toml", "rb") as f:
-        settings = tomllib.load(f).get("plugins", {}).get(sel)
+        config = tomllib.load(f)
+    settings = config.get("plugins", {}).get(sel)
     if settings is None:
         wanted = plugin in json.loads(Path(os.environ.get("HARNESS_TARGETS") or REPO / "scripts" / "harness-targets.json").read_text()).get("codex", [])
         if not wanted:
@@ -136,16 +200,23 @@ def main(argv: list[str]) -> int:
         print(f"= {plugin} is disabled in Codex: skipping")
         return 0
 
-    cache = HOME / "plugins" / "cache" / MARKETPLACE / plugin / version
-    if not cache.is_dir():
-        if check:
-            print(f"STALE: {plugin} in Codex has no cache for {version} ({cache}); run scripts/sync-codex.py {plugin} {version}")
+    cache = plugin_cache(HOME, plugin, version)
+    try:
+        expected = local_payload(config, sel, plugin, version) if not check or cache.is_dir() else None
+        difference = cache_difference(cache, expected)
+        if check and difference:
+            print(f"STALE: {plugin} in Codex at {version}: {difference}; run scripts/sync-codex.py {plugin} {version}")
             return 1
-        done = subprocess.run([CODEX, "plugin", "add", sel], capture_output=True, text=True, timeout=TIMEOUT, env={**os.environ, "CODEX_HOME": str(HOME)})
-        if done.returncode != 0 or not cache.is_dir():
-            print(f"✗ codex plugin add {sel} failed (rc={done.returncode}, cache {'present' if cache.is_dir() else 'missing'}): {done.stderr.strip()[:300]}")
-            return 1
-        print(f"  ✓ codex plugin add {sel}: cache {version} seeded")
+        if settings is None or difference:
+            action = "refreshed" if cache.is_dir() else "seeded"
+            run_codex(HOME, "plugin", "add", sel)
+            difference = cache_difference(cache, expected)
+            if difference:
+                raise RuntimeError(f"codex plugin add did not refresh {sel} {version}: {difference}")
+            print(f"  ✓ codex plugin add {sel}: cache {version} {action}")
+    except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
+        print(f"✗ codex cache: {exc}")
+        return 1
 
     srv = AppServer()
     try:
