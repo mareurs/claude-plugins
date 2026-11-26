@@ -9,12 +9,9 @@ bad()  { echo "  FAIL: $1 — $2"; FAIL=$((FAIL+1)); }
 
 echo "── recon-count ──"
 
-# Tests 1-6 exercise the `.current_session_id` FALLBACK path, so the
-# process-scoped source has to be absent for them. Without this unset they all
-# resolve to the ambient session instead and write under a different sid — and
-# test 5's premise ("missing SID") dissolves entirely. Test 7 pins the
-# precedence itself.
-unset CLAUDE_CODE_SESSION_ID
+# The fallback and missing-SID cases start without an ambient harness identity.
+# The Claude Code precedence case and each Codex case supply their own identity.
+unset CLAUDE_CODE_SESSION_ID CODEX_SESSION_ID CODEX_THREAD_ID
 
 # 1. bump F creates file with F=1 W=0
 T="$(mktemp -d)"; mkdir -p "$T/.buddy"; echo "sid1" > "$T/.buddy/.current_session_id"

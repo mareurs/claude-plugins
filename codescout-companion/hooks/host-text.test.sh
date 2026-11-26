@@ -31,11 +31,23 @@ for host in codex claude; do
   printf '#!/bin/bash\nnode "$@"\n' > "$TMP/bin/$host"; chmod +x "$TMP/bin/$host"
 done
 
+# Give the no-host fixture PID 1 as its parent even when this suite runs inside an agent.
+cat > "$TMP/no-host.cjs" <<'JS'
+const fs = require('node:fs');
+const { syncBuiltinESMExports } = require('node:module');
+const readFileSync = fs.readFileSync;
+fs.readFileSync = function (path, ...args) {
+  if (path === `/proc/${process.pid}/stat`) return `${process.pid} (node) S 1\n`;
+  return readFileSync.call(this, path, ...args);
+};
+syncBuiltinESMExports();
+JS
+
 # run <host|none> <hook.mjs> <json> -> the hook's stdout
 run() {
   local host="$1" hook="$2" json="$3"
   if [ "$host" = none ]; then
-    printf '%s' "$json" | XDG_STATE_HOME="$TMP/state" node "$SCRIPT_DIR/$hook" 2>/dev/null
+    printf '%s' "$json" | XDG_STATE_HOME="$TMP/state" node --require "$TMP/no-host.cjs" "$SCRIPT_DIR/$hook" 2>/dev/null
   else
     printf '%s' "$json" | XDG_STATE_HOME="$TMP/state" "$TMP/bin/$host" "$SCRIPT_DIR/$hook" 2>/dev/null
   fi
