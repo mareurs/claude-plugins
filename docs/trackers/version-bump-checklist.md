@@ -14,6 +14,19 @@ Release readiness across plugins × profiles. See
 
 ## State
 
+### Current release verification — 2026-11-26 (codescout-display 0.1.3)
+
+Released locally with `NO_PUSH=1` at `22990bb`. The version manifest and README agree, and marketplace entries have no version fields.
+
+| Profile | Installed | Cache exists | Profile owns path | Native plugin tests |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.3 ✅ | ✅ | ✅ | 138 passed ✅ |
+| `~/.claude-sdd` | 0.1.3 ✅ | ✅ | ✅ | 138 passed ✅ |
+| `~/.claude-kat` | 0.1.3 ✅ | ✅ | ✅ | 138 passed ✅ |
+| `~/.claude-stef` | 0.1.3 ✅ | ✅ | ✅ | 138 passed ✅ |
+
+The complete repository run found three failing suites: `test-session-bridge-run-sh.sh`, `test-session-start-payload.sh` and `test-session-start.sh`. All three reproduced at `36872aa`, before the card changes. The release retried with `SKIP_TESTS=1` after the display suite passed and Buddy pytest passed separately (587 tests). The plugin-specific profile and marketplace parity checks passed. Running Claude Code sessions still need a plugin reload.
+
 ### Current release verification — 2026-11-26 (session-bridge 0.4.4)
 
 Released with `NO_PUSH=1` and the full test gate: `548140b`, cached in 4 of 4 profiles, parity holds, binary 0.4.4 in `~/.cargo/bin`. The daily ask bound is the file `session-bridge-ask-bound-usd` in the profile directory (`b426d22`); `SESSION_BRIDGE_ASK_BOUND_USD` is no longer read. Step 4.6: `codex plugin add` seeded cache 0.4.4; 5 hooks renewed, then 5 `trusted`, 0 to renew, 0 to review. Outside the repo: the four Claude Code profiles lost `env.SESSION_BRIDGE_ASK_BOUND_USD` (backups `settings.json.before-askbound-marker-20261126`) and hold the file with `off`. Not verified: a running session on 0.4.4 (a live server keeps the old binary and env until it restarts), and an ask refused or allowed by the file in a live session.
@@ -1131,6 +1144,10 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-11-26 — codescout-display 0.1.3
+
+All four Claude Code profiles moved from `0.1.2` to `0.1.3` in local release commit `22990bb`.
 
 ### 2026-11-24 — codescout-display 0.1.2
 
