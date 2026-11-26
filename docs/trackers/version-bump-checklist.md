@@ -14,6 +14,19 @@ Release readiness across plugins × profiles. See
 
 ## State
 
+### Current release verification — 2026-11-27 (codescout-display 0.1.6)
+
+Released locally at `c9b02c9`. The repository test runner and all 587 Buddy Python tests passed during preflight. Profile parity passed. Fresh `claude plugin list --json` invocations reported 0.1.6 enabled from each profile's own cache. The cached manifest, hooks and test files checked against the source matched byte for byte, including the 20,000-character cap.
+
+| Profile | Installed | Cache exists | Profile owns path | Native plugin tests |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.6 ✅ | ✅ | ✅ | 155 passed ✅ |
+| `~/.claude-sdd` | 0.1.6 ✅ | ✅ | ✅ | 155 passed ✅ |
+| `~/.claude-kat` | 0.1.6 ✅ | ✅ | ✅ | 155 passed ✅ |
+| `~/.claude-stef` | 0.1.6 ✅ | ✅ | ✅ | 155 passed ✅ |
+
+Already-running Claude Code sessions pick up the release on plugin reload.
+
 ### Current release verification — 2026-11-26 (codescout-display 0.1.5)
 
 Released locally at `8847e4f`. Fresh `claude plugin list --json` reports 0.1.5 enabled in all four profiles. Profile parity passed and cached `hooks/cards.ts` matched the release source.
@@ -1170,6 +1183,10 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-11-27 — codescout-display 0.1.6
+
+All four Claude Code profiles moved from 0.1.5 to 0.1.6 in local release commit `c9b02c9`.
 
 ### 2026-11-26 — codescout-display 0.1.5
 
