@@ -19,6 +19,10 @@ Design, measurements and open points: `docs/superpowers/specs/2026-11-24-codesco
 | `memory` edit | A colored diff of `old_string` and `new_string`. |
 | `doc` create, append_entry, update | The body (for update, `patch.body`) as markdown. |
 | `symbols` | With bodies: a label per symbol (kind, name, line range) and its body in a code view with the colors of the file's language and no gutter. Without bodies: a list of labels. A long outline that codescout sends as JSON draws its `summary`, and the `hint` shows as a note. |
+| `grep` | The search pattern, matches grouped by file with line numbers and enclosing symbols, and the reported totals and page range. File-count mode puts the paths first. |
+| `doc` find | Each result's title, kind, status and path, with the matched line range when available. The summary shows page size and further results in scope when reported. |
+| `call_graph` | Direct callers and callees first, or the file summary when the tool returns counts. Open the card for the full reply. |
+| `references` | References grouped by file, with line numbers and the reported page range. |
 | `semantic_search` | The query, ranked paths and line ranges, and up to two excerpt lines per hit. A score appears when the tool supplies one. The card shows the hit count and marks replies capped by the tool. |
 | `codescout box` through `run_command` | The box and verb in the title, including invocations in pipelines and shell command lists. A batch names the box operations and shows their shared output. `list` shows titles, statuses and ranks, `find` shows matches and their excerpts, and `show` leads with the entry title and current section. Opening the root box shows its directory. Other box verbs show their CLI output. Open the card for the original reply when the preview leaves details out. |
 | `run_command` | A full-width card. The command shows in up to 5 lines with shell colors, the rest counted and the whole command on open. The result is drawn as for any other tool. |

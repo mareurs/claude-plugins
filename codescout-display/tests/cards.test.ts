@@ -804,3 +804,88 @@ test('semantic search with no hits says so directly', () => {
   const card = buildCard(P + 'semantic_search', { query: 'missing' }, text('{"results":[],"total":0}'))
   expect(card?.result).toBe('0 hits')
 })
+
+test('grep puts the pattern in the title and keeps grouped matches below the cutoff notice', () => {
+  const input = { pattern: 'boxCall', path: 'codescout-display' }
+  const stdout = [
+    '28 matches (capped) in 3 files',
+    '  … showing 7 of 28 — Collection stopped at the candidate cap',
+    '',
+    'hooks/cards.ts (2)',
+    '    453: function boxCall(command: unknown) {  [boxCall]',
+    '    454-   const calls = []',
+    '  --',
+    '    599: const box = boxCall(command)  [draft]',
+  ].join('\n')
+  const card = buildCard(P + 'grep', input, text(stdout))
+  expect(card?.title).toBe('◆ grep  boxCall')
+  expect(card?.params).toBe('path=codescout-display')
+  expect(card?.result).toBe('28 matches (capped) in 3 files · showing 7 of 28')
+  expect(card?.body).toEqual({ kind: 'text', head: [
+    'hooks/cards.ts (2)',
+    '    453: function boxCall(command: unknown) {  [boxCall]',
+    '    454-   const calls = []',
+    '  --',
+    '    599: const box = boxCall(command)  [draft]',
+  ] })
+  expect(card?.full).toBe(stdout)
+})
+
+test('grep file counts present the path first, and no hits have a result line', () => {
+  const card = buildCard(P + 'grep', { pattern: 'box', mode: 'files' }, text('6 matches in 2 files\n    4  hooks/cards.ts\n    2  README.md'))
+  expect(card?.body).toEqual({ kind: 'text', head: ['hooks/cards.ts  ·  4 matches', 'README.md  ·  2 matches'] })
+  expect(buildCard(P + 'grep', { pattern: 'missing' }, text('0 matches'))?.result).toBe('0 matches')
+})
+
+test('doc find shows titles, kinds, statuses, paths and page information', () => {
+  const raw = JSON.stringify({ count: 2, items: [
+    { title: 'Version-bump checklist', kind: 'tracker', status: 'active', abs_path: 'docs/checklist.md', id: 'abcd' },
+    { title: 'A release spec', kind: 'spec', status: 'draft', abs_path: 'docs/spec.md', matched: { start_line: 20, end_line: 30 } },
+  ], hints: { more_in_scope: 11 } })
+  const card = buildCard(P + 'doc', { action: 'find', semantic: 'release' }, text(raw))
+  expect(card?.title).toBe('◆ doc · find  release')
+  expect(card?.body).toEqual({ kind: 'text', head: [
+    'Version-bump checklist  ·  tracker · active', '  docs/checklist.md', 'A release spec  ·  spec · draft', '  docs/spec.md:20–30',
+  ] })
+  expect(card?.result).toBe('2 results · 11 more in scope')
+  expect(card?.full).toBe(raw)
+})
+
+test('references keep file groups and promote the page summary', () => {
+  const raw = '89 references in 3 files\n  … showing 4 of 89 — offset 0; pass offset=4 for the next page, or raise the limit\n\nhooks/cards.ts (1)\n    367  export function buildCard() {'
+  const card = buildCard(P + 'references', { symbol: 'buildCard' }, text(raw))
+  expect(card?.result).toBe('89 references in 3 files · showing 4 of 89')
+  expect(card?.body).toEqual({ kind: 'text', head: ['hooks/cards.ts (1)', '    367  export function buildCard() {'] })
+  expect(card?.full).toBe(raw)
+})
+
+test('call graph leads with direct edges from both directions and preserves the full graph', () => {
+  const raw = [
+    'call_graph for ' + String.fromCharCode(96) + 'boxCall' + String.fromCharCode(96),
+    '  callers: 3 edges across 2 files',
+    '    hooks/register.tsx (1)',
+    '        116: register → pendingCard (depth=2, lsp)',
+    '    hooks/cards.ts (2)',
+    '        699: pendingCard → boxCall (depth=1, lsp)',
+    '        720: draft → boxCall (depth=1, lsp)',
+    '  callees: 1 edges across 1 files',
+    '    hooks/cards.ts (1)',
+    '        496: boxCall → finish (depth=1, ts)',
+    '  max_depth_reached: 2',
+  ].join('\n')
+  const card = buildCard(P + 'call_graph', { symbol: 'boxCall', direction: 'both' }, text(raw))
+  expect(card?.result).toBe('callers: 3 edges across 2 files · callees: 1 edges across 1 files')
+  expect(card?.body).toEqual({ kind: 'text', head: [
+    'Callers', '  pendingCard → boxCall  ·  hooks/cards.ts:699', '  draft → boxCall  ·  hooks/cards.ts:720',
+    'Callees', '  boxCall → finish  ·  hooks/cards.ts:496 · ts',
+  ] })
+  expect(card?.full).toBe(raw)
+})
+
+test('an exploring call graph keeps the tool-reported file summary', () => {
+  const raw = 'call_graph for boxCall\n  callers: 106 across 3 files\n    hooks/cards.ts: 3\n    by_depth: 1=2 2=18 3=86\n  max_depth_reached: 3'
+  const card = buildCard(P + 'call_graph', { symbol: 'boxCall', direction: 'callers' }, text(raw))
+  expect(card?.body).toEqual({ kind: 'text', head: ['Callers', '  hooks/cards.ts: 3', '  by_depth: 1=2 2=18 3=86'] })
+  expect(card?.result).toBe('callers: 106 across 3 files')
+  expect(card?.full).toBe(raw)
+})

@@ -481,3 +481,43 @@ test('a semantic search card shows ranked paths and leaves the raw reply availab
   expect((await ui.find({ type: 'Code' }))?.text).toContain('third line')
   await ui.unmount()
 })
+
+for (const { name, input, output, headline, row } of [
+  {
+    name: 'grep',
+    input: { pattern: 'buildCard', path: 'hooks' },
+    output: '3 matches\n\nhooks/cards.ts (3)\n    367: export function buildCard()',
+    headline: '◆ grep  buildCard',
+    row: 'hooks/cards.ts (3)',
+  },
+  {
+    name: 'doc',
+    input: { action: 'find', kind: 'tracker' },
+    output: JSON.stringify({ count: 1, items: [{ title: 'Version checklist', kind: 'tracker', status: 'active', abs_path: 'docs/checklist.md' }] }),
+    headline: '◆ doc · find',
+    row: 'Version checklist  ·  tracker · active',
+  },
+  {
+    name: 'call_graph',
+    input: { symbol: 'buildCard', direction: 'callers' },
+    output: 'call_graph for buildCard\n  callers: 1 edges across 1 files\n    hooks/register.tsx (1)\n        117: register → buildCard (depth=1, lsp)',
+    headline: '◆ call_graph · callers  buildCard',
+    row: '  register → buildCard  ·  hooks/register.tsx:117',
+  },
+  {
+    name: 'references',
+    input: { symbol: 'buildCard' },
+    output: '3 references in 1 files\nhooks/cards.ts (3)\n    367  export function buildCard()',
+    headline: '◆ references  buildCard',
+    row: 'hooks/cards.ts (3)',
+  },
+]) {
+  test(name + ' renders the lookup preview and opens the original reply', async $ => {
+    const ui = await mount($, { tool_use_id: name + '-lookup', tool: 'mcp__codescout__' + name, input, output: text(output) })
+    expect(await ui.find({ type: 'Text', text: headline })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: row })).toBeDefined()
+    await ui.press({ key: 'toggle' })
+    expect((await ui.find({ type: 'Code' }))?.text).toContain(output)
+    await ui.unmount()
+  })
+}

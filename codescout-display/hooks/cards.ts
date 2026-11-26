@@ -396,8 +396,11 @@ function headerOf(name: string, input: unknown, command: CommandView | undefined
   const fields = recordOf(input)
   const verbKey = ['action', 'direction'].find(key => typeof fields[key] === 'string' && fields[key] !== '')
   const verb = verbKey === undefined ? undefined : stripControl(String(fields[verbKey])).slice(0, 24)
-  const subject = command ? '' : mainArg(input)
-  const used = new Set([verbKey, subjectKey(input)])
+  const preferred = name === 'grep' ? 'pattern' : name === 'doc' && verb === 'find' ? 'semantic' : undefined
+  const preferredValue = preferred === undefined ? undefined : fields[preferred]
+  const hasPreferred = typeof preferredValue === 'string' && preferredValue !== ''
+  const subject = command ? '' : hasPreferred ? stripControl(preferredValue).slice(0, ARG_CUT) : mainArg(input)
+  const used = new Set([verbKey, hasPreferred ? preferred : subjectKey(input)])
 
   const shown: string[] = []
   for (const [key, raw] of Object.entries(fields)) {
@@ -544,16 +547,112 @@ function boxArguments(args: string[]): { action: string; box?: string; args?: st
   return { action, box, args: detail || undefined }
 }
 
-function semanticPreview(output: string): { lines: string[]; result: string } | undefined {
+
+interface LookupPreview {
+  lines: string[]
+  result?: string
+}
+
+function sourceLocation(path: string, start: unknown, end: unknown): string {
+  const file = stripControl(path)
+  if (typeof start !== 'number') return file
+  return file + ':' + start + (typeof end === 'number' && end !== start ? '–' + end : '')
+}
+
+function documentPreview(output: string): LookupPreview | undefined {
+  const data = replyRecord(output)
+  if (!Array.isArray(data.items)) return undefined
+
+  const lines = data.items.flatMap(value => {
+    const doc = recordOf(value)
+    if (typeof doc.title !== 'string') return []
+    const match = recordOf(doc.matched)
+    const label = labelWithDetails(stripControl(doc.title), [doc.kind, doc.status, match.entry_token])
+    if (typeof doc.abs_path !== 'string') return [label]
+    return [label, '  ' + sourceLocation(doc.abs_path, match.start_line, match.end_line)]
+  })
+  if (lines.length === 0 && data.items.length > 0) return undefined
+
+  const count = data.items.length
+  const more = recordOf(data.hints).more_in_scope
+  const page = typeof more === 'number' && more > 0 ? ' · ' + more + ' more in scope' : ''
+  return { lines, result: count + (count === 1 ? ' result' : ' results') + page }
+}
+
+function lineLookupPreview(output: string, fileCounts: boolean): LookupPreview | undefined {
+  const lines = linesOf(output)
+  const first = lines[0] ?? ''
+  const headline = /^\d+ (?:matches?|references?)\b/.test(first) ? lines.shift() : undefined
+  const group = lines.some(line => /^\s*\S.* \(\d+(?: of \d+)?\)$/.test(line))
+  if (headline === undefined && !group) return undefined
+
+  let page: string | undefined
+  const rows = lines.flatMap(line => {
+    const pagination = /^\s*… (showing \d+ of \d+)\b/.exec(line)
+    if (pagination) {
+      page = pagination[1]
+      return []
+    }
+    if (line.trim() === '' || line.startsWith('Hidden paths at the search root were not searched:')) return []
+    const count = fileCounts ? /^\s*(\d+)\s{2,}(\S.*)$/.exec(line) : undefined
+    if (count?.[1] !== undefined && count[2] !== undefined) {
+      return [labelWithDetails(count[2], [count[1] + (count[1] === '1' ? ' match' : ' matches')])]
+    }
+    return [line]
+  })
+  return { lines: rows, result: [headline, page].filter(Boolean).join(' · ') || undefined }
+}
+
+function graphPreview(output: string): LookupPreview | undefined {
+  if (!output.startsWith('call_graph for ')) return undefined
+
+  const sections: Array<{ title: string; count: string; direct: string[]; detail: string[] }> = []
+  let section: (typeof sections)[number] | undefined
+  let path: string | undefined
+  for (const line of linesOf(output)) {
+    const heading = /^  (callers|callees): (.+)$/.exec(line)
+    if (heading?.[1] && heading[2]) {
+      section = { title: heading[1] === 'callers' ? 'Callers' : 'Callees', count: line.trim(), direct: [], detail: [] }
+      sections.push(section)
+      path = undefined
+      continue
+    }
+    if (!section || !line.startsWith('    ')) continue
+    const edge = /^ {8}(\d+): (.+) \(depth=(\d+), ([^)]+)\)$/.exec(line)
+    if (edge?.[1] && edge[2] && edge[3] === '1') {
+      const location = path === undefined ? 'line ' + edge[1] : path + ':' + edge[1]
+      section.direct.push('  ' + labelWithDetails(edge[2], [location, edge[4] !== 'lsp' && edge[4]]))
+    }
+    if (!edge) {
+      path = /^ {4}(\S.*) \(\d+\)$/.exec(line)?.[1]
+      section.detail.push('  ' + line.trimStart())
+    }
+  }
+  if (sections.length === 0) return undefined
+
+  const limit = sections.length > 1 ? Math.floor(HEAD_LINES / sections.length) - 1 : HEAD_LINES - 1
+  const lines = sections.flatMap(({ title, direct, detail }) => [title, ...(direct.length ? direct : detail).slice(0, limit)])
+  return { lines, result: sections.map(section => section.count).join(' · ') }
+}
+
+function lookupPreview(name: string, fields: Record<string, unknown>, output: string): LookupPreview | undefined {
+  switch (name) {
+    case 'semantic_search': return semanticPreview(output)
+    case 'doc': return fields.action === 'find' ? documentPreview(output) : undefined
+    case 'grep': return lineLookupPreview(output, fields.mode === 'files')
+    case 'references': return lineLookupPreview(output, false)
+    case 'call_graph': return graphPreview(output)
+  }
+}
+
+function semanticPreview(output: string): LookupPreview | undefined {
   const data = replyRecord(output)
   if (!Array.isArray(data.results)) return undefined
   const lines = data.results.flatMap(value => {
     const hit = recordOf(value)
     if (typeof hit.file_path !== 'string') return []
-    const start = typeof hit.start_line === 'number' ? ':' + hit.start_line : ''
-    const end = typeof hit.end_line === 'number' && start && hit.end_line !== hit.start_line ? '–' + hit.end_line : ''
     const score = typeof hit.score === 'number' && Number.isFinite(hit.score) ? ' · score ' + hit.score.toFixed(2) : ''
-    const location = stripControl(hit.file_path) + start + end + score
+    const location = sourceLocation(hit.file_path, hit.start_line, hit.end_line) + score
     const excerpt = typeof hit.content === 'string'
       ? linesOf(stripControl(hit.content)).filter(line => line.trim() !== '').slice(0, 2)
       : []
@@ -579,8 +678,8 @@ function replyRecord(text: string): Record<string, unknown> {
   }
 }
 
-function boxEntry(title: string, details: unknown[]): string {
-  const fields = details.filter(field => typeof field === 'string' && field !== '')
+function labelWithDetails(title: string, details: unknown[]): string {
+  const fields = details.flatMap(field => typeof field === 'string' && field !== '' ? [stripControl(field)] : [])
   return fields.length ? title + '  ·  ' + fields.join(' · ') : title
 }
 
@@ -592,7 +691,7 @@ function boxPreview(action: string, output: string, boxKey?: string): { lines: s
       const entry = recordOf(value)
       if (typeof entry.title !== 'string') return []
       const rank = Array.isArray(entry.rank) ? entry.rank : []
-      const title = boxEntry(entry.title, [entry.status, ...rank, entry.box])
+      const title = labelWithDetails(entry.title, [entry.status, ...rank, entry.box])
       return typeof entry.match === 'string' && typeof entry.line === 'number'
         ? [title, '  L' + entry.line + ': ' + entry.match]
         : [title]
@@ -609,7 +708,7 @@ function boxPreview(action: string, output: string, boxKey?: string): { lines: s
   }
 
   if (action === 'show' && typeof data.title === 'string') {
-    const title = boxEntry(data.title, [data.status, data.kind])
+    const title = labelWithDetails(data.title, [data.status, data.kind])
     return { lines: typeof data.text === 'string' && data.text ? [title, ...linesOf(data.text)] : [title] }
   }
 
@@ -617,7 +716,7 @@ function boxPreview(action: string, output: string, boxKey?: string): { lines: s
     return { lines: data.collections.map(value => {
       const collection = recordOf(value)
       const hot = typeof collection.hot === 'number' ? collection.hot + ' hot' : undefined
-      return boxEntry(String(collection.address ?? collection.key ?? ''), [collection.lifecycle, hot, collection.summary])
+      return labelWithDetails(String(collection.address ?? collection.key ?? ''), [collection.lifecycle, hot, collection.summary])
     }) }
   }
 
@@ -646,9 +745,9 @@ function boxPreview(action: string, output: string, boxKey?: string): { lines: s
         const source = action === 'find' && !boxKey ? parts.shift() : undefined
         const [key, status, ...rest] = parts
         if (!key || !status || !rest.length || !/^\S+$/.test(key)) return line
-        if (action === 'find') return boxEntry(rest.join('  '), [status, source])
+        if (action === 'find') return labelWithDetails(rest.join('  '), [status, source])
         const title = rest.pop()!
-        return boxEntry(title, [status, ...rest])
+        return labelWithDetails(title, [status, ...rest])
       }),
       result,
     }
@@ -658,7 +757,7 @@ function boxPreview(action: string, output: string, boxKey?: string): { lines: s
     const entry = lines[0]?.match(/^\S+ {2,}\[(.+?)\](?: {2,}(.+))?$/)
     if (entry && lines[1]) {
       const body = lines.slice(lines[2]?.startsWith('path: ') ? 3 : 2)
-      return { lines: [boxEntry(lines[1], entry.slice(1)), ...body] }
+      return { lines: [labelWithDetails(lines[1], entry.slice(1)), ...body] }
     }
   }
 
@@ -727,17 +826,16 @@ function draft(tool: string, input: unknown, output: unknown): Omit<Card, 'opena
 
   const base = { ...header, notes: reply.notes, full: cap(reply.text), isCut: false, tokens: tokensOf(input, reply), ...(command ? { command } : {}) }
 
-  if (name === 'semantic_search') {
-    const preview = semanticPreview(reply.text)
-    if (preview) {
-      const folded = foldLines(preview.lines)
-      return {
-        ...base,
-        body: { kind: 'text', head: folded.head.map(cut) },
-        result: preview.result,
-        hidden: folded.hidden,
-        isCut: true,
-      }
+  const preview = lookupPreview(name, fields, reply.text)
+  if (preview) {
+    const folded = foldLines(preview.lines)
+    const head = folded.head.map(cut)
+    return {
+      ...base,
+      body: { kind: 'text', head },
+      result: preview.result,
+      hidden: folded.hidden,
+      isCut: reply.text.trimEnd() !== (head.length ? head.join('\n') : preview.result ?? ''),
     }
   }
 
