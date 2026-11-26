@@ -14,9 +14,9 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-### Current release verification — 2026-11-26 (session-bridge 0.4.2)
+### Current release verification — 2026-11-26 (session-bridge 0.4.3)
 
-Released with `NO_PUSH=1` and the full test gate: `fc46cff`, cached in 4 of 4 profiles, parity holds. It adds `hooks/run.sh` host detection (`4344db4`): under Codex the hooks call the binary with `--harness codex` and the Stop watcher is skipped. Step 4.6 (Codex) skipped: `session-bridge` is installed in Codex by `install-codex.py`, not by `codex plugin add`. An attempt to install it as a plugin was reverted: `codex plugin add session-bridge` copied the whole plugin dir with `mcp-server/target` (22 GB, 51k files) into the Codex cache and `hooks/list` stalled for 14 s to minutes. Recovery: `codex plugin remove`, then the pre-change `config.toml` and `hooks.json` restored; `install-codex.py` reports `changed: []`, `hooks/list` answers in 0.2 s, the three user hooks read `trusted`, the Codex cache is 115 MB. Open: bug `2026-11-26-session-bridge-codex-plugin-add-copies-the-whole-plugin-dir`. Not verified: a running Codex or Claude session on 0.4.2.
+Released with `NO_PUSH=1` and the full test gate: `3a9aa4e`, cached in 4 of 4 profiles, parity holds. Two fixes: `build.sh` builds into `~/.cache/session-bridge/target` (`16e1f6c`), so the plugin dir is 1.1 MB, and the plugin MCP command goes through `sh -c` (`962a152`), because Codex does not expand `${HOME}` (0 tools before, 4 after, measured in a scratch `CODEX_HOME`). Step 4.6 ran for real for the first time: `codex plugin add` seeded cache 0.4.3 and reported "5 hook(s) trusted (5 renewed)". Verified afterwards in the real Codex home: `hooks/list` shows 5 `trusted`, `mcpServerStatus/list` shows 4 session-bridge tools, the Codex cache is 116 MB. The manual install (MCP entry, three user hooks) is removed; backups are `~/.codex/*.before-plugin-form-20261126`. Bug `2026-11-26-session-bridge-codex-plugin-add-copies-the-whole-plugin-dir` is closed. Not verified: a running Codex or Claude session on 0.4.3; they need a restart or MCP reconnect.
 
 ### Current release verification — 2026-11-26 (session-bridge 0.4.1)
 
