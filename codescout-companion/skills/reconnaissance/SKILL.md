@@ -52,10 +52,10 @@ migration ordering, instruments that write into what they measure). Use native
 `Read`; the path is guard-exempt. Do not `@`-link it — that force-loads.
 
 
-**Statusline marker (recommended).** Touch `.buddy/$SID/recon-active` once at scout start so the user's statusline shows `[recon]` for 30 minutes. The badge signals scout-in-progress; the user knows not to redirect mid-scout, which prevents abort-and-restart cost:
+**Statusline marker (Claude Code only; skip it in Codex, whose status line shows no recon marker).** Touch `.buddy/$SID/recon-active` once at scout start so the user's statusline shows `[recon]` for 30 minutes. The badge signals scout-in-progress; the user knows not to redirect mid-scout, which prevents abort-and-restart cost:
 
 ```bash
-SID="${CLAUDE_CODE_SESSION_ID:-$(cat .buddy/.current_session_id 2>/dev/null)}" && \
+[ -z "${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}" ] && SID="${CLAUDE_CODE_SESSION_ID:-$(cat .buddy/.current_session_id 2>/dev/null)}" && \
   [ -n "$SID" ] && mkdir -p ".buddy/$SID" && touch ".buddy/$SID/recon-active"
 ```
 

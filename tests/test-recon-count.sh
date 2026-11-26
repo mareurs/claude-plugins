@@ -64,6 +64,25 @@ CLAUDE_CODE_SESSION_ID="my-sid" python3 "$SCRIPT" bump F --root "$T4" 2>/dev/nul
 if [ -f "$T4/.buddy/my-sid/recon-counts.json" ] && [ ! -e "$T4/.buddy/peer-sid" ]; then
   ok "env sid wins over last-writer pointer"; else bad "env sid precedence" "files=$(find "$T4/.buddy" -mindepth 1)"; fi
 
-rm -rf "$T" "$T2" "$T3" "$T4"
+# 8. Codex: nothing reads .buddy/<sid>/ there, and the last-writer pointer names a Claude Code
+# session. The counter and the SKILL.md marker snippet must write nothing under a CODEX_* env,
+# and must still write under Claude Code (the controls). Case: bug 2026-11-26 "Reconnaissance
+# statusline guidance selects a different session in Codex".
+SKILL_MD="$(dirname "$SCRIPT")/SKILL.md"
+T5="$(mktemp -d)"; mkdir -p "$T5/.buddy"; echo "peer-sid" > "$T5/.buddy/.current_session_id"
+CODEX_THREAD_ID=thread-1 python3 "$SCRIPT" bump F --root "$T5" 2>/dev/null
+if [ -z "$(find "$T5/.buddy" -mindepth 1 -type d)" ]; then ok "counter writes nothing under CODEX_THREAD_ID"; else bad "counter under Codex" "$(find "$T5/.buddy" -mindepth 1)"; fi
+CODEX_SESSION_ID=s-1 python3 "$SCRIPT" bump W --root "$T5" 2>/dev/null
+if [ -z "$(find "$T5/.buddy" -mindepth 1 -type d)" ]; then ok "counter writes nothing under CODEX_SESSION_ID"; else bad "counter under Codex" "$(find "$T5/.buddy" -mindepth 1)"; fi
+python3 "$SCRIPT" bump F --root "$T5" 2>/dev/null
+if [ -f "$T5/.buddy/peer-sid/recon-counts.json" ]; then ok "control: without a Codex env the pointer fallback still works"; else bad "pointer fallback" "$(find "$T5/.buddy" -mindepth 1)"; fi
+rm -rf "$T5/.buddy/peer-sid"
+SNIPPET="$(sed -n '/Statusline marker/,/^```$/p' "$SKILL_MD" | sed -n '/^```bash/,/^```$/p' | sed '1d;$d')"
+( cd "$T5" && env -u CLAUDE_CODE_SESSION_ID CODEX_THREAD_ID=thread-1 bash -c "$SNIPPET" >/dev/null 2>&1 )
+if [ ! -e "$T5/.buddy/peer-sid/recon-active" ]; then ok "SKILL snippet writes no marker under a Codex env"; else bad "SKILL snippet under Codex" "$(find "$T5/.buddy" -mindepth 1)"; fi
+( cd "$T5" && env -u CLAUDE_CODE_SESSION_ID -u CODEX_THREAD_ID -u CODEX_SESSION_ID bash -c "$SNIPPET" >/dev/null 2>&1 )
+if [ -e "$T5/.buddy/peer-sid/recon-active" ]; then ok "control: the SKILL snippet writes the marker under Claude Code"; else bad "SKILL snippet under Claude Code" "snippet=[$SNIPPET] $(find "$T5/.buddy" -mindepth 1)"; fi
+
+rm -rf "$T" "$T2" "$T3" "$T4" "$T5"
 echo "── recon-count: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

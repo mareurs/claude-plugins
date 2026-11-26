@@ -54,6 +54,11 @@ def _session_id(root: Path) -> str | None:
     sid = os.environ.get("CLAUDE_CODE_SESSION_ID", "").strip()
     if sid:
         return sid
+    # In Codex nothing reads `.buddy/<sid>/`: its status line is a fixed list of built-in items,
+    # and the last-writer pointer below names a Claude Code session, not this one. Writing under
+    # it would put the marker into a foreign session's directory.
+    if os.environ.get("CODEX_SESSION_ID") or os.environ.get("CODEX_THREAD_ID"):
+        return None
     try:
         sid = (root / ".buddy" / ".current_session_id").read_text().strip()
     except OSError:
