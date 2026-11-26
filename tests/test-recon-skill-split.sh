@@ -169,5 +169,16 @@ else
   bad "references/ dir" "missing or renamed — pre-tool-guard exempts this exact path shape"
 fi
 
+# 8. The freshness law's binary-grep recipe states its bound: it answers the build axis only for a
+#    new string literal, and a 0 on a stripped binary proves nothing for an identifier (bug
+#    2026-11-24, "the binary-grep freshness recipe holds for string literals only").
+FRESH="$(grep -F 'Freshness is a property of the copy that SERVES you' "$REFS/seam-classes.md")"
+if printf '%s' "$FRESH" | grep -qF 'only for a change that adds a new string literal' \
+   && printf '%s' "$FRESH" | grep -qF 'stripped'; then
+  ok "freshness law bounds the binary-grep recipe to string literals and names the stripped case"
+else
+  bad "freshness law bounds the binary-grep recipe" "the grep -c recipe in seam-classes.md lost its applicability bound"
+fi
+
 echo "── recon-skill-split: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
