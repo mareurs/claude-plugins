@@ -690,3 +690,59 @@ for (const [name, tool, input, text] of [
     expect(median(times)).toBeLessThan(BUDGET_MS)
   })
 }
+
+test('box list renders titles in pending and finished cards and opens the original output', () => {
+  const input = { command: 'codescout box bugs list --status open' }
+  const stdout = '2026-11-26-sample  open  low  Sample bug\n1 live of 2 entries; 1 terminal and 0 archived are not shown (--all)\n'
+  const card = buildCard(P + 'run_command', input, text(JSON.stringify({ exit_code: 0, stdout })))
+  expect(pendingCard(P + 'run_command', input).title).toBe('◆ box · list  bugs')
+  expect(card?.title).toBe('◆ box · list  bugs')
+  expect(card?.command).toBeUndefined()
+  expect(card?.body).toEqual({ kind: 'text', head: ['Sample bug  ·  open · low'] })
+  expect(card?.result).toContain('1 live of 2 entries')
+  expect(card?.full).toBe(stdout)
+  expect(card?.openable).toBe(true)
+})
+
+test('box find shows JSON matches and preserves a quoted query', () => {
+  const input = { command: '/opt/bin/codescout box --json bugs find "settings | profiles"' }
+  const stdout = JSON.stringify({ shown: true, searched: 3, hits: [{ title: 'Profile settings', status: 'open', line: 16, match: 'A marker file' }] })
+  const card = buildCard(P + 'run_command', input, text(JSON.stringify({ exit_code: 0, stdout })))
+  expect(card?.title).toBe('◆ box · find  bugs')
+  expect(card?.params).toContain('settings | profiles')
+  expect(card?.body).toEqual({ kind: 'text', head: ['Profile settings  ·  open', '  L16: A marker file'] })
+  expect(card?.result).toBe('1 match · 3 searched')
+})
+
+test('box root shows its directory and a custom verb displays stdout', () => {
+  const card = (command: string, stdout: string) => buildCard(P + 'run_command', { command }, text(JSON.stringify({ exit_code: 0, stdout })))
+  expect(card('codescout box', 'core: list\nruntime (ledger): 8 of 18 hot\nboxes:\n  bugs (ledger) 3 hot\n  runtime (box) 2 collections\n    recon (stream) 1 hot\nverbs: list\nstate: main\n')?.body).toEqual({
+    kind: 'text', head: ['  bugs (ledger) 3 hot', '  runtime (box) 2 collections', '    recon (stream) 1 hot'],
+  })
+  expect(card('codescout box frictions recent', 'Recent friction\n')?.body).toEqual({ kind: 'text', head: ['Recent friction'] })
+  expect(pendingCard(P + 'run_command', { command: 'codescout box frictions recent' }).title).toBe('◆ box · recent  frictions')
+  expect(pendingCard(P + 'run_command', { command: 'codescout box bugs list | head' }).title).toBe('◆ run_command')
+})
+
+test('a box failure keeps the box title and displays the exit code and error', () => {
+  const card = buildCard(P + 'run_command', { command: 'codescout box bugs close missing' }, text(JSON.stringify({ exit_code: 2, stderr: 'NOT DONE — no such entry\n' })))
+  expect(card?.title).toBe('◆ box · close  bugs')
+  expect(card?.isMutating).toBe(true)
+  expect(card?.result).toBe('Exit 2')
+  expect(card?.body).toEqual({ kind: 'text', head: ['NOT DONE — no such entry'] })
+})
+
+test('a global box search shows the source collection and match excerpt', () => {
+  const stdout = 'bugs  2026-11-26-sample  open  A  sample title\n  L16: marker file\n1 of 49 live entries of 8 boxes hold "marker file"\n'
+  const card = buildCard(P + 'run_command', { command: 'codescout box find "marker file"' }, text(JSON.stringify({ exit_code: 0, stdout })))
+  expect(card?.body).toEqual({ kind: 'text', head: ['A  sample title  ·  open · bugs', '  L16: marker file'] })
+  expect(card?.result).toContain('1 of 49 live entries')
+})
+
+test('box show puts the title, status and current section first and keeps the path on open', () => {
+  const stdout = '2026-11-26-sample  [open since 2026-11-26]  bug\nSample bug\npath: docs/boxes/bugs/sample.md\n\n## Now\nWaiting on a run.\n'
+  const card = buildCard(P + 'run_command', { command: 'codescout box bugs show 2026-11-26-sample' }, text(JSON.stringify({ exit_code: 0, stdout })))
+  expect(card?.body).toEqual({ kind: 'text', head: ['Sample bug  ·  open since 2026-11-26 · bug', '', '## Now', 'Waiting on a run.'] })
+  expect(card?.full).toBe(stdout)
+  expect(card?.openable).toBe(true)
+})

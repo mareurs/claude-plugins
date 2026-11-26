@@ -445,3 +445,20 @@ for (const [name, tokens, color] of [
     await ui.unmount()
   })
 }
+
+test('a box list shows entry titles and opens the unabridged CLI output', async $ => {
+  const stdout = '2026-11-26-sample  open  high  Sample bug\n1 live of 2 entries; 1 terminal and 0 archived are not shown (--all)\n'
+  const ui = await mount($, {
+    tool_use_id: 'box-list',
+    tool: 'mcp__codescout__run_command',
+    input: { command: 'codescout box bugs list' },
+    output: text(JSON.stringify({ exit_code: 0, stdout })),
+  })
+
+  expect(await ui.find({ type: 'Text', text: '◆ box · list  bugs' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'Sample bug  ·  open · high' })).toBeDefined()
+  expect(await ui.find({ type: 'Code' })).toBeUndefined()
+  await ui.press({ key: 'toggle' })
+  expect((await ui.find({ type: 'Code' }))?.text).toContain('2026-11-26-sample')
+  await ui.unmount()
+})

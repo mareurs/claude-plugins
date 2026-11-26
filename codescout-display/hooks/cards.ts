@@ -446,15 +446,182 @@ function resultOf(text: string): string | undefined {
   return stripControl(text).split('\n').find(line => line.trim() !== '')?.slice(0, 120)
 }
 
+
+const BOX_ROOT_VERBS = new Set('add check close decisions edit end find flush help list migrate new now promote reaffirm show supersede timeline'.split(' '))
+const BOX_WRITE_VERBS = new Set('add admit close edit end flush new now promote reaffirm supersede'.split(' '))
+
+// Recognize a single CLI invocation. Quoted arguments can contain shell punctuation.
+function boxCall(command: unknown): { action: string; box?: string; args?: string } | undefined {
+  if (typeof command !== 'string' || !command.includes('codescout')) return undefined
+  const word = /(?:[^ \t\r\n'"\\|&;^<>#\x60$(){}*?\[\]!]+|'[^'\r\n]*'|"[^"\r\n\\\x60$!]*"|\\[^\r\n])+/y
+  const words: string[] = []
+  const source = command.trim()
+  let offset = 0
+  while (offset < source.length) {
+    word.lastIndex = offset
+    const match = word.exec(source)
+    if (!match) return undefined
+    words.push(match[0].replace(/'([^']*)'|"([^"]*)"|\\(.)/g, (_part, single, double, escaped) => single ?? double ?? escaped))
+    offset = word.lastIndex
+    if (offset < source.length && !/[ \t]/.test(source[offset])) return undefined
+    while (offset < source.length && /[ \t]/.test(source[offset])) offset++
+  }
+
+  const [executable, subcommand, ...args] = words
+  if (!/(^|\/)codescout$/.test(executable ?? '') || subcommand !== 'box') return undefined
+  let index = 0
+  let project: string | undefined
+  while (args[index]?.startsWith('-')) {
+    const option = args[index++]
+    if (option === '--help' || option === '-h') return { action: 'help' }
+    if (option === '--json') continue
+    if (option === '--') break
+    if (option.startsWith('--project=')) project = option.slice('--project='.length)
+    else if (option === '--project' && args[index] !== undefined) project = args[index++]
+    else return undefined
+  }
+
+  const key = args[index++]
+  const rootVerb = BOX_ROOT_VERBS.has(key)
+  const box = rootVerb ? undefined : key
+  const verb = rootVerb ? key : (args[index++] ?? 'open')
+  const action = verb === '--help' || verb === '-h' ? 'help' : verb
+  const detail = [project && 'project=' + project, ...args.slice(index)].filter(Boolean).join(' ')
+  return { action, box, args: detail || undefined }
+}
+
+function boxHeader(call: NonNullable<ReturnType<typeof boxCall>>) {
+  return { ...headerOf('box', call, undefined), isMutating: BOX_WRITE_VERBS.has(call.action) }
+}
+
+function boxRecord(text: string): Record<string, unknown> {
+  try {
+    return recordOf(JSON.parse(text))
+  } catch {
+    return {}
+  }
+}
+
+function boxEntry(title: string, details: unknown[]): string {
+  const fields = details.filter(field => typeof field === 'string' && field !== '')
+  return fields.length ? title + '  ·  ' + fields.join(' · ') : title
+}
+
+function boxPreview(action: string, output: string, boxKey?: string): { lines: string[]; result?: string } {
+  const data = boxRecord(output)
+  const rows = action === 'list' ? data.entries : action === 'find' ? data.hits : undefined
+  if (Array.isArray(rows)) {
+    const lines = rows.flatMap(value => {
+      const entry = recordOf(value)
+      if (typeof entry.title !== 'string') return []
+      const rank = Array.isArray(entry.rank) ? entry.rank : []
+      const title = boxEntry(entry.title, [entry.status, ...rank, entry.box])
+      return typeof entry.match === 'string' && typeof entry.line === 'number'
+        ? [title, '  L' + entry.line + ': ' + entry.match]
+        : [title]
+    })
+    const count = rows.length
+    const omitted = recordOf(action === 'list' ? data.hidden : data.not_searched)
+    const excluded = [
+      typeof omitted.terminal === 'number' && omitted.terminal + ' terminal',
+      typeof omitted.archived === 'number' && omitted.archived + ' archived',
+    ].filter(Boolean)
+    const totals = action === 'list' ? count + (count === 1 ? ' entry' : ' entries') : count + (count === 1 ? ' match' : ' matches')
+    const searched = typeof data.searched === 'number' ? ' · ' + data.searched + ' searched' : ''
+    return { lines, result: totals + searched + (excluded.length ? ' · ' + excluded.join(', ') + ' omitted' : '') }
+  }
+
+  if (action === 'show' && typeof data.title === 'string') {
+    const title = boxEntry(data.title, [data.status, data.kind])
+    return { lines: typeof data.text === 'string' && data.text ? [title, ...linesOf(data.text)] : [title] }
+  }
+
+  if (action === 'open' && Array.isArray(data.collections)) {
+    return { lines: data.collections.map(value => {
+      const collection = recordOf(value)
+      const hot = typeof collection.hot === 'number' ? collection.hot + ' hot' : undefined
+      return boxEntry(String(collection.address ?? collection.key ?? ''), [collection.lifecycle, hot, collection.summary])
+    }) }
+  }
+
+  const lines = linesOf(output)
+  if (action === 'open') {
+    const start = lines.indexOf('boxes:')
+    if (start >= 0) {
+      const end = lines.findIndex((line, index) => index > start && !line.startsWith('  '))
+      return { lines: lines.slice(start + 1, end === -1 ? undefined : end) }
+    }
+    const hot = lines.findIndex(line => line.startsWith('hot view:'))
+    if (hot >= 0) {
+      const verbs = lines.find(line => line.startsWith('own verbs:'))
+      const entries = lines.slice(hot + 1).filter(line => line.startsWith('- [['))
+      return { lines: [lines[hot], ...entries.map(line => line.replace(/^- \[\[[^\]]+\]\] /, '')), ...(verbs ? [verbs] : [])] }
+    }
+  }
+
+  if (action === 'list' || action === 'find') {
+    const result = lines.find(line => /^\d+ (?:live of|of|entries?\b)/.test(line))
+    return {
+      lines: lines.filter(line => line !== result).map(line => {
+        const parts = line.split(/ {2,}/)
+        if (/^\s/.test(line)) return line
+        const source = action === 'find' && !boxKey ? parts.shift() : undefined
+        const [key, status, ...rest] = parts
+        if (!status || !rest.length || !/^\S+$/.test(key)) return line
+        if (action === 'find') return boxEntry(rest.join('  '), [status, source])
+        const title = rest.pop()!
+        return boxEntry(title, [status, ...rest])
+      }),
+      result,
+    }
+  }
+
+  if (action === 'show') {
+    const entry = lines[0]?.match(/^\S+ {2,}\[(.+?)\](?: {2,}(.+))?$/)
+    if (entry && lines[1]) {
+      const body = lines.slice(lines[2]?.startsWith('path: ') ? 3 : 2)
+      return { lines: [boxEntry(lines[1], entry.slice(1)), ...body] }
+    }
+  }
+
+  const summary = summarize(output)
+  return { lines: summary ? [summary.line] : lines }
+}
+
+function boxDraft(call: NonNullable<ReturnType<typeof boxCall>>, input: unknown, reply: Reply): Omit<Card, 'openable'> {
+  const response = boxRecord(reply.text)
+  const { exit_code: exit, stdout, stderr, ...metadata } = response
+  const output = typeof exit === 'number'
+    ? [stdout, stderr].filter((value): value is string => typeof value === 'string' && value !== '').map(stripControl).join('\n')
+    : reply.text
+  const failed = typeof exit === 'number' && exit !== 0
+  const preview = boxPreview(failed ? '' : call.action, output, call.box)
+  const lines = preview.lines.map(stripControl)
+  const folded = foldLines(lines)
+  const hasMetadata = typeof exit === 'number' && Object.keys(metadata).length > 0
+  const full = hasMetadata ? reply.text : output
+  return {
+    ...boxHeader(call),
+    body: { kind: 'text', head: folded.head.map(cut) },
+    result: failed ? 'Exit ' + exit : preview.result ?? (output ? undefined : 'No output'),
+    hidden: folded.hidden,
+    full: cap(full),
+    notes: reply.notes,
+    isCut: full.trimEnd() !== lines.map(cut).join('\n'),
+    tokens: tokensOf(input, reply),
+  }
+}
+
 // The frame of a call whose output does not exist yet: the header and the command are known from the input alone.
 // Drawing it from the first render keeps the border where it is when the tool ends, so the row does not swap
 // from the engine's row to a card. `input` may be empty (the first render of a call) or absent.
 export function pendingCard(tool: string, input: unknown): Card {
   const name = tool.startsWith(PREFIX) ? tool.slice(PREFIX.length) : tool
-  const command = name === 'run_command' ? commandOf(recordOf(input).command) : undefined
+  const box = name === 'run_command' ? boxCall(recordOf(input).command) : undefined
+  const command = name === 'run_command' && !box ? commandOf(recordOf(input).command) : undefined
 
   return {
-    ...headerOf(name, input, command),
+    ...(box ? boxHeader(box) : headerOf(name, input, command)),
     body: { kind: 'text', head: [] },
     hidden: 0,
     notes: [],
@@ -471,6 +638,9 @@ function draft(tool: string, input: unknown, output: unknown): Omit<Card, 'opena
 
   const name = tool.startsWith(PREFIX) ? tool.slice(PREFIX.length) : tool
   const fields = recordOf(input)
+  const box = name === 'run_command' ? boxCall(fields.command) : undefined
+  if (box) return boxDraft(box, input, reply)
+
   const path = typeof fields.path === 'string' ? stripControl(fields.path) : undefined
   const command = name === 'run_command' ? commandOf(fields.command) : undefined
   const header = headerOf(name, input, command)
