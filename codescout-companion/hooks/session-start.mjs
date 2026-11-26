@@ -189,6 +189,20 @@ function sessionMayHaveSkillTool() {
 
 let msg = '';
 
+// Post-compact LSP flush. It leads the payload on purpose: Claude Code cuts a hook payload of
+// about 10 KB or more to a 2 KB preview, and the memory list, hot view and notes below push a
+// block placed last past that cut (measured 2026-11-26: block at char 13,292 of 14,260).
+if (source === 'compact') {
+  msg += `POST-COMPACT: Context was just compacted.
+→ Call workspace(post_compact=true) as your FIRST action to flush stale LSP position caches.
+   The first navigation call after it (symbol_at, references) pays the language-server
+   start, unless another session in this workspace is already holding it warm — the
+   server is shared per workspace, not per session. If that call stalls or times out,
+   re-run it.
+
+`;
+}
+
 // Project bootstrap nudge — fresh-session only (skipped in worktrees + on
 // resume/compact/clear). Claude Code's `source` enum is {startup, resume,
 // clear, compact}; other clients (e.g. GitHub Copilot's SessionStart-equivalent
@@ -418,18 +432,6 @@ If the tools are deferred, load them with ToolSearch (select:mcp__codescout__<to
 If tools are unavailable, the MCP server failed to connect (check \`claude mcp list\`).
 
 `;
-
-// Post-compact LSP flush.
-if (source === 'compact') {
-  msg += `POST-COMPACT: Context was just compacted.
-→ Call workspace(post_compact=true) as your FIRST action to flush stale LSP position caches.
-   The first navigation call after it (symbol_at, references) pays the language-server
-   start, unless another session in this workspace is already holding it warm — the
-   server is shared per workspace, not per session. If that call stalls or times out,
-   re-run it.
-
-`;
-}
 
 // Worktree reminder (resumed inside a worktree) + ensure .codescout symlink.
 if (inWorktree) {

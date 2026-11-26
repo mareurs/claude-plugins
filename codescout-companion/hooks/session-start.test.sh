@@ -464,6 +464,15 @@ echo "$COMPACT" | grep -q "shared per workspace, not per session" \
   && pass "post-compact names the condition that removes the cost" \
   || fail "post-compact block does not name the warm-server condition"
 
+# Position. Claude Code cuts a hook payload of about 10 KB or more to a 2 KB preview. On
+# 2026-11-26 a real compact payload was 14,260 chars with the POST-COMPACT block at char 13,292,
+# so the model saw none of it and made no workspace(post_compact=true) call. The compaction
+# instruction is the one thing this event exists to deliver: it must lead.
+case "$COMPACT" in
+  "POST-COMPACT: "*) pass "compact → the post-compact block leads the payload" ;;
+  *) fail "compact → the post-compact block does not lead; a payload cut to a 2 KB preview loses it" ;;
+esac
+
 # The regression this exists to catch: the block used to end "LSP clients restart
 # lazily — no disruption to the session." The restart is lazy, so the first nav
 # call pays the start; on a large crate that has exceeded the 60s tool timeout.
