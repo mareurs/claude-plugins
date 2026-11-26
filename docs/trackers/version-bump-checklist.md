@@ -14,9 +14,9 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-### Current release verification — 2026-11-26 (codescout-companion 1.23.11)
+### Current release verification — 2026-11-26 (session-bridge 0.4.4)
 
-Released with `NO_PUSH=1` and the full test gate: `32b8774`, cached in 4 of 4 profiles, parity holds. It ships two settings moved to marker files in the profile directory: `codescout-companion-scribe-nudge-off` (`36d075d`) and `codescout-companion-privacy-off` for export-feedback (`a9ffe01`); the env vars `CS_SCRIBE_NUDGE` and `CS_PRIVACY` are no longer read. Step 4.6: `codex plugin add` seeded cache 1.23.11 and renewed 27 hooks; a second pass reads 27 `trusted`, 0 to renew, 0 to review. Outside the repo: the four Claude Code profiles lost `env.CS_PRIVACY` (backups `settings.json.before-privacy-marker-20261126`) and gained the `privacy-off` marker, so export-feedback stays raw on this machine. Not verified: a running session on 1.23.11 (cold restart for Claude Code, a new session for Codex), and an export run from the cached skill.
+Released with `NO_PUSH=1` and the full test gate: `548140b`, cached in 4 of 4 profiles, parity holds, binary 0.4.4 in `~/.cargo/bin`. The daily ask bound is the file `session-bridge-ask-bound-usd` in the profile directory (`b426d22`); `SESSION_BRIDGE_ASK_BOUND_USD` is no longer read. Step 4.6: `codex plugin add` seeded cache 0.4.4; 5 hooks renewed, then 5 `trusted`, 0 to renew, 0 to review. Outside the repo: the four Claude Code profiles lost `env.SESSION_BRIDGE_ASK_BOUND_USD` (backups `settings.json.before-askbound-marker-20261126`) and hold the file with `off`. Not verified: a running session on 0.4.4 (a live server keeps the old binary and env until it restarts), and an ask refused or allowed by the file in a live session.
 
 ### Current release verification — 2026-11-26 (session-bridge 0.4.1)
 
