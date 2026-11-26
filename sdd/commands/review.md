@@ -15,9 +15,9 @@ sdd has no `.codex-plugin/` folder).
 Global rules, as JSON: `codescout constitution-check --project .`. To see every rule,
 path-scoped ones included:
 
-```python
-doc(action="find", kind="tracker", filter={"tags": {"contains": "constitution"}})
-doc(action="get", id="<constitution id>", entry_filter={"status": {"eq": "active"}})
+```bash
+codescout box constitution list
+codescout box constitution show <entry>
 ```
 
 ## 2. Read the drift verdict
@@ -35,7 +35,7 @@ first.
 
 For every active rule, look at the diff of the feature branch against the base branch and
 decide: kept, violated, or not applicable. Quote the evidence for each violation. Show the
-user a table: rule id, title, verdict, evidence.
+user a table: rule key, title, verdict, evidence.
 
 `outcome` is `go` only if no rule is violated. `drift_outcome` is the verdict's
 `payload.gate`.

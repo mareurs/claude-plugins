@@ -1,10 +1,10 @@
 ---
-description: Set up strict SDD in this project, with its config and a constitution tracker
+description: Set up strict SDD in this project, with its config and a constitution box
 ---
 
 # /sdd-init
 
-Sets a project up for strict SDD. It never commits: the user reviews and commits.
+Sets a project up for strict SDD. It commits no config and no readme: the user reviews and commits those. `codescout box add` commits each rule file itself.
 
 ## 1. Ask
 
@@ -20,24 +20,42 @@ turns the sdd hooks on for the project.
 
 ## 3. Create the constitution
 
-Fetch the exact shape first: `librarian(action="tracker_design", archetype="constitution")`.
-Read `${CLAUDE_PLUGIN_ROOT}/templates/constitution/base.md` (if `${CLAUDE_PLUGIN_ROOT}` is still an
+The constitution is the box `constitution`: one entry per rule. Read
+`${CLAUDE_PLUGIN_ROOT}/templates/constitution/base.md` (if `${CLAUDE_PLUGIN_ROOT}` is still an
 unexpanded `${...}` placeholder, use the folder of this plugin that contains `templates/`; sdd
 has no `.codex-plugin/` folder) and, for kotlin or python, the
 stack file next to it. Each has a JSON list of rules (articles I to VI are global, with no
-`paths`; VII and VIII may carry `paths`) and one `## C-N` section per rule.
+`paths`; VII and VIII carry `paths`) and one `## <title>` section per rule.
 
-Use `find` first (tags `constitution`) so you do not create a second constitution. Then
-create the tracker with every rule from the list, and the `## C-N` sections as its body:
+Run `codescout box` first. If it lists `constitution`, do not make a second box: add only
+the rules that its `codescout box constitution list` lacks. Otherwise make the box once, and
+show the user the `git add` and `git commit` lines that it prints, without running them:
 
-```python
-doc(action="create", kind="tracker", status="active", tags=["constitution", "sdd"],
-    title="Constitution", rel_path="docs/trackers/constitution.md",
-    body="## Why this constitution exists\n\nRules for strict SDD.\n\n## Per-rule detail\n\n## C-1 — Specification first\n\nWhy, how, evidence.\n",
-    augment={"prompt": "Rules the agent must follow. Add rules with append_entry; supersede, never delete.",
-             "entry_collection": "rules",
-             "params": {"rules": [{"id": "C-1", "title": "Specification first", "rule": "No source change without an approved spec and plan.", "status": "active"}]}})
+```bash
+codescout box new constitution constitution --title "Constitution"
 ```
+
+Then file every rule with one call. The body is `**Rule:**` with the rule text, a blank line,
+and the text of the rule's section:
+
+```bash
+codescout box constitution add --kind rule --title "Specification first" --text body - <<'EOF'
+**Rule:** No source change without an approved spec and plan.
+
+Why, how, evidence.
+EOF
+```
+
+A rule with `paths` takes them as a JSON argument, after `--text body -`:
+
+```bash
+codescout box constitution add --kind rule --title "Kotlin architecture" --text body - '{"fields":{"paths":["**/*.kt","**/*.kts"]}}' <<'EOF'
+**Rule:** Dependencies point inward.
+EOF
+```
+
+A rule is never deleted. To replace one, file the new rule and close the old one with
+`codescout box constitution close <entry> superseded --text reason -`.
 
 ## 4. CLAUDE.md section (optional)
 

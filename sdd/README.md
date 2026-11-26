@@ -8,7 +8,7 @@ branch. It does not replace superpowers or codescout; it is a thin layer on top 
 
 - `codescout-companion`: the `spec-drift` skill, and the codescout MCP server it wraps.
 - `superpowers`: brainstorming, writing-plans, subagent-driven-development and the rest.
-- `codescout`: the document catalog (specs, plans, events) and the constitution tracker.
+- `codescout`: the document catalog (specs, plans, events) and the constitution box.
 
 ## Install
 
@@ -26,7 +26,7 @@ Then, in the project:
 ```
 
 This writes `.sdd/config.json` (its presence turns the hooks on) and creates the constitution
-tracker. It never commits.
+box. It commits no config and no readme; `codescout box add` commits each rule file.
 
 ## The flow
 
@@ -56,7 +56,7 @@ agent through these steps.
 
 | Name | Purpose |
 |---|---|
-| `/sdd-init` | Config, constitution tracker, optional CLAUDE.md section |
+| `/sdd-init` | Config, constitution box, optional CLAUDE.md section |
 | `/review` | Constitution and drift check; writes the GO or NO-GO report |
 | `/sdd:approve` | Yours only: approve a spec, a plan or a review, or mark a feature done |
 | `sdd-flow` (skill) | The nine-step guide for the agent |

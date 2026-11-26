@@ -30,9 +30,8 @@ Never edit status fields or approval records yourself. Ask the user to type the 
 
 ## Constitution
 
-The rules are a codescout constitution tracker (tag `constitution`). Read them with
-`codescout constitution-check --project .` or `doc(action="find", kind="tracker",
-filter={"tags": {"contains": "constitution"}})`.
+The rules are the entries of the codescout box `constitution`. Read them with
+`codescout constitution-check --project .` (global rules) or `codescout box constitution list`.
 
 ## Quick links
 

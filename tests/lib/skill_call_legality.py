@@ -21,6 +21,7 @@ sandbox, after a control (an undeclared `--kind`) that must be refused with exit
 from __future__ import annotations
 
 import ast
+import json
 import os
 import re
 import shlex
@@ -326,11 +327,11 @@ HYGIENE_HOOK = ROOT / "codescout-companion" / "hooks" / "session-start.mjs"
 INDENTED_BASH_RE = re.compile(r"^[ ]*```bash\n(.*?)\n[ ]*```", re.DOTALL | re.MULTILINE)
 
 
-def hygiene_blocks(prefix: str) -> list[tuple[list[str], str]]:
-    """Every fenced bash block of the tracker-hygiene SKILL.md, indented or not, that starts with
+def hygiene_blocks(prefix: str, source: Path | None = None) -> list[tuple[list[str], str]]:
+    """Every fenced bash block of the tracker-hygiene SKILL.md (or of `source`), indented or not, that starts with
     `prefix`, as (argv after `codescout`, heredoc body). A block without a heredoc has an empty body."""
     out = []
-    for raw in INDENTED_BASH_RE.findall(HYGIENE_SKILL.read_text()):
+    for raw in INDENTED_BASH_RE.findall((source or HYGIENE_SKILL).read_text()):
         block = "\n".join(line.strip() if i == 0 else line.removeprefix("  ") for i, line in enumerate(raw.split("\n")))
         if not block.startswith(prefix):
             continue
@@ -420,6 +421,68 @@ def case_hygiene_box(binary: str, env: dict, sandbox: Path) -> None:
 
 
 SPEC_DRIFT_SKILL = SKILLS / "spec-drift" / "SKILL.md"
+
+
+SDD_INIT = ROOT / "sdd" / "commands" / "sdd-init.md"
+
+
+def case_constitution_box(binary: str, env: dict, sandbox: Path) -> None:
+    """The `codescout box` lines of sdd-init, run for real, then read by `codescout constitution-check`,
+    the read that the guard and brief hooks and /review run. The writer and the reader are tested together:
+    each passes alone while the pair can disagree on a box name, a kind or a field."""
+    label = "sdd-init constitution box lines"
+    repo = sandbox / "constitutionrepo"
+    git_repo(repo)
+
+    def run(args: list[str], stdin: str = "") -> subprocess.CompletedProcess:
+        return subprocess.run([binary, *args], cwd=repo, env=env, input=stdin, text=True, capture_output=True, timeout=60)
+
+    def rules(*path: str) -> list[dict]:
+        out = run(["constitution-check", "--project", str(repo), *path]).stdout
+        try:
+            return json.loads(out)
+        except ValueError:
+            return [{"unparsed": out[:200]}]
+
+    news = hygiene_blocks("codescout box new constitution", SDD_INIT)
+    adds = hygiene_blocks("codescout box constitution add", SDD_INIT)
+    if len(news) != 1 or len(adds) != 2:
+        return bad(f"{label} extracted", f"want 1 `box new` and 2 `add` blocks, got {len(news)} and {len(adds)}")
+    ok(f"{label} extracted: 1 `box new`, 2 `add`")
+
+    made = run(news[0][0])
+    printed = re.search(r"git add (.+)", made.stdout)
+    if made.returncode != 0 or not printed:
+        return bad(f"{label}: `box new constitution constitution` makes the box", f"rc={made.returncode} out={made.stdout[:300]!r} err={made.stderr[:200]!r}")
+    ok(f"{label}: `box new constitution constitution` makes the box")
+    paths = printed.group(1).split()
+    subprocess.run(["git", "-C", str(repo), "add", "--", *paths], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "box", "--", *paths], check=True)
+
+    for where, (args, body) in zip(("global", "path-scoped"), sorted(adds, key=lambda a: len(a[0]))):
+        done = run(args, body)
+        key = done.stdout.strip().splitlines()[-1] if done.stdout.strip() else ""
+        if done.returncode != 0 or not KEY_RE.match(key):
+            bad(f"{label}: the {where} rule `add` is accepted and prints an entry key", f"rc={done.returncode} out={done.stdout[:160]!r} err={done.stderr[:200]!r}")
+        else:
+            ok(f"{label}: the {where} rule `add` is accepted and prints an entry key")
+
+    def titles(*path: str) -> list[str]:
+        return [r.get("title", r.get("unparsed", "?")) for r in rules(*path)]
+
+    check = [
+        ("constitution-check (no path) returns the global rule only", titles(), ["Specification first"]),
+        ("constitution-check --path a.kt returns the path-scoped rule", titles("--path", "src/a.kt"), ["Kotlin architecture"]),
+        ("constitution-check --path a.py returns nothing (control)", titles("--path", "src/a.py"), []),
+    ]
+    for what, got, want in check:
+        ok(f"{label}: {what}") if got == want else bad(f"{label}: {what}", f"got {got}, want {want}")
+
+    closed = run(["box", "constitution", "close", "specification-first", "superseded", "--text", "reason", "-"], "replaced\n")
+    if closed.returncode != 0:
+        return bad(f"{label}: `close <entry> superseded` is accepted", f"rc={closed.returncode} out={closed.stdout[:200]!r} err={closed.stderr[:200]!r}")
+    got = titles()
+    ok(f"{label}: a superseded rule leaves the global read") if got == [] else bad(f"{label}: a superseded rule leaves the global read", f"got {got}")
 
 
 def case_spec_drift(cs: IsolatedCodescout) -> None:
@@ -551,8 +614,7 @@ SDD_CALL_RE = re.compile(r'doc\(\s*action\s*=\s*"(%s)"' % "|".join(SDD_ACTIONS))
 
 def case_sdd_calls(cs: IsolatedCodescout) -> None:
     """Every doc(...) call that sdd's commands and skill spell out is accepted, with the <placeholder>
-    ids filled, and does what the text says: the constitution create lands and is found by its tag, its
-    entries are readable through entry_filter, a note and a verdict event read back through event_list."""
+    ids filled, and does what the text says: a note and a verdict event read back through event_list."""
     calls: list[tuple[str, dict]] = []
     for path in SDD_FILES:
         text = path.read_text()
@@ -594,8 +656,7 @@ def case_sdd_calls(cs: IsolatedCodescout) -> None:
     def check(hit: bool, label: str, text: str) -> None:
         ok(label) if hit else bad(label, text[:200])
 
-    # create first: it makes <constitution id>
-    for label, call in sorted(calls, key=lambda c: c[1]["action"] != "create"):
+    for label, call in calls:
         call = dict(call)
         placeholder = str(call.get("id", ""))
         if placeholder.startswith("<"):
@@ -609,16 +670,8 @@ def case_sdd_calls(cs: IsolatedCodescout) -> None:
             continue
         ok(f"{label}: {call['action']} call is accepted")
         act = call["action"]
-        if act == "create":
-            ids["<constitution id>"] = reply.payload["id"]
-            made.append(reply.payload["id"])
-        elif act == "find" and call.get("filter", {}).get("tags", {}).get("contains") == "constitution":
-            check(ids.get("<constitution id>", "?") in reply.text,
-                  f"{label}: find by tag constitution returns the created tracker", reply.text)
-        elif act == "find" and call.get("kind") == "spec":
+        if act == "find" and call.get("kind") == "spec":
             check(ids["<spec id>"] in reply.text, f"{label}: find by tag sdd returns the fixture spec", reply.text)
-        elif act == "get" and "entry_filter" in call:
-            check('"C-1"' in reply.text, f"{label}: entry_filter returns the rule rows", reply.text)
         elif act == "event_list":
             gates = re.findall(r'"gate":\s*"(go|no-go)"', reply.text)
             check(gates[:2] == ["go", "no-go"],
@@ -648,6 +701,7 @@ def main() -> int:
             covered = case_prescribed_exemplars(cs)
             case_recon_box(binary, cs.env, sandbox)
             case_hygiene_box(binary, cs.env, sandbox)
+            case_constitution_box(binary, cs.env, sandbox)
             case_spec_drift(cs)
             case_spec_drift_finds(cs)
             case_sdd_calls(cs)
