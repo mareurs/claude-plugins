@@ -35,6 +35,15 @@ git clone https://github.com/mareurs/claude-plugins && cd claude-plugins
 opencode service restart                   # the background service caches plugin code
 ```
 
+### Updating and git worktrees (Claude Code)
+
+`claude plugin update` changes one install scope per run ([docs](https://code.claude.com/docs/en/plugins/install.md)), and a `local` or `project` install has one record per project directory. If you work in git worktrees, a worktree that you later delete can leave a record on an old version. Two habits avoid it:
+
+- Install with `--scope user` (`claude plugin install <plugin>@sdd-misc-plugins --scope user`). A user-scope record has no `projectPath` and covers every project and worktree.
+- After an update, run `claude plugin list` and check that each plugin shows the version you expect.
+
+Whether Claude Code creates a record for each new worktree path, and whether it prunes records of deleted paths, is not documented; the habits above do not depend on either.
+
 ## Available Plugins
 
 | Plugin | Version | Description |
