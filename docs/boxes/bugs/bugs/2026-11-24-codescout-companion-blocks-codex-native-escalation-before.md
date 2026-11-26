@@ -271,10 +271,10 @@ The Codex adapter half lives in the Codex repository (`5eedcdc543`, as recorded 
 
 ## Now
 
-On this workstation, a fresh shell resolves `codex` through `~/.local/bin/codex` to the patched CLI in `~/.local/share/codex-patched/0.171.0-native-approval-18f9e466/bin/codex`. The local Rust dev build is based on the official `rust-v0.171.0` commit `ccf9be8cc458bd6b8336fe84d68d8893f2691a5e`. The executable SHA-256 is `b783300bdcebe39b708fe2b9ccf01e6d92875f01342edebfe658b8df3ecbc557`. The package receipt records the prior link and the hashes of the binary and matching Arch helpers. The install and link rollback were rehearsed in a temporary directory before activation.
+On this workstation, a fresh shell now resolves `codex` to `/usr/bin/codex` from Arch package `openai-codex 0.171.0-1`. At the operator's request, the previous CLI link was restored and the temporary user-local package was removed after its last process exited. The operator plans to handle installation through Arch.
 
-The installed link passed a real nested execution probe with the unchanged Companion guard, an isolated Codex profile and a local mock Responses server. Each escalated call reached exactly one native approval request. Accept created the temporary marker and decline left it absent. An ordinary call stayed guard-blocked. The `/usr/bin/codex` comparator dropped `sandbox_permissions` and produced zero approval requests with the same fixture. The system binary is available at that absolute path for fallback.
+Before removal, the user-local build of the official `rust-v0.171.0` commit `ccf9be8cc458bd6b8336fe84d68d8893f2691a5e` passed a real nested execution probe with the Companion guard, an isolated Codex profile and a local mock Responses server. Each escalated call reached exactly one native approval request. Accept created the temporary marker and decline left it absent. An ordinary call stayed guard-blocked. The `/usr/bin/codex` comparator dropped `sandbox_permissions` and produced zero approval requests with the same fixture.
 
 The [0.171.0 source patch](../../../patches/2026-11-26-codex-0.171.0-native-approval-hook-payload.patch) has SHA-256 `18f9e466dee85549473aaff0d5b3bd4722d247094e1d95b7106a6c0d25263097`. Apply and reverse byte checks passed on the four original files. The regression failed on the missing approval metadata before the production hunk was applied. After application, all three focused unit tests, all 101 hooks integration tests and all 11 Companion routing fixtures passed.
 
-Local CLI delivery is verified. Upstream stock delivery remains open. Related residual is `stock-codex-adapter-release-and-install-in-the-six-real`.
+Delivery through Arch remains open. Related residual is `stock-codex-adapter-release-and-install-in-the-six-real`.
