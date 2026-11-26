@@ -190,12 +190,30 @@ pub fn spent_today(log: &Path, asker: &str, today: NaiveDate) -> f64 {
         .filter_map(|v| v["cost_usd"].as_f64())
         .sum()
 }
-/// The environment variable that sets the daily ask bound in USD, or `off` to remove it.
-pub const BOUND_ENV: &str = "SESSION_BRIDGE_ASK_BOUND_USD";
+/// The marker file in the profile directory that sets the daily ask bound in USD, or `off` to
+/// remove it. Its content is one trimmed line; no file means the default.
+pub const BOUND_ENV: &str = "session-bridge-ask-bound-usd";
+
+/// Content of the bound file in the first profile directory that has one: `$CLAUDE_CONFIG_DIR`
+/// (default `~/.claude`), then `$CODEX_HOME` (default `~/.codex`). The server cannot always tell
+/// which host started it, so it looks in both.
+pub fn bound_file_content(claude_dir: Option<&Path>, codex_dir: Option<&Path>) -> Option<String> {
+    [claude_dir, codex_dir]
+        .into_iter()
+        .flatten()
+        .find_map(|d| std::fs::read_to_string(d.join(BOUND_ENV)).ok())
+}
+
+fn profile_dir(var: &str, default: &str) -> Option<std::path::PathBuf> {
+    std::env::var_os(var)
+        .filter(|v| !v.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(default)))
+}
 
 /// The daily ask bound in force: `Some(bound)`, or `None` when it is switched off.
 ///
-/// `SESSION_BRIDGE_ASK_BOUND_USD` unset or empty gives `DAILY_BOUND_USD`; `off` (any case) gives
+/// The bound file (`BOUND_ENV`, read through `env`) absent or empty gives `DAILY_BOUND_USD`; `off` (any case) gives
 /// `None`; a finite number above zero gives that number. Any other value is a typo, and a typo
 /// must not remove the bound: it gives `DAILY_BOUND_USD` and a note.
 pub fn daily_bound(env: &dyn Fn(&str) -> Option<String>) -> Option<f64> {
@@ -211,7 +229,7 @@ pub fn daily_bound(env: &dyn Fn(&str) -> Option<String>) -> Option<f64> {
         Ok(v) if v.is_finite() && v > 0.0 => Some(v),
         _ => {
             crate::diag::note(&format!(
-                "{BOUND_ENV}={raw:?} is not a positive number or `off`; using {DAILY_BOUND_USD} USD"
+                "{BOUND_ENV} holds {raw:?}, not a positive number or `off`; using {DAILY_BOUND_USD} USD"
             ));
             Some(DAILY_BOUND_USD)
         }
@@ -380,7 +398,7 @@ fn log_entry(
 /// Fork `target`'s session, ask it `question`, return the answer with its cost.
 ///
 /// Refused before any spawn when `asker` has spent the daily bound or more today; the bound is
-/// `DAILY_BOUND_USD` unless `SESSION_BRIDGE_ASK_BOUND_USD` changes or switches it off
+/// `DAILY_BOUND_USD` unless the file `session-bridge-ask-bound-usd` changes or switches it off
 /// (see `daily_bound`). The child is killed on timeout and on drop.
 pub async fn ask(
     bin: &str,
@@ -391,7 +409,9 @@ pub async fn ask(
     timeout_s: u64,
     state: &Path,
 ) -> Result<AskResult> {
-    let bound = daily_bound(&|k| std::env::var(k).ok());
+    let claude = profile_dir("CLAUDE_CONFIG_DIR", ".claude");
+    let codex = profile_dir("CODEX_HOME", ".codex");
+    let bound = daily_bound(&|_| bound_file_content(claude.as_deref(), codex.as_deref()));
     ask_with_bound(bin, target, asker, question, model, timeout_s, state, bound).await
 }
 

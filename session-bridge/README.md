@@ -233,11 +233,7 @@ transcript or no record means no baseline, so the ask is counted too high and ne
 the reported total is below the baseline, the restore did not work as measured: the bridge writes
 a note to stderr and counts the whole total, so an ask is never free by accident.
 
-`SESSION_BRIDGE_ASK_BOUND_USD` changes the bound. A positive number replaces 2.0, and `off`
-removes the bound: no ask is refused, and every ask is still written to `asks.jsonl`. An empty
-value means the default. Any other value (`0`, `-1`, a typo) also means the default and writes a
-note: a typo must not switch the bound off. On a subscription the cost is a list-price figure and
-not a charge, so a person on one may set `off` in the `env` of `settings.json`.
+The file `session-bridge-ask-bound-usd` in the profile directory changes the bound (`$CLAUDE_CONFIG_DIR`, default `~/.claude`, then `$CODEX_HOME`, default `~/.codex`; the first one that has the file wins). Its content is one trimmed line. A positive number replaces 2.0, and `off` removes the bound: no ask is refused, and every ask is still written to `asks.jsonl`. No file or an empty file means the default. Any other content (`0`, `-1`, a typo) also means the default and writes a note: a typo must not switch the bound off. On a subscription the cost is a list-price figure and not a charge, so a person on one may write `off` into the file.
 
 `asks.jsonl` records every ask that started a fork and ended: answered, a fork-reported error, a
 timeout, or unreadable output. A refusal (budget, self, no match, ambiguous target, relative

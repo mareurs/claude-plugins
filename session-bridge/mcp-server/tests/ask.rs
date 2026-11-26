@@ -293,8 +293,8 @@ async fn ask_appends_to_the_log_and_reports_billed_profile() {
     assert_eq!(v["ok"], true);
 }
 
-/// `ask` with the default daily bound, whatever `SESSION_BRIDGE_ASK_BOUND_USD` the test run
-/// inherits: a person who set it to `off` in `settings.json` must still get a green suite.
+/// `ask` with the default daily bound, whatever bound file the profile of the test run holds:
+/// a person who set `off` must still get a green suite.
 async fn ask_default_bound(
     f: &Fx,
     timeout_s: u64,
@@ -524,10 +524,10 @@ fn restored_cost_comes_from_the_newest_transcript_of_the_session() {
 }
 
 #[test]
-fn the_daily_bound_comes_from_the_environment() {
+fn the_daily_bound_comes_from_the_file() {
     let with = |v: Option<&'static str>| {
         daily_bound(&move |k| {
-            (k == "SESSION_BRIDGE_ASK_BOUND_USD")
+            (k == "session-bridge-ask-bound-usd")
                 .then(|| v.map(String::from))
                 .flatten()
         })
@@ -542,6 +542,25 @@ fn the_daily_bound_comes_from_the_environment() {
     for bad in ["abc", "0", "-1", "NaN", "inf"] {
         assert_eq!(with(Some(bad)), Some(DAILY_BOUND_USD), "{bad}");
     }
+}
+
+#[test]
+fn the_bound_file_is_read_from_the_first_profile_dir_that_has_one() {
+    use session_bridge_mcp::ask::bound_file_content;
+    let a = tempfile::tempdir().unwrap();
+    let b = tempfile::tempdir().unwrap();
+    assert_eq!(bound_file_content(Some(a.path()), Some(b.path())), None);
+    std::fs::write(b.path().join("session-bridge-ask-bound-usd"), "off\n").unwrap();
+    assert_eq!(
+        bound_file_content(Some(a.path()), Some(b.path())).as_deref(),
+        Some("off\n")
+    );
+    std::fs::write(a.path().join("session-bridge-ask-bound-usd"), "5").unwrap();
+    assert_eq!(
+        bound_file_content(Some(a.path()), Some(b.path())).as_deref(),
+        Some("5")
+    );
+    assert_eq!(bound_file_content(None, None), None);
 }
 
 #[tokio::test]
