@@ -10,7 +10,7 @@ use crate::opencode_ask::ask_opencode;
 use crate::opencode_send::send_opencode;
 use crate::paths::short_profile;
 use crate::send::send_codex;
-use crate::server::{addressed_result, now_ms, post_notice_from};
+use crate::server::{addressed_result, now_ms, post_notice_from, receiver_label};
 use crate::sessions::{resolve_noted, resolve_session, split_by_repo, Session};
 use crate::state::{endpoint_path, load_or_default};
 use crate::store::advised_note;
@@ -254,7 +254,14 @@ pub fn post_notice(
         Some(t) => {
             let (profile, pid) = t.storage_id();
             let st = load_or_default(&endpoint_path(state, &profile, pid));
-            addressed_result(seq, &t.key(), &st, now_ms())
+            let claude_profile = matches!(t, Session::Claude(_)).then(|| profile.clone());
+            let receiver = receiver_label(
+                t.name(),
+                &t.key(),
+                claude_profile.as_deref(),
+                t.session_id(),
+            );
+            addressed_result(seq, &receiver, &st, now_ms())
         }
     };
     Ok(match note {

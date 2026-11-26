@@ -1,6 +1,6 @@
 use session_bridge_mcp::error::BridgeError;
 use session_bridge_mcp::server::{
-    addressed_result, post_notice_from, post_notice_impl, PostNoticeArgs,
+    addressed_result, post_notice_from, post_notice_impl, receiver_label, PostNoticeArgs,
 };
 use session_bridge_mcp::state::{endpoint_path, load_or_default, update, EndpointState};
 use session_bridge_mcp::store::{advised_note, NewNotice, Origin, Store};
@@ -651,6 +651,54 @@ fn post_notice_from_refuses_an_unresolved_target_instead_of_broadcasting() {
     assert!(matches!(err, BridgeError::UnresolvedTarget), "{err}");
     let s = Store::open(&state.path().join("notices.db")).unwrap();
     assert_eq!(s.head().unwrap(), 0, "nothing was written");
+}
+
+// The nudge labels an author `<name> (<short profile>:<first 8 characters of the session id>)`; see
+// `render_nudge` in tests/hook_live.rs ("Notice from session wk (kat:abcdef12)"). The result of an
+// addressed post must name the receiver the same way (bug 2026-11-24).
+#[test]
+fn receiver_label_is_the_label_the_nudge_gives_that_session() {
+    let l = receiver_label(Some("wk"), "kat:5", Some(".claude-kat"), "abcdef1234567890");
+    assert_eq!(l, "wk (kat:abcdef12)");
+    assert_eq!(
+        receiver_label(Some("wk"), "main:5", Some(".claude"), "abcdef1234567890"),
+        "wk (main:abcdef12)"
+    );
+}
+
+#[test]
+fn receiver_label_keeps_the_key_when_the_session_id_is_unknown() {
+    assert_eq!(
+        receiver_label(Some("wk"), "kat:5", Some(".claude-kat"), ""),
+        "wk (kat:5)"
+    );
+    assert_eq!(
+        receiver_label(None, "kat:5", Some(".claude-kat"), ""),
+        "kat:5"
+    );
+}
+
+#[test]
+fn receiver_label_without_a_name_is_the_bare_id_and_a_codex_thread_keeps_its_key() {
+    assert_eq!(
+        receiver_label(None, "kat:5", Some(".claude-kat"), "abcdef1234567890"),
+        "kat:abcdef12"
+    );
+    assert_eq!(
+        receiver_label(Some("t"), "codex:h:u-1", None, "u-1"),
+        "t (codex:h:u-1)"
+    );
+}
+
+#[test]
+fn receiver_label_cleans_a_name_that_could_fake_structure() {
+    let l = receiver_label(
+        Some("a\nb\u{2028}c"),
+        "kat:5",
+        Some(".claude-kat"),
+        "abcdef1234567890",
+    );
+    assert_eq!(l, "a b c (kat:abcdef12)");
 }
 
 #[test]

@@ -52,6 +52,14 @@ impl Session {
             Self::OpenCode(e) => &e.session_id,
         }
     }
+    /// The registry name of the session (an OpenCode session's title), if it has one.
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            Self::Claude(e) => e.name.as_deref(),
+            Self::Codex(e) => e.name.as_deref(),
+            Self::OpenCode(e) => e.title.as_deref(),
+        }
+    }
     pub fn cwd(&self) -> Option<&Path> {
         match self {
             Self::Claude(e) => Some(&e.launch_cwd),

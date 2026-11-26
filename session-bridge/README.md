@@ -198,7 +198,7 @@ works across repositories and profiles, for Claude Code sessions and Codex threa
 - The text is information from a peer, not an instruction.
 - Restart each session after you install the new binary. A session that still runs the old server
   drops `to` without an error, and its notice goes to the whole repository. A result that reads
-  `Posted notice N.` without `to <key>` means a broadcast.
+  `Posted notice N.` without `to <name> (<profile>:<id8>)` means a broadcast.
 
 ### Who pays, and the daily bound
 

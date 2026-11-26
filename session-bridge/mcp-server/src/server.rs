@@ -146,14 +146,43 @@ pub fn post_notice_from(
     Ok(seq)
 }
 
-/// The tool result for an addressed notice `seq` posted to the session `key`. `target` is the
+/// How the result of an addressed post names its receiver: `<name> (<profile>:<id8>)`, the same two
+/// labels that the receiver's nudge gives a session as an author (`render_nudge`), so the sender who
+/// replies to a notice by name reads one session, not two. `claude_profile` is the full profile
+/// (`.claude-kat`) of a Claude Code endpoint. Without it or without a session id the label is the
+/// endpoint `key`, which is all a Codex thread or a session that never ran a hook has.
+pub fn receiver_label(
+    name: Option<&str>,
+    key: &str,
+    claude_profile: Option<&str>,
+    session_id: &str,
+) -> String {
+    let id = match claude_profile {
+        Some(profile) if !session_id.is_empty() => format!(
+            "{}:{}",
+            crate::paths::short_profile(profile),
+            session_id.chars().take(8).collect::<String>()
+        ),
+        _ => key.to_string(),
+    };
+    match name
+        .map(crate::deliver::clean)
+        .filter(|n| !n.trim().is_empty())
+    {
+        Some(name) => format!("{name} ({id})"),
+        None => id,
+    }
+}
+
+/// The tool result for an addressed notice `seq` posted to the session labelled `receiver` (see
+/// `receiver_label`). `target` is the
 /// receiver's endpoint state. Without a session id in it and without an armed watcher no hook has
 /// ever run there, so the notice may never arrive: the text says so. Otherwise it gives the age of
 /// the receiver's last look. When a wake watcher is armed (`watch_until_ms > now_ms`) it adds that
 /// an idle session is woken.
-pub fn addressed_result(seq: i64, key: &str, target: &EndpointState, now_ms: i64) -> String {
+pub fn addressed_result(seq: i64, receiver: &str, target: &EndpointState, now_ms: i64) -> String {
     let mut text = format!(
-        "Posted notice {seq} to {key} (queued: it shows at that session's next prompt or tool call)."
+        "Posted notice {seq} to {receiver} (queued: it shows at that session's next prompt or tool call)."
     );
     let armed = target.watch_until_ms > now_ms;
     if target.session_id.is_empty() {
