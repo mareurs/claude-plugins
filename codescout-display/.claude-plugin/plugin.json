@@ -1,7 +1,7 @@
 {
   "name": "codescout-display",
   "description": "Claude Code mod: draws each codescout tool call as one compact card in verbose mode, with a colored diff for edits and a fold for long results.",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "author": {
     "name": "Marius"
   },
