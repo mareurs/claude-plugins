@@ -112,7 +112,17 @@ fn reset_if_recycled(roots: &Roots, path: &Path, pid: u32) {
     }
     let reset = update(path, |s| {
         if stale(s) {
+            // The wake watcher of THIS session arms from a parallel SessionStart hook and may have
+            // claimed its slot before this reset runs. A claim made after this process started
+            // (its start is `watch_until_ms - DEADLINE_MS`) cannot be the dead process's: keep it,
+            // or the watcher sees a foreign `watcher_pid`, exits, and no wake arrives until the
+            // first Stop re-arms it.
+            let (pid, until) = (s.watcher_pid, s.watch_until_ms);
+            let own_claim = pid.is_some() && until - crate::wake::DEADLINE_MS >= proc_start;
             *s = EndpointState::default();
+            if own_claim {
+                (s.watcher_pid, s.watch_until_ms) = (pid, until);
+            }
         }
     });
     match reset {

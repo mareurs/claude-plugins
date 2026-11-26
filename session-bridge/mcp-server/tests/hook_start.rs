@@ -568,6 +568,57 @@ fn stale_endpoint(e: &Env, started_ms: i64) {
     set(&e.state, STEF, "OLD", 20, 0).unwrap();
 }
 
+/// Bug 2026-11-25: the wake watcher of the NEW session claims its slot from a parallel SessionStart
+/// hook, and `reset_if_recycled` erased that claim, so the watcher exited at once. A claim made after
+/// the new process started stays; a claim of the dead process (made before the new start) goes.
+#[test]
+fn a_recycled_pid_reset_keeps_a_watcher_claim_made_after_this_process_started() {
+    let now = now_ms();
+    let started = (now - 10 * HOUR) / 10 * 10;
+    let offset = 10 * HOUR - 60_000;
+    for (claimed_after_start, who) in [
+        (true, "the new process's claim"),
+        (false, "the dead process's claim"),
+    ] {
+        let e = env();
+        stale_endpoint(&e, started);
+        let at = fake_process_start(&e, 20, "claude", started + offset);
+        let claim_at = if claimed_after_start {
+            at + 500
+        } else {
+            started + 1_000
+        };
+        assert!(session_bridge_mcp::wake::claim_watcher(
+            &endpoint_path(&e.state, STEF, 20),
+            4242,
+            claim_at
+        ));
+        session_start(
+            &input(&e.repo, "NEW", "startup"),
+            (STEF, 20),
+            &e.roots,
+            &e.state,
+            &e.store,
+        );
+        let s = load_or_default(&endpoint_path(&e.state, STEF, 20));
+        assert_eq!(s.session_id, "NEW", "{who}: the rest of the state is reset");
+        assert!(
+            s.pending.is_empty() && s.verdicts.is_empty() && s.heads.is_empty(),
+            "{who}: {s:?}"
+        );
+        if claimed_after_start {
+            assert_eq!(s.watcher_pid, Some(4242), "{who} survives the reset");
+            assert_eq!(
+                s.watch_until_ms,
+                claim_at + session_bridge_mcp::wake::DEADLINE_MS
+            );
+        } else {
+            assert_eq!(s.watcher_pid, None, "{who} is dropped with the dead state");
+            assert_eq!(s.watch_until_ms, 0);
+        }
+    }
+}
+
 #[test]
 fn a_recycled_pid_resets_the_endpoint_state_and_starts_fresh() {
     let now = now_ms();
