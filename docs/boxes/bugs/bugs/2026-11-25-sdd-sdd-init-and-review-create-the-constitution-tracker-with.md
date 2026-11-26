@@ -1,12 +1,14 @@
 ---
 kind: entry
-status: open
+status: fixed
 title: 'sdd: sdd-init and review create the constitution tracker with augmentation params, which codescout 0.15.0 refuses, so test-skill-call-legality fails and blocks release.sh'
+closed: 2026-11-26
 created: 2026-11-25
 entry_kind: bug
 log:
 - '2026-11-25 open created codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
-status_since: 2026-11-25
+- '2026-11-26 open -> fixed codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
+status_since: 2026-11-26
 ---
 
 **What happened:** `bash tests/test-skill-call-legality.sh` gives 78 passed, 3 failed (codescout 0.15.0):
@@ -23,3 +25,7 @@ The same test gave 82 passed, 0 failed earlier on 2026-11-25/26, so the binary c
 **Fix direction:** the constitution moves into a box (`codescout box constitution add`), and `sdd-init.md`, `review.md`, the constitution guard and brief hooks, and `case_sdd_calls` follow. This is a design change of the stable `sdd` plugin, not a one-line edit.
 
 **Repro:** `bash tests/test-skill-call-legality.sh 2>&1 | grep -E 'FAIL|Results'`.
+
+## Closed
+
+Fixed in a2400a1: sdd-init files the rules into the box constitution, /review reads them through constitution-check and the box, and case_constitution_box runs sdd-init's box lines against the real binary (test-skill-call-legality 85/0, no SKIP_TESTS needed). Live in sessions after the next sdd release and a cold restart.
