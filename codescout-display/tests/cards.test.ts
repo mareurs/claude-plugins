@@ -721,7 +721,7 @@ test('box root shows its directory and a custom verb displays stdout', () => {
   })
   expect(card('codescout box frictions recent', 'Recent friction\n')?.body).toEqual({ kind: 'text', head: ['Recent friction'] })
   expect(pendingCard(P + 'run_command', { command: 'codescout box frictions recent' }).title).toBe('◆ box · recent  frictions')
-  expect(pendingCard(P + 'run_command', { command: 'codescout box bugs list | head' }).title).toBe('◆ run_command')
+  expect(pendingCard(P + 'run_command', { command: 'codescout box bugs list | head' }).title).toBe('◆ box · list  bugs')
 })
 
 test('a box failure keeps the box title and displays the exit code and error', () => {
@@ -745,4 +745,62 @@ test('box show puts the title, status and current section first and keeps the pa
   expect(card?.body).toEqual({ kind: 'text', head: ['Sample bug  ·  open since 2026-11-26 · bug', '', '## Now', 'Waiting on a run.'] })
   expect(card?.full).toBe(stdout)
   expect(card?.openable).toBe(true)
+})
+
+test('a box call inside cd, assignment and output filters gets its own preview', () => {
+  const input = { command: 'cd /repo && K=$(git rev-parse HEAD); codescout box frictions show "$K" --full 2>&1 | grep -v INFO | cut -c1-1500' }
+  const stdout = 'sample  [open since 2026-11-26]  friction\nA friction\npath: docs/sample.md\n\n## Now\nStill open.\n'
+  const output = { exit_code: 0, producer_exit_code: 0, stdout, unfiltered_output: '@cmd_original' }
+  const card = buildCard(P + 'run_command', input, text(JSON.stringify(output)))
+  expect(pendingCard(P + 'run_command', input).title).toBe('◆ box · show  frictions')
+  expect(card?.body).toEqual({ kind: 'text', head: ['A friction  ·  open since 2026-11-26 · friction', '', '## Now', 'Still open.'] })
+  expect(card?.full).toContain('@cmd_original')
+})
+
+test('a batch names both box operations and preserves the shared output', () => {
+  const input = { command: 'codescout box 2>&1 | grep -v INFO; echo ---; codescout box check 2>&1 | head -30' }
+  const stdout = 'boxes:\n  bugs (ledger) 3 hot\n---\ncheck: clean\n'
+  const card = buildCard(P + 'run_command', input, text(JSON.stringify({ exit_code: 0, stdout })))
+  expect(pendingCard(P + 'run_command', input).title).toBe('◆ box · batch  open · check')
+  expect(card?.title).toBe('◆ box · batch  open · check')
+  expect(card?.body).toEqual({ kind: 'text', head: ['boxes:', '  bugs (ledger) 3 hot', '---', 'check: clean'] })
+})
+
+test('box writes with heredocs show the invocation, ignoring shell-shaped data', () => {
+  const input = { command: "cd /repo && codescout box bugs add --title 'A bug' --text body - <<'BODY'\n; codescout box fake list\nBODY" }
+  expect(pendingCard(P + 'run_command', input).title).toBe('◆ box · add  bugs')
+  expect(pendingCard(P + 'run_command', { command: "cat <<'BODY'\n; codescout box fake list\nBODY" }).title).toBe('◆ run_command')
+  expect(pendingCard(P + 'run_command', { command: "printf '%s' 'echo hi; codescout box bugs list' # codescout box bugs find" }).title).toBe('◆ run_command')
+  expect(pendingCard(P + 'run_command', { command: "cat <<'BODY' | codescout box bugs add --text body -\ntext\nBODY" }).title).toBe('◆ box · add  bugs')
+})
+
+test('a filter does not conceal a failed box producer', () => {
+  const input = { command: 'codescout box bugs list 2>&1 | head' }
+  const output = { exit_code: 0, producer_exit_code: 2, stdout: 'NOT SHOWN — missing\n' }
+  const card = buildCard(P + 'run_command', input, text(JSON.stringify(output)))
+  expect(card?.title).toBe('◆ box · list  bugs')
+  expect(card?.result).toBe('Exit 2')
+})
+
+test('semantic search shows a query, ranked source locations and snippets', () => {
+  const input = { query: 'Where is the card built?', mode: 'full' }
+  const reply = { results: [
+    { file_path: 'hooks/cards.ts', start_line: 367, end_line: 372, source: 'stack', content: '\nexport function buildCard() {\n  const card = draft()\n  return card\n}' },
+    { file_path: 'README.md', start_line: 8, end_line: 15, score: 0.92, content: 'Display documentation' },
+  ], total: 2, truncated: true }
+  const raw = JSON.stringify(reply)
+  const card = buildCard(P + 'semantic_search', input, text(raw))
+  expect(card?.title).toBe('◆ semantic_search  Where is the card built?')
+  expect(card?.body).toEqual({ kind: 'text', head: [
+    'hooks/cards.ts:367–372', '  export function buildCard() {', '    const card = draft()',
+    'README.md:8–15 · score 0.92', '  Display documentation',
+  ] })
+  expect(card?.result).toBe('2 hits · limit reached')
+  expect(card?.full).toBe(raw)
+  expect(card?.openable).toBe(true)
+})
+
+test('semantic search with no hits says so directly', () => {
+  const card = buildCard(P + 'semantic_search', { query: 'missing' }, text('{"results":[],"total":0}'))
+  expect(card?.result).toBe('0 hits')
 })

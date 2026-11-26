@@ -451,8 +451,8 @@ test('a box list shows entry titles and opens the unabridged CLI output', async 
   const ui = await mount($, {
     tool_use_id: 'box-list',
     tool: 'mcp__codescout__run_command',
-    input: { command: 'codescout box bugs list' },
-    output: text(JSON.stringify({ exit_code: 0, stdout })),
+    input: { command: 'codescout box bugs list 2>&1 | grep -v INFO | head -30' },
+    output: text(JSON.stringify({ exit_code: 0, producer_exit_code: 0, stdout, unfiltered_output: '@cmd_fixture' })),
   })
 
   expect(await ui.find({ type: 'Text', text: '◆ box · list  bugs' })).toBeDefined()
@@ -460,5 +460,24 @@ test('a box list shows entry titles and opens the unabridged CLI output', async 
   expect(await ui.find({ type: 'Code' })).toBeUndefined()
   await ui.press({ key: 'toggle' })
   expect((await ui.find({ type: 'Code' }))?.text).toContain('2026-11-26-sample')
+  await ui.unmount()
+})
+
+test('a semantic search card shows ranked paths and leaves the raw reply available', async $ => {
+  const stdout = JSON.stringify({ results: [
+    { file_path: 'hooks/cards.ts', start_line: 12, end_line: 20, content: 'first line\nsecond line\nthird line' },
+  ], total: 1 })
+  const ui = await mount($, {
+    tool_use_id: 'semantic-search',
+    tool: 'mcp__codescout__semantic_search',
+    input: { query: 'card renderer' },
+    output: text(stdout),
+  })
+
+  expect(await ui.find({ type: 'Text', text: '◆ semantic_search  card renderer' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'hooks/cards.ts:12–20' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '1 hit' })).toBeDefined()
+  await ui.press({ key: 'toggle' })
+  expect((await ui.find({ type: 'Code' }))?.text).toContain('third line')
   await ui.unmount()
 })

@@ -450,29 +450,83 @@ function resultOf(text: string): string | undefined {
 const BOX_ROOT_VERBS = new Set('add check close decisions edit end find flush help list migrate new now promote reaffirm show supersede timeline'.split(' '))
 const BOX_WRITE_VERBS = new Set('add admit close edit end flush new now promote reaffirm supersede'.split(' '))
 
-// Recognize a single CLI invocation. Quoted arguments can contain shell punctuation.
-function boxCall(command: unknown): { action: string; box?: string; args?: string } | undefined {
+// Read command heads and arguments for display. Shell values remain source text.
+function boxCall(command: unknown): { action: string; box?: string; args?: string; mixed?: boolean; writes?: boolean } | undefined {
   if (typeof command !== 'string' || !command.includes('codescout')) return undefined
-  const word = /(?:[^ \t\r\n'"\\|&;^<>#\x60$(){}*?\[\]!]+|'[^'\r\n]*'|"[^"\r\n\\\x60$!]*"|\\[^\r\n])+/y
-  const words: string[] = []
-  const source = command.trim()
+  const token = /([0-9]*(?:<<<|<<-|<<|>>|<&|>&|<>|>\||<|>))|(&&|\|\||\|&|[;|\r\n&])|(#[^\r\n]*)|((?:\$\((?:[^()'"\r\n]|'[^']*'|"(?:\\.|[^"\\])*")*\)|\x60[^\x60\r\n]*\x60|'[^']*'|"(?:\\.|[^"\\])*"|\\[^\r\n]|[^ \t\r\n'"\\|&;<>()\x60$]|\$(?!\())+)/y
+  const calls: Array<{ action: string; box?: string; args?: string; group: number }> = []
+  const activeGroups = new Set<number>()
+  let words: string[] = []
+  let group = 0
+  let redirect = false
+  let heredoc = false
   let offset = 0
-  while (offset < source.length) {
-    word.lastIndex = offset
-    const match = word.exec(source)
-    if (!match) return undefined
-    words.push(match[0].replace(/'([^']*)'|"([^"]*)"|\\(.)/g, (_part, single, double, escaped) => single ?? double ?? escaped))
-    offset = word.lastIndex
-    if (offset < source.length && !/[ \t]/.test(source[offset])) return undefined
-    while (offset < source.length && /[ \t]/.test(source[offset])) offset++
+
+  const finish = () => {
+    const start = words.findIndex(value => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(value))
+    const [executable, subcommand, ...args] = start < 0 ? [] : words.slice(start)
+    words = []
+    redirect = false
+    if (!executable || executable === 'cd') return
+    activeGroups.add(group)
+    if (!/(^|\/)codescout$/.test(executable) || subcommand !== 'box') return
+    const call = boxArguments(args)
+    if (call) calls.push({ ...call, group })
   }
 
-  const [executable, subcommand, ...args] = words
-  if (!/(^|\/)codescout$/.test(executable ?? '') || subcommand !== 'box') return undefined
+  while (offset < command.length) {
+    if (/[ \t]/.test(command.charAt(offset))) {
+      offset++
+      continue
+    }
+
+    token.lastIndex = offset
+    const match = token.exec(command)
+    if (!match) {
+      // An unsupported shell construct cannot prove what the rest of the command runs.
+      return undefined
+    }
+    offset = token.lastIndex
+
+    const [, redirection, separator, , word] = match
+    if (redirection) {
+      redirect = true
+      if (/^<<-?$/.test(redirection.replace(/^\d+/, ''))) heredoc = true
+    } else if (separator) {
+      finish()
+      // A heredoc body is data. The commands on its opening line are already known.
+      if (heredoc && /[\r\n]/.test(separator)) break
+      if (separator !== '|' && separator !== '|&') group++
+    } else if (word !== undefined && !redirect) {
+      words.push(word.replace(/'([^']*)'|"((?:\\.|[^"\\])*)"|\\(.)/g, (_part, single, double, escaped) => single ?? double ?? escaped))
+    } else {
+      redirect = false
+    }
+  }
+  finish()
+
+  const first = calls[0]
+  if (calls.length === 1 && first) {
+    const { group: callGroup, ...call } = first
+    return { ...call, mixed: [...activeGroups].some(active => active !== callGroup) }
+  }
+  if (calls.length > 1) {
+    return {
+      action: 'batch',
+      box: calls.map(call => [call.action, call.box].filter(Boolean).join(' ')).join(' · '),
+      mixed: true,
+      writes: calls.some(call => BOX_WRITE_VERBS.has(call.action)),
+    }
+  }
+}
+
+function boxArguments(args: string[]): { action: string; box?: string; args?: string } | undefined {
   let index = 0
   let project: string | undefined
-  while (args[index]?.startsWith('-')) {
-    const option = args[index++]
+  while (true) {
+    const option = args[index]
+    if (!option?.startsWith('-')) break
+    index++
     if (option === '--help' || option === '-h') return { action: 'help' }
     if (option === '--json') continue
     if (option === '--') break
@@ -482,7 +536,7 @@ function boxCall(command: unknown): { action: string; box?: string; args?: strin
   }
 
   const key = args[index++]
-  const rootVerb = BOX_ROOT_VERBS.has(key)
+  const rootVerb = key !== undefined && BOX_ROOT_VERBS.has(key)
   const box = rootVerb ? undefined : key
   const verb = rootVerb ? key : (args[index++] ?? 'open')
   const action = verb === '--help' || verb === '-h' ? 'help' : verb
@@ -490,11 +544,34 @@ function boxCall(command: unknown): { action: string; box?: string; args?: strin
   return { action, box, args: detail || undefined }
 }
 
-function boxHeader(call: NonNullable<ReturnType<typeof boxCall>>) {
-  return { ...headerOf('box', call, undefined), isMutating: BOX_WRITE_VERBS.has(call.action) }
+function semanticPreview(output: string): { lines: string[]; result: string } | undefined {
+  const data = replyRecord(output)
+  if (!Array.isArray(data.results)) return undefined
+  const lines = data.results.flatMap(value => {
+    const hit = recordOf(value)
+    if (typeof hit.file_path !== 'string') return []
+    const start = typeof hit.start_line === 'number' ? ':' + hit.start_line : ''
+    const end = typeof hit.end_line === 'number' && start && hit.end_line !== hit.start_line ? '–' + hit.end_line : ''
+    const score = typeof hit.score === 'number' && Number.isFinite(hit.score) ? ' · score ' + hit.score.toFixed(2) : ''
+    const location = stripControl(hit.file_path) + start + end + score
+    const excerpt = typeof hit.content === 'string'
+      ? linesOf(stripControl(hit.content)).filter(line => line.trim() !== '').slice(0, 2)
+      : []
+    return [location, ...excerpt.map(line => '  ' + line)]
+  })
+  if (lines.length === 0 && data.results.length > 0) return undefined
+
+  const count = data.results.length
+  const limit = data.truncated === true ? ' · limit reached' : ''
+  return { lines, result: count + (count === 1 ? ' hit' : ' hits') + limit }
 }
 
-function boxRecord(text: string): Record<string, unknown> {
+function boxHeader(call: NonNullable<ReturnType<typeof boxCall>>) {
+  const { action, box, args, writes } = call
+  return { ...headerOf('box', { action, box, args }, undefined), isMutating: writes ?? BOX_WRITE_VERBS.has(action) }
+}
+
+function replyRecord(text: string): Record<string, unknown> {
   try {
     return recordOf(JSON.parse(text))
   } catch {
@@ -508,7 +585,7 @@ function boxEntry(title: string, details: unknown[]): string {
 }
 
 function boxPreview(action: string, output: string, boxKey?: string): { lines: string[]; result?: string } {
-  const data = boxRecord(output)
+  const data = replyRecord(output)
   const rows = action === 'list' ? data.entries : action === 'find' ? data.hits : undefined
   if (Array.isArray(rows)) {
     const lines = rows.flatMap(value => {
@@ -552,10 +629,11 @@ function boxPreview(action: string, output: string, boxKey?: string): { lines: s
       return { lines: lines.slice(start + 1, end === -1 ? undefined : end) }
     }
     const hot = lines.findIndex(line => line.startsWith('hot view:'))
-    if (hot >= 0) {
+    const headline = lines[hot]
+    if (headline !== undefined) {
       const verbs = lines.find(line => line.startsWith('own verbs:'))
       const entries = lines.slice(hot + 1).filter(line => line.startsWith('- [['))
-      return { lines: [lines[hot], ...entries.map(line => line.replace(/^- \[\[[^\]]+\]\] /, '')), ...(verbs ? [verbs] : [])] }
+      return { lines: [headline, ...entries.map(line => line.replace(/^- \[\[[^\]]+\]\] /, '')), ...(verbs ? [verbs] : [])] }
     }
   }
 
@@ -567,7 +645,7 @@ function boxPreview(action: string, output: string, boxKey?: string): { lines: s
         if (/^\s/.test(line)) return line
         const source = action === 'find' && !boxKey ? parts.shift() : undefined
         const [key, status, ...rest] = parts
-        if (!status || !rest.length || !/^\S+$/.test(key)) return line
+        if (!key || !status || !rest.length || !/^\S+$/.test(key)) return line
         if (action === 'find') return boxEntry(rest.join('  '), [status, source])
         const title = rest.pop()!
         return boxEntry(title, [status, ...rest])
@@ -589,13 +667,14 @@ function boxPreview(action: string, output: string, boxKey?: string): { lines: s
 }
 
 function boxDraft(call: NonNullable<ReturnType<typeof boxCall>>, input: unknown, reply: Reply): Omit<Card, 'openable'> {
-  const response = boxRecord(reply.text)
+  const response = replyRecord(reply.text)
   const { exit_code: exit, stdout, stderr, ...metadata } = response
   const output = typeof exit === 'number'
     ? [stdout, stderr].filter((value): value is string => typeof value === 'string' && value !== '').map(stripControl).join('\n')
     : reply.text
-  const failed = typeof exit === 'number' && exit !== 0
-  const preview = boxPreview(failed ? '' : call.action, output, call.box)
+  const status = exit === 0 && typeof metadata.producer_exit_code === 'number' ? metadata.producer_exit_code : exit
+  const failed = typeof status === 'number' && status !== 0
+  const preview = boxPreview(failed || call.mixed ? '' : call.action, output, call.box)
   const lines = preview.lines.map(stripControl)
   const folded = foldLines(lines)
   const hasMetadata = typeof exit === 'number' && Object.keys(metadata).length > 0
@@ -603,7 +682,7 @@ function boxDraft(call: NonNullable<ReturnType<typeof boxCall>>, input: unknown,
   return {
     ...boxHeader(call),
     body: { kind: 'text', head: folded.head.map(cut) },
-    result: failed ? 'Exit ' + exit : preview.result ?? (output ? undefined : 'No output'),
+    result: failed ? 'Exit ' + status : preview.result ?? (output ? undefined : 'No output'),
     hidden: folded.hidden,
     full: cap(full),
     notes: reply.notes,
@@ -647,6 +726,20 @@ function draft(tool: string, input: unknown, output: unknown): Omit<Card, 'opena
   if (reply.text.trim() === '' && reply.notes.length === 0 && !command) return undefined
 
   const base = { ...header, notes: reply.notes, full: cap(reply.text), isCut: false, tokens: tokensOf(input, reply), ...(command ? { command } : {}) }
+
+  if (name === 'semantic_search') {
+    const preview = semanticPreview(reply.text)
+    if (preview) {
+      const folded = foldLines(preview.lines)
+      return {
+        ...base,
+        body: { kind: 'text', head: folded.head.map(cut) },
+        result: preview.result,
+        hidden: folded.hidden,
+        isCut: true,
+      }
+    }
+  }
 
   if (name === 'read_file') {
     const file = fileBody(reply.text, input)
