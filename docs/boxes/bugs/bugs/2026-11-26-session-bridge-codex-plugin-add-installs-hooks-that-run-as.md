@@ -1,11 +1,13 @@
 ---
 kind: entry
-status: open
+status: fixed
 title: 'session-bridge: codex plugin add installs hooks that run as harness claude and a second MCP server, beside what install-codex.py writes'
+closed: 2026-11-26
 created: 2026-11-26
 entry_kind: bug
 log:
 - '2026-11-26 open created codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
+- '2026-11-26 open -> fixed codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
 status_since: 2026-11-26
 ---
 
@@ -16,3 +18,7 @@ status_since: 2026-11-26
 **Effect if both are installed (read, not measured):** the Codex hooks would run twice, once as codex and once as claude, and the claude run would key its endpoint state by the wrong harness. A Codex user who follows the marketplace listing and not the README gets the plugin form only.
 
 **Fix direction:** decide the supported Codex install. If `install-codex.py` is the only one, mark `session-bridge` Claude Code only in the Codex view of the marketplace, or say so in the plugin description; if the plugin form must work, give `run.sh` a harness argument (Codex sets `CODEX_HOME`/`CODEX_THREAD_ID`) and drop the duplicate MCP entry. Test with a scratch `CODEX_HOME`, as `tests/test-sync-codex.sh` does. Not measured: what Codex does when the plugin and the user hooks coexist.
+
+## Closed
+
+Fixed in 4344db4 (session-bridge 0.4.2): hooks/run.sh finds its host from the comm of the nearest codex or claude process above it; under Codex it calls `hook <event> --harness codex` and skips the Stop watcher; elsewhere it is unchanged. tests/test-session-bridge-run-sh.sh cases 6 (19 passed) run it under stand-in hosts, with Claude and no-host controls. The plugin form is still not usable in Codex, for a different reason: it copies the 22 GB build tree. See 2026-11-26-session-bridge-codex-plugin-add-copies-the-whole-plugin-dir. The MCP-entry duplication was not measured.
