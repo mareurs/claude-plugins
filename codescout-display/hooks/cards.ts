@@ -263,8 +263,8 @@ export const LINE_CUT = 400
 const DIFF_SIDE = 40
 // A run_command card shows this many lines of the command.
 export const COMMAND_LINES = 5
-// An opened card draws at most this many characters: the limit of one `Code` element.
-export const FULL_CAP = 100000
+// Limit the expanded payload to keep the repaint responsive and leave room for the fold control.
+export const FULL_CAP = 20000
 
 export type FileBody = { lines: string[]; startLine: number | undefined; trailer?: string }
 

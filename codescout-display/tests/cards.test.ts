@@ -251,8 +251,8 @@ test('create_file: full is the whole content', () => {
 test('a generic card: full is the reply text, cut at FULL_CAP characters', () => {
   const card = buildCard(`${P}grep`, { pattern: 'z' }, text('z'.repeat(150000)))
 
-  expect(FULL_CAP).toBe(100000)
-  expect(card?.full).toHaveLength(100000)
+  expect(FULL_CAP).toBe(20000)
+  expect(card?.full).toHaveLength(20000)
 })
 
 test('edit_file: control characters in the strings are stripped from the diff and the full diff', () => {
@@ -656,6 +656,7 @@ test('the same number of tokens is a different level on each side', () => {
 // The budget is 40 times that: it catches a pass that grows with the square of the reply, not a slow machine.
 
 const BUDGET_MS = 25
+const BENCHMARK_CHARS = 100000
 
 const bulk = (chars: number, make: (i: number) => string): string => {
   const out: string[] = []
@@ -665,19 +666,19 @@ const bulk = (chars: number, make: (i: number) => string): string => {
     n += line.length + 1
   }
 
-  return out.join('\n') + '\n'
+  return (out.join('\n') + '\n').slice(0, chars)
 }
 
 const code = (i: number) => `  const value${i} = compute(${i}, 'some text that looks like code', [1, 2, 3]) // note ${i}`
 const median = (xs: number[]) => xs.sort((a, b) => a - b)[Math.floor(xs.length / 2)]!
 
 for (const [name, tool, input, text] of [
-  ['read_file', 'read_file', { path: 'a.ts' }, `2000 lines\n\n${bulk(FULL_CAP, code)}`],
-  ['grep', 'grep', { pattern: 'x' }, bulk(FULL_CAP, code)],
-  ['symbols with bodies', 'symbols', { path: 'a.ts', include_body: true }, `a.ts (1)\n  Function  1-9  big\n${bulk(FULL_CAP, i => `      ${code(i)}`)}`],
-  ['a JSON reply', 'run_command', { command: 'ls' }, JSON.stringify({ stdout: bulk(FULL_CAP, code), exit_code: 0 })],
+  ['read_file', 'read_file', { path: 'a.ts' }, `2000 lines\n\n${bulk(BENCHMARK_CHARS, code)}`],
+  ['grep', 'grep', { pattern: 'x' }, bulk(BENCHMARK_CHARS, code)],
+  ['symbols with bodies', 'symbols', { path: 'a.ts', include_body: true }, `a.ts (1)\n  Function  1-9  big\n${bulk(BENCHMARK_CHARS, i => `      ${code(i)}`)}`],
+  ['a JSON reply', 'run_command', { command: 'ls' }, JSON.stringify({ stdout: bulk(BENCHMARK_CHARS, code), exit_code: 0 })],
 ] as const) {
-  test(`latency: a card for ${name} of ${FULL_CAP} characters builds in under ${BUDGET_MS} ms`, () => {
+  test(`latency: a card for ${name} of ${BENCHMARK_CHARS} characters builds in under ${BUDGET_MS} ms`, () => {
     const output = [{ type: 'text', text }]
     buildCard(`mcp__codescout__${tool}`, input, output)
     const times = Array.from({ length: 9 }, () => {
