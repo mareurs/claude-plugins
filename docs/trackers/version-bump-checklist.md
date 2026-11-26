@@ -14,6 +14,10 @@ Release readiness across plugins × profiles. See
 
 ## State
 
+### Current release verification — 2026-11-26 (session-bridge 0.4.2)
+
+Released with `NO_PUSH=1` and the full test gate: `fc46cff`, cached in 4 of 4 profiles, parity holds. It adds `hooks/run.sh` host detection (`4344db4`): under Codex the hooks call the binary with `--harness codex` and the Stop watcher is skipped. Step 4.6 (Codex) skipped: `session-bridge` is installed in Codex by `install-codex.py`, not by `codex plugin add`. An attempt to install it as a plugin was reverted: `codex plugin add session-bridge` copied the whole plugin dir with `mcp-server/target` (22 GB, 51k files) into the Codex cache and `hooks/list` stalled for 14 s to minutes. Recovery: `codex plugin remove`, then the pre-change `config.toml` and `hooks.json` restored; `install-codex.py` reports `changed: []`, `hooks/list` answers in 0.2 s, the three user hooks read `trusted`, the Codex cache is 115 MB. Open: bug `2026-11-26-session-bridge-codex-plugin-add-copies-the-whole-plugin-dir`. Not verified: a running Codex or Claude session on 0.4.2.
+
 ### Current release verification — 2026-11-26 (session-bridge 0.4.1)
 
 Released with `NO_PUSH=1` and the full test gate: `6d69ee0`, cached in 4 of 4 profiles, parity holds. It carries two fixes: the addressed `post_notice` result names the receiver as its nudge does (`115a447`), and a pid-recycle reset keeps a wake-watcher claim made after the new process started (`bab3b14`). Step 4.6 (Codex) skipped, as designed: `session-bridge` is not a `codex plugin add` plugin here. Its Codex install is the MCP entry and three user hooks that `install-codex.py` wrote; all point at `session-bridge/mcp-server/target/release/session-bridge`, which the release rebuilt (`--version` prints 0.4.1). `install-codex.py` without `--apply` reports `changed: []`, and `hooks/list` shows the three hooks `trusted`. Not verified: a running Codex or Claude session using the new binary. Each needs a cold restart or an MCP reconnect first; the old MCP server process keeps running until then.
