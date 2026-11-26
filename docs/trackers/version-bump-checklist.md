@@ -14,6 +14,19 @@ Release readiness across plugins × profiles. See
 
 ## State
 
+### Current release verification — 2026-11-26 (codescout-display 0.1.5)
+
+Released locally at `8847e4f`. Fresh `claude plugin list --json` reports 0.1.5 enabled in all four profiles. Profile parity passed and cached `hooks/cards.ts` matched the release source.
+
+| Profile | Installed | Cache exists | Profile owns path | Native plugin tests |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.5 ✅ | ✅ | ✅ | 155 passed ✅ |
+| `~/.claude-sdd` | 0.1.5 ✅ | ✅ | ✅ | 155 passed ✅ |
+| `~/.claude-kat` | 0.1.5 ✅ | ✅ | ✅ | 155 passed ✅ |
+| `~/.claude-stef` | 0.1.5 ✅ | ✅ | ✅ | 155 passed ✅ |
+
+Replayed live Codescout replies for grep, doc find, call graph and references through the card builder. Mounted Claude Code tests also covered each lookup and the full reply toggle. Used `SKIP_TESTS=1` for the repository-wide gate with three baseline failures documented under 0.1.3. Running Claude Code sessions still need a plugin reload.
+
 ### Current release verification — 2026-11-26 (codescout-display 0.1.4)
 
 Released locally at `b3355f1`. Fresh `claude plugin list --json` reports 0.1.4 enabled in each of the four profiles. The version and install paths pass profile parity.
@@ -1157,6 +1170,10 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-11-26 — codescout-display 0.1.5
+
+All four Claude Code profiles moved from `0.1.4` to `0.1.5` in local release commit `8847e4f`.
 
 ### 2026-11-26 — codescout-display 0.1.4
 
