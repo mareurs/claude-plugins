@@ -3,7 +3,7 @@
 use crate::cursor::get_direct;
 use crate::diag;
 use crate::direct::take;
-use crate::endpoints::{pid_alive, process_start_ms, Roots};
+use crate::endpoints::{pid_alive, Roots};
 use crate::hook::HookInput;
 use crate::paths::is_safe_component;
 use crate::state::{endpoint_path, load_or_default, update};
@@ -44,28 +44,16 @@ pub fn guard_allows(wake_ms: &[i64], now_ms: i64) -> bool {
     wake_ms.iter().filter(|&&w| now_ms - w <= HOUR_MS).count() < GUARD_MAX_PER_HOUR
 }
 
-/// Claim the single watcher slot of the endpoint at `path` for `own_pid`. True when no live
-/// claim exists: the claim then records the pid, its start time (0 when unreadable) and
-/// `watch_until_ms = now_ms + DEADLINE_MS`. False when another live watcher holds it, or on error.
-pub fn claim_watcher(path: &Path, roots: &Roots, own_pid: u32, now_ms: i64) -> bool {
-    let mut won = false;
-    let res = update(path, |s| {
-        let live = match s.watcher_pid {
-            Some(p) => {
-                pid_alive(roots, p)
-                    && (s.watcher_started_ms == 0
-                        || process_start_ms(roots, p) == Some(s.watcher_started_ms))
-            }
-            None => false,
-        };
-        if !live {
-            s.watcher_pid = Some(own_pid);
-            s.watcher_started_ms = process_start_ms(roots, own_pid).unwrap_or(0);
-            s.watch_until_ms = now_ms + DEADLINE_MS;
-            won = true;
-        }
-    });
-    res.is_ok() && won
+/// Take the single watcher slot of the endpoint at `path` for `own_pid`: the newest arm wins.
+/// The claim records the pid and `watch_until_ms = now_ms + DEADLINE_MS`, replacing any older
+/// claim; the older watcher sees a foreign `watcher_pid` on its next pass and exits `Done`
+/// without touching the newer claim. False only when the state file cannot be written.
+pub fn claim_watcher(path: &Path, own_pid: u32, now_ms: i64) -> bool {
+    update(path, |s| {
+        s.watcher_pid = Some(own_pid);
+        s.watch_until_ms = now_ms + DEADLINE_MS;
+    })
+    .is_ok()
 }
 
 /// Give up the watcher slot, only when `own_pid` holds it.
@@ -73,7 +61,6 @@ pub fn release_watcher(path: &Path, own_pid: u32) {
     let _ = update(path, |s| {
         if s.watcher_pid == Some(own_pid) {
             s.watcher_pid = None;
-            s.watcher_started_ms = 0;
             s.watch_until_ms = 0;
         }
     });
@@ -117,7 +104,7 @@ pub fn watch(
     }
     let path = endpoint_path(state, me.0, me.1);
     let own = std::process::id();
-    if !claim_watcher(&path, roots, own, (clock.now_ms)()) {
+    if !claim_watcher(&path, own, (clock.now_ms)()) {
         return WatchOutcome::Done;
     }
     let out = watch_loop(input, me, roots, state, store, clock, &path, own);

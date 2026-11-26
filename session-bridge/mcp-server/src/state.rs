@@ -49,9 +49,6 @@ pub struct EndpointState {
     /// Pid of the wake watcher of this endpoint; None when none runs.
     #[serde(default)]
     pub watcher_pid: Option<u32>,
-    /// `process_start_ms` of the watcher (guards against pid reuse); 0 when none.
-    #[serde(default)]
-    pub watcher_started_ms: i64,
     /// When the watcher gives up; 0 when none.
     #[serde(default)]
     pub watch_until_ms: i64,
@@ -77,7 +74,6 @@ impl Default for EndpointState {
             last_spawn_ms: 0,
             started_ms: 0,
             watcher_pid: None,
-            watcher_started_ms: 0,
             watch_until_ms: 0,
             wake_ms: vec![],
         }

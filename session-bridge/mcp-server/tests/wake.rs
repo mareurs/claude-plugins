@@ -54,7 +54,7 @@ impl Fx {
     }
 
     fn claim(&self, pid: u32, now: i64) -> bool {
-        claim_watcher(&self.state, &self.roots, pid, now)
+        claim_watcher(&self.state, pid, now)
     }
 }
 
@@ -100,7 +100,7 @@ fn guard_blocks_the_eleventh_wake_in_an_hour() {
 }
 
 #[test]
-fn second_claim_loses_while_the_first_is_alive() {
+fn the_second_claim_wins_while_the_first_is_alive() {
     let f = Fx::new();
     f.proc(100, 500);
     f.proc(200, 600);
@@ -108,11 +108,10 @@ fn second_claim_loses_while_the_first_is_alive() {
     let s = load_or_default(&f.state);
     assert_eq!(s.watcher_pid, Some(100));
     assert_eq!(s.watch_until_ms, 1_000 + DEADLINE_MS);
-    assert_ne!(s.watcher_started_ms, 0);
-    assert!(!f.claim(200, 2_000));
+    assert!(f.claim(200, 2_000));
     let s = load_or_default(&f.state);
-    assert_eq!(s.watcher_pid, Some(100));
-    assert_eq!(s.watch_until_ms, 1_000 + DEADLINE_MS);
+    assert_eq!(s.watcher_pid, Some(200));
+    assert_eq!(s.watch_until_ms, 2_000 + DEADLINE_MS);
 }
 
 #[test]
@@ -125,49 +124,11 @@ fn claim_is_free_after_release() {
     let s = load_or_default(&f.state);
     assert_eq!(s.watch_until_ms, 0);
     assert_eq!(s.watcher_pid, None);
-    assert_eq!(s.watcher_started_ms, 0);
     assert!(f.claim(200, 2_000));
     release_watcher(&f.state, 999);
     let s = load_or_default(&f.state);
     assert_eq!(s.watcher_pid, Some(200));
     assert_eq!(s.watch_until_ms, 2_000 + DEADLINE_MS);
-    assert_ne!(s.watcher_started_ms, 0);
-}
-
-#[test]
-fn stale_claim_is_taken_over() {
-    let f = Fx::new();
-    f.proc(100, 500);
-    f.proc(200, 600);
-    assert!(f.claim(100, 1_000));
-    std::fs::remove_dir_all(f.roots.proc_root.join("100")).unwrap();
-    assert!(f.claim(200, 2_000));
-    assert_eq!(load_or_default(&f.state).watcher_pid, Some(200));
-}
-
-#[test]
-fn recycled_pid_does_not_keep_a_claim() {
-    let f = Fx::new();
-    f.proc(100, 5);
-    f.proc(200, 600);
-    assert!(f.claim(100, 1_000));
-    f.proc(100, 9);
-    assert!(f.claim(200, 2_000));
-    assert_eq!(load_or_default(&f.state).watcher_pid, Some(200));
-}
-
-#[test]
-fn claim_with_unreadable_start_time_still_blocks_a_second_claim() {
-    let f = Fx::new();
-    // no btime line: process_start_ms cannot compute a start time
-    std::fs::write(f.roots.proc_root.join("stat"), "cpu  1 2 3 4\n").unwrap();
-    f.proc(100, 500);
-    f.proc(200, 600);
-    assert!(f.claim(100, 1_000));
-    let s = load_or_default(&f.state);
-    assert_eq!(s.watcher_pid, Some(100));
-    assert_eq!(s.watcher_started_ms, 0);
-    assert!(!f.claim(200, 2_000));
 }
 
 // ---- watch ----
@@ -401,15 +362,20 @@ fn release_happens_before_returning() {
 }
 
 #[test]
-fn a_live_watcher_blocks_a_second_one() {
+fn a_later_watcher_takes_the_slot_and_the_first_exits_within_one_poll() {
     let w = W::alive();
-    w.f.proc(77, 900);
-    assert!(claim_watcher(&w.path(), &w.f.roots, 77, T0));
-    w.post_to("s1", "hello");
     let now = Cell::new(T0);
-    assert_eq!(w.watch(&input("s1"), &now), WatchOutcome::Done);
-    assert_eq!(w.cursor("s1"), 0);
-    assert_eq!(load_or_default(&w.path()).watcher_pid, Some(77));
+    // the first watcher runs; at its first sleep a newer arm takes the slot
+    let out = w.run(&input("s1"), &now, &|n| {
+        if n == 1 {
+            assert!(claim_watcher(&w.path(), 77, now.get()));
+        }
+    });
+    assert_eq!(out, WatchOutcome::Done);
+    assert_eq!(now.get(), T0 + POLL_MS as i64, "exits within one poll");
+    let s = load_or_default(&w.path());
+    assert_eq!(s.watcher_pid, Some(77), "the newer claim stays");
+    assert_eq!(s.watch_until_ms, T0 + POLL_MS as i64 + DEADLINE_MS);
 }
 
 #[test]

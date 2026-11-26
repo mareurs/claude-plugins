@@ -119,7 +119,6 @@ fn update_creates_parents_and_round_trips_every_field() {
         s.last_post_ms = 9;
         s.worker_pid = Some(77);
         s.watcher_pid = Some(88);
-        s.watcher_started_ms = 11;
         s.watch_until_ms = 22;
         s.wake_ms = vec![33, 44];
     })
@@ -128,8 +127,8 @@ fn update_creates_parents_and_round_trips_every_field() {
     assert_eq!(s.session_id, "S");
     assert_eq!(s.watcher_pid, Some(88));
     assert_eq!(
-        (s.watcher_started_ms, s.watch_until_ms, s.wake_ms.clone()),
-        (11, 22, vec![33, 44])
+        (s.watch_until_ms, s.wake_ms.clone()),
+        (22, vec![33, 44])
     );
     assert_eq!(s.verdicts[0].unfiltered_reason.as_deref(), Some("r"));
     assert_eq!(s.heads.get("/wt").map(String::as_str), Some("abc"));
@@ -295,4 +294,19 @@ fn update_is_atomic_for_unlocked_readers() {
     let reads = reader.join().unwrap();
     assert!(reads >= 50, "reader only managed {reads} reads");
     assert_eq!(load_or_default(&p).pending.len(), SEED + 100);
+}
+
+#[test]
+fn a_state_file_with_retired_fields_still_loads() {
+    let d = TempDir::new().unwrap();
+    let p = d.path().join("s.json");
+    std::fs::write(
+        &p,
+        r#"{"schema":1,"session_id":"S","watcher_pid":88,"watcher_started_ms":11,"pid":5,"watch_until_ms":22}"#,
+    )
+    .unwrap();
+    let s = load_or_default(&p);
+    assert_eq!(s.session_id, "S");
+    assert_eq!(s.watcher_pid, Some(88));
+    assert_eq!(s.watch_until_ms, 22);
 }
