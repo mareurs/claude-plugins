@@ -37,8 +37,12 @@ status_since: 2026-11-25
 - The first live audit (after buddy 0.12.3) found that the prescribed line `add --title "<gap>"` exits 2 (`body is missing or empty`). Fixed in `40c87e1` (`--text body -`, the fields on stdin); the audit itself is filed (`2026-11-25-the-always-loaded-core-carried-the-measuring-how-to-and`). The cause sits in codescout's `issues` template (codescout bug `2026-11-25-the-issues-template-tells-an-agent-to-leave-the-body-empty`).
 - buddy 0.12.4 (`3a02239`) is released with that fix and recorded in all four profiles; verification `6b6d0be`, 39 rows green. **Not pushed.**
 
+**Local verification, 2026-11-27:**
+- Fresh Claude Code invocations in all four profiles report Buddy 0.12.5 enabled from their own cache. The installed skill, box template and eval reference match the repository files.
+- With Codescout 0.15.0 and an isolated catalog, the installed recipe created a box and added an audit from a linked worktree with `--project <main>`. The audit was committed in the fixture's main checkout. Closing it as `held` recorded the outcome under `## Closed`, and the state persisted in Git.
+- Codescout moved its audits to `docs/boxes/quality/prompt-hamsa/` and the protocol to `docs/research/2026-11-25-prompt-hamsa-protocol.md` in `b69998317`. Both references here point to the migrated protocol after `1c86aa0`.
+
 **Open, in this order:**
-1. The operator pushes, and cold-restarts the four profiles. A reload is not enough for a skill: a session that loaded the skill before the release still holds the 0.12.3 text.
-2. Close this entry as `fixed` only after item 1 and one audit filed through the box by a restarted session, with the corrected line and no help from the conversation (the entry has no regression test). The first audit filed this way after a restart is the proof.
-3. The catalog row of the moved document still carries `entry_collection: audits` and its params, grafted by `doc move`. It ends with codescout E7b-2.
-4. codescout migrates its own `prompt-hamsa-audit-log` into a box with the same key `prompt-hamsa` (E7b-2 step 1). Then `references/eval.md` and `docs/templates/eval-pre-registration.md` cite a path there that no longer exists; point them at the box entry or the file that holds P-1..P-8.
+1. The operator pushes and cold-starts the four profiles.
+2. Close this entry as `fixed` after one ordinary audit is filed through the box by a restarted session using the installed recipe without conversational help.
+3. Catalog lookup `e34f27e925bf516b` still reports `entry_collection: audits` for the moved history. Cleanup belongs to Codescout E7b-2.
