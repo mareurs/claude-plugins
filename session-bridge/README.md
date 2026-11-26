@@ -176,7 +176,7 @@ OpenCode 2.2.7 was also probed with a fresh isolated service: the current plugin
 grammar of `ask_session`: a key, a session id, an id prefix of 4 or more characters, or a name. It
 works across repositories and profiles, for Claude Code sessions and Codex threads.
 
-- An addressed notice is not filtered. No model call runs, and the receiver pays nothing.
+- An addressed notice is not filtered. A notice that wakes an idle Claude Code session starts a turn that the receiver's profile pays for.
 - Only the addressee sees it. No other session lists it, not even one in the same repository.
 - It shows at the receiver's next prompt or tool call, and at its session start.
 - An idle Claude Code session is woken by it when its profile has the file
@@ -248,14 +248,19 @@ recorded: a verdict in `verdicts.jsonl` has no cost field.
 
 ## Hooks
 
-All three run `hooks/run.sh <event>` with a timeout of 5 s. Each is fail-open: an error prints
-nothing and exits 0. Subagents are skipped.
+The notice hooks run `hooks/run.sh <event>` with a timeout of 5 s. Each is fail-open: an error
+prints nothing and exits 0. Subagents are skipped.
+
+Two more entries, one on `SessionStart` and one on `Stop`, run `session-bridge watch` with
+`asyncRewake` and a timeout of 7200 s. `watch` exits 2 with the notice text to wake an idle
+session (see Addressed notices); every other outcome is fail-open and exits 0.
 
 | Hook | What it does |
 |---|---|
 | SessionStart | Records the session in the endpoint state and sets its notice cursor (after resetting a state left by a dead process with the same pid, see State). On a fresh start (not a resume) it shows the notices of this repository from the last 3 days, at most 8, newest first. |
 | UserPromptSubmit | Looks for new notices, hands them to the filter, and delivers the verdicts that are ready. |
 | PostToolUse | The same as UserPromptSubmit, after each tool call. |
+| Stop | Arms `session-bridge watch` when the turn ends, so that an addressed notice wakes the idle session. Needs the file `<config-dir>/session-bridge-wake`. |
 
 Rates:
 
