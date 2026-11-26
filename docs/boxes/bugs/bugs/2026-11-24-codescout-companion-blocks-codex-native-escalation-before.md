@@ -271,8 +271,10 @@ The Codex adapter half lives in the Codex repository (`5eedcdc543`, as recorded 
 
 ## Now
 
-Verified 2026-11-24 at HEAD: the companion half holds. `guard-rules.mjs:33` (`isSandboxEscalation`) still exempts an explicit `require_escalated`, and `tests/test-native-escalation.sh` passes every fixture.
+Stock CLI 0.171.0 still emits only the command in the Bash PreToolUse payload. The exact source tag is `rust-v0.171.0` at `ccf9be8cc458bd6b8336fe84d68d8893f2691a5e`.
 
-Open: delivery. Stock CLI 0.169.0 does not send `sandbox_permissions` to the hook, so the guard cannot see the request there (GitHub #15). The 4-file Codex patch is proven only on an isolated host; the installed system CLI and the managed app were not replaced.
+The [0.171.0 patch](../../../patches/2026-11-26-codex-0.171.0-native-approval-hook-payload.patch) forwards explicitly supplied approval metadata from typed arguments. Its SHA-256 is `18f9e466dee85549473aaff0d5b3bd4722d247094e1d95b7106a6c0d25263097`. A separate copy of the four exact baseline files passed apply and reverse checks with byte comparisons.
 
-Next action: deliver the patch (or its upstream form) to the stock CLI, then repeat the nested `functions.exec` acceptance on a stock install. Related residual: `runtime-residuals` entry `stock-codex-adapter-release-and-install-in-the-six-real`. Close as `fixed` when a stock install passes that acceptance.
+On the exact 0.171.0 source, the regression failed on the missing `sandbox_permissions` field before the production hunk was applied. All three focused unit tests passed with the patch. The hooks integration suite passed all 101 cases with the stock 0.171.0 code-mode helper and a mock model server. The suite includes four direct and nested approval cases. Execution waited for the native decision in each case. Acceptance created the temporary marker and rejection left it absent. The unchanged Companion guard passed all 11 routing fixtures, and this session's managed App also passed a native `require_escalated` call.
+
+Delivery to the installed stock CLI remains open. The patch was exercised in a scratch checkout. Recheck the real nested flow after stock delivery before closing this entry. Related residual: `stock-codex-adapter-release-and-install-in-the-six-real`.
