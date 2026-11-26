@@ -14,9 +14,9 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-### Current release verification — 2026-11-26 (codescout-companion 1.23.10)
+### Current release verification — 2026-11-26 (codescout-companion 1.23.11)
 
-Released with `NO_PUSH=1` and the full test gate: `e81428f`, cached in 4 of 4 profiles, parity holds. It ships the companion fixes committed after 1.23.9: native approvals on stock Codex (`0cc6e66`), the POST-COMPACT block first on compact (`c39b164`), Codex host texts (`81919fb`), fixture isolation (`c95461c`). Step 4.6: `codex plugin add` seeded cache 1.23.10 and renewed 27 hooks; a second pass reads 27 `trusted`, 0 to renew, 0 to review. Not verified: a running Claude Code or Codex session on 1.23.10; each needs a cold restart (Claude Code) or a new session (Codex).
+Released with `NO_PUSH=1` and the full test gate: `32b8774`, cached in 4 of 4 profiles, parity holds. It ships two settings moved to marker files in the profile directory: `codescout-companion-scribe-nudge-off` (`36d075d`) and `codescout-companion-privacy-off` for export-feedback (`a9ffe01`); the env vars `CS_SCRIBE_NUDGE` and `CS_PRIVACY` are no longer read. Step 4.6: `codex plugin add` seeded cache 1.23.11 and renewed 27 hooks; a second pass reads 27 `trusted`, 0 to renew, 0 to review. Outside the repo: the four Claude Code profiles lost `env.CS_PRIVACY` (backups `settings.json.before-privacy-marker-20261126`) and gained the `privacy-off` marker, so export-feedback stays raw on this machine. Not verified: a running session on 1.23.11 (cold restart for Claude Code, a new session for Codex), and an export run from the cached skill.
 
 ### Current release verification — 2026-11-26 (session-bridge 0.4.1)
 
