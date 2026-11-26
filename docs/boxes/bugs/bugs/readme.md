@@ -9,9 +9,9 @@ fields:
   severity:
     type: enum
     values:
-    - low
-    - medium
     - high
+    - medium
+    - low
   claimed_by:
     type: scalar
   unverified:
@@ -22,15 +22,23 @@ fields:
     type: scalar
   related:
     type: list
+hints:
+  landed: verify
+  zombie: reproduce first
 hot_cap: 12
 initial_status: open
 key_style: dated
+rank:
+- severity
 owner: marius
+sink:
+- zombie
 stale_after: 30d
 statuses:
   open: open
   taken: open
   investigating: open
+  landed: open
   zombie: open
   fixed: terminal
   mitigated: terminal
@@ -54,6 +62,7 @@ The bugs of this repository. One entry per bug. An entry ends as `fixed`, `mitig
 
 - `open`: logged, not started. `taken`: a live session holds it; set `claimed_by` to its session id.
 - `investigating`: worked, no live owner. `zombie`: not seen again, cause unconfirmed; set `last_observed`.
+- `landed`: a fix commit is in, not yet verified (`provenance` sets it; `edit --status` too).
 - `fixed`: cause removed, regression test, verified. `mitigated`: workaround only.
 - `wontfix`: the entry says why. `superseded`: another entry covers it.
 
