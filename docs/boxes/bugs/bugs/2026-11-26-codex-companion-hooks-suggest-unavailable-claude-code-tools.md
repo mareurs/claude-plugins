@@ -1,12 +1,14 @@
 ---
 kind: entry
-status: open
+status: fixed
 title: Codex companion hooks suggest unavailable Claude Code tools
+closed: 2026-11-26
 created: 2026-11-26
 entry_kind: bug
 last_observed: 2026-11-26
 log:
 - '2026-11-26 open created codescout:anonymous'
+- '2026-11-26 open -> fixed codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
 severity: medium
 status_since: 2026-11-26
 ---
@@ -46,3 +48,7 @@ None for this filing. A regression test should exercise both messages with nativ
 ## Resume
 
 Trace where the companion's installed hook bundle selects the host and test the startup skill hint and guarded read footer against Codex's actual tool registry.
+
+## Closed
+
+Fixed in the source. lib.mjs isCodexHost() reads the nearest agent host above the hook (the parent chain stops at the first claude or codex process, as ownAncestry does); no host found keeps the Claude Code wording. Under Codex: session-start omits the Skill() advice and says `codex mcp list` in place of ToolSearch and `claude mcp list`; pre-tool-guard's deny footer, repeat pointer and stand-down text drop ToolSearch, /mcp and "! <command>" (the footer opening that the OpenCode bridge cuts at is unchanged); subagent-guidance STEP 1 no longer names ToolSearch. host-text.test.sh runs the three hooks under a stand-in parent named codex, claude and none: 27 cases, and against the previous hooks the 9 Codex cases fail while the Claude and no-host controls pass. Existing suites pass (pre-tool-guard 90, session-start 75, subagent-guidance 64, OpenCode adapter 30). Not fixed: other hooks with Claude Code wording that this bug did not name. Live in Codex after the next companion release, whose step 4.6 re-adds the plugin and renews its hook approvals.
