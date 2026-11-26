@@ -6,7 +6,7 @@
 //! the other's position. `dir` is always the state root, never the `cursors/` directory.
 //!
 //! Addressed notices have their own cursor, `<profile>__<session>.direct`, with no pid and no
-//! twins: see `get_direct` and `set_direct`.
+//! twins: see `get_direct`, `set_direct` and `advance_direct`.
 
 use crate::error::Result;
 use crate::paths::is_safe_component;
@@ -170,6 +170,43 @@ pub fn set_direct(dir: &Path, profile: &str, session_id: &str, value: i64) -> Re
     let written = write_atomic(&path, value.to_string().as_bytes());
     let _ = lock.unlock();
     written
+}
+
+/// Compare-and-set of the direct cursor: under the exclusive lock of `set_direct` it re-reads
+/// the cursor (missing = 0) and writes `new` only when the stored value equals `expected`.
+/// `Ok(true)` when it wrote, `Ok(false)` when another process moved the cursor first. `new` must
+/// be greater than `expected`: the cursor only moves forward.
+pub fn advance_direct(
+    dir: &Path,
+    profile: &str,
+    session_id: &str,
+    expected: i64,
+    new: i64,
+) -> Result<bool> {
+    checked(profile, session_id)?;
+    let path = direct_path(dir, profile, session_id);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    // The same exclusive lock on `<path>.lock` as `set_direct`.
+    let mut lock_name = path
+        .file_name()
+        .map(|n| n.to_os_string())
+        .unwrap_or_default();
+    lock_name.push(".lock");
+    let lock = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(path.with_file_name(lock_name))?;
+    lock.lock_exclusive()?;
+    let result = if get_direct(dir, profile, session_id) == expected {
+        write_atomic(&path, new.to_string().as_bytes()).map(|()| true)
+    } else {
+        Ok(false)
+    };
+    let _ = lock.unlock();
+    result
 }
 
 /// Pick and record the cursor for a session that starts in endpoint (`profile`, `pid`),

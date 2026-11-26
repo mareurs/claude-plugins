@@ -134,6 +134,10 @@ An OpenCode session reaches a Claude Code session through `ask_session` (a read-
 | `SESSION_BRIDGE_OPENCODE_BIN` | absolute path of the `opencode` executable; else `PATH` |
 | `SESSION_BRIDGE_OPENCODE_RECENT_HOURS` | how long an idle top-level session stays live (default 24) |
 
+### Settings
+
+The wake of an idle Claude Code session is on when the file `<config-dir>/session-bridge-wake` exists, with `<config-dir>` = `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`. It is a file, not an environment variable. Create it with `touch`; its content is not read. Remove it to turn the wake off: an armed watcher ends within one poll (2 s).
+
 ### Limits
 
 Delivery into OpenCode is queued behind a running turn, not an interruption. A live session needs an MCP reconnect (Claude, Codex) or an OpenCode restart (plugin) to see new tools.
@@ -172,10 +176,18 @@ OpenCode 2.2.7 was also probed with a fresh isolated service: the current plugin
 grammar of `ask_session`: a key, a session id, an id prefix of 4 or more characters, or a name. It
 works across repositories and profiles, for Claude Code sessions and Codex threads.
 
-- An addressed notice is not filtered. No model call runs, and the receiver pays nothing.
+- An addressed notice is not filtered. A notice that wakes an idle Claude Code session starts a turn that the receiver's profile pays for.
 - Only the addressee sees it. No other session lists it, not even one in the same repository.
-- It shows at the receiver's next prompt or tool call, and at its session start. An idle session
-  does not wake up.
+- It shows at the receiver's next prompt or tool call, and at its session start.
+- An idle Claude Code session is woken by it when its profile has the file
+  `<config-dir>/session-bridge-wake` (see Settings). The plugin's `SessionStart` and `Stop` hooks
+  run `session-bridge watch`, which waits for a notice and exits with code 2 and the notice text.
+  A session is woken at most once per 60 s and ten times per hour. Over the limit a guard hold
+  delays the wake: the notice is not taken, it shows at the next prompt or tool call as usual, and
+  the watcher wakes the session once the limit allows. A watcher runs for at most 7000 s after the
+  last arm, and the newest arm wins (an older watcher exits within one poll); after the 7000 s, the
+  notice shows at the next prompt or tool call. Without the file nothing wakes. The result of `post_notice` says `an idle session is woken` when a watcher is armed on the
+  receiver.
 - At most 8 addressed notices show per call, oldest first. The rest show at the next call.
 - Delivery is at most once. The result of the call says `queued`, never `delivered`.
 - The plugin must be enabled in the receiver's profile. When no hook has run there, the result
@@ -237,14 +249,19 @@ recorded: a verdict in `verdicts.jsonl` has no cost field.
 
 ## Hooks
 
-All three run `hooks/run.sh <event>` with a timeout of 5 s. Each is fail-open: an error prints
-nothing and exits 0. Subagents are skipped.
+The notice hooks run `hooks/run.sh <event>` with a timeout of 5 s. Each is fail-open: an error
+prints nothing and exits 0. Subagents are skipped.
+
+Two more entries, one on `SessionStart` and one on `Stop`, run `session-bridge watch` with
+`asyncRewake` and a timeout of 7200 s. `watch` exits 2 with the notice text to wake an idle
+session (see Addressed notices); every other outcome is fail-open and exits 0.
 
 | Hook | What it does |
 |---|---|
 | SessionStart | Records the session in the endpoint state and sets its notice cursor (after resetting a state left by a dead process with the same pid, see State). On a fresh start (not a resume) it shows the notices of this repository from the last 3 days, at most 8, newest first. |
 | UserPromptSubmit | Looks for new notices, hands them to the filter, and delivers the verdicts that are ready. |
 | PostToolUse | The same as UserPromptSubmit, after each tool call. |
+| Stop | Arms `session-bridge watch` when the turn ends, so that an addressed notice wakes the idle session. Needs the file `<config-dir>/session-bridge-wake`. |
 
 Rates:
 
@@ -365,7 +382,8 @@ with the config dir of the session it serves.
 of `<dir>` with a seq above `<seq>`: one line each (`<seq> HH:MM UTC <short profile>:<pid> <title>`),
 or with `--json` the page (notices, next cursor, gap). It shows the whole log, no author is left
 out. It prints nothing and exits 0 when there is no store or no repository. `serve`, `hook` and
-`filter` are started by the plugin; do not run them by hand.
+`filter` are started by the plugin; do not run them by hand. `watch` is started by the plugin
+hooks too (`SessionStart` and `Stop`); do not run it by hand.
 
 ## Skill
 

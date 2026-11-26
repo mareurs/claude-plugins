@@ -125,6 +125,29 @@ All paths are under `session-bridge/` unless they start with `docs/`. Run tests 
 - [ ] **Step 4: Run to verify pass:** `cargo test --test wake`. Expected: PASS, all tests.
 - [ ] **Step 5: Commit:** `feat(session-bridge): watch loop that wakes on an addressed notice`.
 
+### Task 3b: atomic addressed-notice take, and watcher claim ownership
+
+Added after the Task 3 review (the reviewer found that `direct::take` reads the cursor outside the cursor lock, so two callers on one session id can both return the same notice; the watcher makes that a real concurrent caller beside `on_trigger`). Ruling: fix it on this branch, because the spec's delivery guarantee is at most once.
+
+**Files:**
+- Modify: `session-bridge/mcp-server/src/cursor.rs` (add `advance_direct`)
+- Modify: `session-bridge/mcp-server/src/direct.rs` (`take`)
+- Modify: `session-bridge/mcp-server/src/wake.rs` (the loop in `watch`)
+- Test: `session-bridge/mcp-server/tests/cursor.rs`, `tests/direct.rs`, `tests/wake.rs`
+
+**Interfaces:**
+- Produces: `pub fn advance_direct(dir: &Path, profile: &str, session_id: &str, expected: i64, new: i64) -> Result<bool>` in `cursor.rs`. Under the same exclusive lock on `<path>.lock` that `set_direct` uses it re-reads the cursor (missing file = 0). Only when the stored value equals `expected` it writes `new` and returns `Ok(true)`; otherwise it writes nothing and returns `Ok(false)`. Unsafe components give `Err`, as `set_direct` does.
+- `take` keeps its signature. For each id it loops at most 3 times: read the cursor as `after`, `direct_after(id, after, DIRECT_LIMIT)`, then `advance_direct(after, last)`. `Ok(true)` keeps the notices; `Ok(false)` re-reads and retries; `Err` is noted with `diag::note` and the id is skipped. After 3 lost races the id is skipped and its notices stay for the next call.
+
+- [ ] **Step 1: Write the failing tests.**
+  - `tests/cursor.rs`: `advance_direct_succeeds_once_per_expected_value` (0 to 5 gives `true`, a second 0 to 5 gives `false` and the cursor stays 5, then 5 to 7 gives `true`); `advance_direct_refuses_unsafe_components` (a session id containing `/` gives `Err`, nothing is written).
+  - `tests/direct.rs`: `concurrent_takers_never_return_one_notice_twice`. Eight threads wait on one `std::sync::Barrier`, then each calls `take(&["s1"], ...)` on the same store and state. Repeat 50 rounds, posting one new notice for `s1` per round. Assert that in every round exactly one thread got `Some` containing the round's title. (Each thread opens its own `Store` on the same db file, as the hooks do.)
+  - `tests/wake.rs`: `a_guard_block_releases_the_claim` (after the guard-blocked `Done`, `watcher_pid` is `None`); `a_wake_keeps_a_wake_exactly_one_hour_old_and_drops_an_older_one` (preset `wake_ms = [now - 3_600_000, now - 3_600_001]`; after a wake the list holds the first value, not the second, plus the new wake time); `a_watcher_that_lost_its_claim_exits_and_leaves_the_new_claim` (inside `sleep_ms` rewrite the endpoint state with `watcher_pid = Some(999_999)`; the outcome is `Done` and `watcher_pid` is still `Some(999_999)`).
+- [ ] **Step 2: Run to verify failure.** Add `advance_direct` first as a stub that returns `Ok(true)`, so the failures are assertion failures, not compile errors. Run `cargo test --test cursor --test direct --test wake`. Expected: the new tests FAIL on assertions.
+- [ ] **Step 3: Implement** `advance_direct` (copy the lock handling of `set_direct`; keep both functions, do not merge them), the `take` loop above, and in the `watch` loop: return `Done` when the stored `watcher_pid` is not this watcher's own pid (check it after the host check and before the deadline check; pass the own pid into the loop), and a `diag::note` when recording the wake in `wake_ms` fails.
+- [ ] **Step 4: Run to verify pass:** `cargo test` (the whole crate) and `cargo clippy --all-targets -- -D warnings`, after `cargo fmt`. Expected: PASS and clean.
+- [ ] **Step 5: Commit:** `fix(session-bridge): addressed notices are taken atomically; a watcher exits when it loses its claim`.
+
 ### Task 4: CLI and hook wiring
 
 **Files:**

@@ -671,3 +671,69 @@ fn addressed_result_reports_the_age_of_the_last_look() {
     assert!(text.contains("42s"), "{text}");
     assert!(!text.contains("Warning"), "{text}");
 }
+
+#[test]
+fn addressed_result_says_an_idle_session_is_woken_when_a_watcher_is_armed() {
+    let now = 1_000_000;
+    let st = EndpointState {
+        session_id: "S".into(),
+        last_look_ms: now - 42_000,
+        watch_until_ms: now + 1,
+        ..EndpointState::default()
+    };
+    let text = addressed_result(3, "kat:5", &st, now);
+    assert!(text.contains("queued"), "{text}");
+    assert!(text.contains("idle session is woken"), "{text}");
+    assert!(text.contains("42s"), "{text}");
+    assert!(!text.contains("delivered"), "{text}");
+}
+
+#[test]
+fn addressed_result_is_unchanged_without_a_watcher() {
+    let st = EndpointState {
+        session_id: "S".into(),
+        watch_until_ms: 0,
+        ..EndpointState::default()
+    };
+    let text = addressed_result(3, "kat:5", &st, 1_000_000);
+    assert!(!text.contains("woken"), "{text}");
+    assert!(text.contains("next prompt or tool call"), "{text}");
+}
+
+#[test]
+fn addressed_result_ignores_an_expired_watch() {
+    let now = 1_000_000;
+    let st = EndpointState {
+        session_id: "S".into(),
+        watch_until_ms: now - 1,
+        ..EndpointState::default()
+    };
+    let text = addressed_result(3, "kat:5", &st, now);
+    assert!(!text.contains("woken"), "{text}");
+}
+
+#[test]
+fn addressed_result_with_an_armed_watcher_skips_the_no_hook_warning() {
+    // At session start the watcher can arm before the first hook records the session id.
+    let now = 1_000_000;
+    let st = EndpointState {
+        session_id: String::new(),
+        watch_until_ms: now + 1,
+        ..EndpointState::default()
+    };
+    let text = addressed_result(3, "kat:5", &st, now);
+    assert!(!text.contains("Warning"), "{text}");
+    assert!(text.contains("idle session is woken"), "{text}");
+}
+
+#[test]
+fn addressed_result_treats_a_watch_ending_now_as_expired() {
+    let now = 1_000_000;
+    let st = EndpointState {
+        session_id: "S".into(),
+        watch_until_ms: now,
+        ..EndpointState::default()
+    };
+    let text = addressed_result(3, "kat:5", &st, now);
+    assert!(!text.contains("woken"), "{text}");
+}

@@ -147,20 +147,30 @@ pub fn post_notice_from(
 }
 
 /// The tool result for an addressed notice `seq` posted to the session `key`. `target` is the
-/// receiver's endpoint state. Without a session id in it no hook has ever run there, so the notice
-/// may never arrive: the text says so. Otherwise it gives the age of the receiver's last look.
+/// receiver's endpoint state. Without a session id in it and without an armed watcher no hook has
+/// ever run there, so the notice may never arrive: the text says so. Otherwise it gives the age of
+/// the receiver's last look. When a wake watcher is armed (`watch_until_ms > now_ms`) it adds that
+/// an idle session is woken.
 pub fn addressed_result(seq: i64, key: &str, target: &EndpointState, now_ms: i64) -> String {
     let mut text = format!(
         "Posted notice {seq} to {key} (queued: it shows at that session's next prompt or tool call)."
     );
+    let armed = target.watch_until_ms > now_ms;
     if target.session_id.is_empty() {
-        text.push_str(
-            " Warning: no hook has run for that session, so it may never receive this. \
-             Check that session-bridge is enabled in its profile.",
-        );
+        if !armed {
+            text.push_str(
+                " Warning: no hook has run for that session, so it may never receive this. \
+                 Check that session-bridge is enabled in its profile.",
+            );
+        }
     } else if target.last_look_ms > 0 {
         let age_s = (now_ms - target.last_look_ms).max(0) / 1000;
         text.push_str(&format!(" Its hooks last looked {age_s}s ago."));
+    }
+    if armed {
+        text.push_str(
+            " A wake watcher is armed there, so an idle session is woken (at most once a minute).",
+        );
     }
     text
 }

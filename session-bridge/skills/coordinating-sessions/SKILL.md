@@ -98,9 +98,13 @@ Use `post_notice(title, body, to=<target>)` to send one message to one live sess
 repository or profile. `to` takes a key, a session id, an id prefix of 4 or more characters, or a
 name, as `ask_session` does. It works for Claude Code sessions and Codex threads.
 
-- Only that session sees it, at its next prompt or tool call. An idle session does not wake up, so
-  do not wait for an answer in the same turn.
-- No filter runs and the receiver pays nothing. The message still takes room in the receiver's
+- Only that session sees it, at its next prompt or tool call. An idle Claude Code session is woken
+  only when its profile has the file `<config-dir>/session-bridge-wake`. Do not wait for an answer
+  in the same turn. The receiver answers in a later turn of its own. The result says `an idle
+  session is woken` when a wake is armed there; otherwise the notice shows at the receiver's next
+  prompt or tool call.
+- No filter runs. A notice that wakes an idle Claude Code session starts a turn that the
+  receiver's profile pays for. The message still takes room in the receiver's
   context, so write one specific message with the action first.
 - The result says `queued`, not delivered. When it warns that no hook has run there, the receiver
   may never see the message: tell your user.

@@ -150,3 +150,37 @@ fn a_body_a_fifth_over_the_advised_limit_is_not_cut() {
     let got = f.take(&["s1"]).expect("delivered");
     assert!(got.contains(&body), "the whole body is present");
 }
+
+#[test]
+fn concurrent_takers_never_return_one_notice_twice() {
+    use std::sync::{Arc, Barrier};
+    let f = fx();
+    let db = f.state.join("notices.db");
+    for round in 0..50 {
+        let title = format!("round-{round};");
+        f.post_to(Some("s1"), &title, "b");
+        let barrier = Arc::new(Barrier::new(8));
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                let barrier = barrier.clone();
+                let db = db.clone();
+                let state = f.state.clone();
+                let roots = Roots {
+                    proc_root: f.roots.proc_root.clone(),
+                    socks: f.roots.socks.clone(),
+                };
+                std::thread::spawn(move || {
+                    let store = Store::open(&db).unwrap();
+                    barrier.wait();
+                    take(&["s1"], ME, &roots, &state, &store)
+                })
+            })
+            .collect();
+        let got: Vec<Option<String>> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+        let winners = got
+            .iter()
+            .filter(|g| g.as_deref().is_some_and(|t| t.contains(&title)))
+            .count();
+        assert_eq!(winners, 1, "round {round}: {got:?}");
+    }
+}
