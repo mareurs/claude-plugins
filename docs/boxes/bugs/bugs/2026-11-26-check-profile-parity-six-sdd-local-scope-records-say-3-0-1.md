@@ -1,33 +1,32 @@
 ---
 kind: entry
 status: open
-title: 'check-profile-parity: six sdd local-scope records say 3.0.1 while plugin.json says 3.0.2 (commit b52f029 is titled 3.0.1)'
+title: release.sh stages the whole README.md, so a peer session's edit made during the run lands in the release commit (session-bridge 0.4.0 swept an sdd 3.0.2 row)
 created: 2026-11-26
 entry_kind: bug
 last_observed: 2026-11-26
 log:
 - '2026-11-26 open created codescout:6bb10174-8084-4777-b7ef-38b92a18572d'
+- '2026-11-26 edited:title codescout:6bb10174-8084-4777-b7ef-38b92a18572d'
 severity: low
 status_since: 2026-11-26
 ---
 
 ## Summary
 
-`./scripts/check-profile-parity.sh` (the full run, without a plugin argument) exits 1 on 2026-11-26 because six `sdd` install records say `3.0.1` while `sdd/.claude-plugin/plugin.json` and the README row say `3.0.2`. The `session-bridge` 0.4.0 release is not the cause: its own plugin-scoped parity gate passed and the full run prints `OK: session-bridge 0.4.0 — parity across 4 profile(s)`.
+`scripts/release.sh` runs its clean-tree check at step 0 and `git add "$PLUGIN_JSON" README.md` at step 3 (`scripts/release.sh:70` and `:100`), minutes apart. `git add README.md` stages the whole file, so an edit that a peer session makes to `README.md` between those two steps lands in the release commit. This happened on 2026-11-26 in the `session-bridge` 0.4.0 release.
 
-## Symptom (Effect)
+## What happened (read at the bytes)
 
-Measured 2026-11-26 after `NO_PUSH=1 ./scripts/release.sh session-bridge minor`, at main `5dbecce`:
+- Commit `5dbecce` (`chore: bump session-bridge to 0.4.0`) changes two rows of the README version table: the `session-bridge` row (`0.3.3` to `0.4.0`, which is the release's own `sed` at `release.sh:94`) and the `sdd` row (`3.0.1` to `3.0.2`, which the release never touches: its `sed` matches only `$PLUGIN`).
+- At the end of the run `sdd/.claude-plugin/plugin.json` was modified and not committed (`3.0.1` at HEAD, `3.0.2` in the working tree), and no `release.sh` process was running. So another session had started to bump `sdd` to `3.0.2` (plugin.json and README) while the release ran, and its README edit was swept into `5dbecce`.
+- Effect now: HEAD has README `sdd 3.0.2` and `sdd/.claude-plugin/plugin.json` `3.0.1`; the four profile caches and records hold `3.0.1`. `check-profile-parity.sh` (full run) reads the working tree and reports six `STALE: sdd ... records 3.0.1, canonical is 3.0.2`. The `check-versions.sh` gate of the release also read the peer's uncommitted `3.0.2` and passed.
 
-- `STALE: sdd in ~/.claude`, `~/.claude-sdd`, `~/.claude-kat`, `~/.claude-stef`: element `[0]`, `scope=local`, `projectPath=/home/marius/work/claude/claude-plugins`, records `3.0.1`, canonical `3.0.2`.
-- `STALE: sdd in ~/.claude-kat` and `~/.claude-stef`: element `[1]`, `scope=local`, `projectPath=/home/marius/work/claude/claude-plugins.worktrees/session-channel`, records `3.0.1`.
-- `git log -- sdd/.claude-plugin/plugin.json`: the newest commit is `b52f029` (2026-11-11), subject `chore: bump sdd to 3.0.1`, yet `jq .version` on the file gives `3.0.2` and a pickaxe for `"version": "3.0.2"` finds that same commit. The commit subject and the version it wrote disagree.
+## Correction
 
-## Why it matters
+An earlier version of this entry said that commit `b52f029` was titled 3.0.1 but wrote 3.0.2. That was a misreading of `git show` output: a pickaxe for `"version": "3.0.2"` in the plugin.json history finds no commit. The committed plugin.json has always said `3.0.1`.
 
-The version-bump-checklist tracker reads every element of every record, so this row reads red; `sdd` is a `local`-scope install that Claude Code writes per project (the tracker prompt says so), so `release.sh sdd` cannot repoint it the way it repoints the user-scope record.
+## Fix direction (not done)
 
-## Not decided
-
-- Whether `3.0.1` or `3.0.2` is the intended version of the `b52f029` commit.
-- Whether the `session-channel` worktree record (a path that may no longer exist) should be removed instead of repointed (the parity script's own note: "may be deliberate; check projectPath before removing anything").
+- `release.sh` should stage only the lines it changed, or refuse when `README.md` or any `plugin.json` differs from the version it read at step 0 (re-check `git status --porcelain` right before step 3).
+- The `sdd` release itself belongs to the session that started it; this entry does not cover it.
