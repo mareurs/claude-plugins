@@ -71,7 +71,8 @@ pub fn release_watcher(path: &Path, own_pid: u32) {
 pub enum WatchOutcome {
     /// The text of the notices to hand to the idle session.
     Wake(String),
-    /// Nothing to deliver: the deadline passed, the host is gone or the guard held.
+    /// Nothing to deliver: the deadline passed, the host is gone, the marker is gone or a newer
+    /// watcher took the slot.
     Done,
 }
 
@@ -83,13 +84,16 @@ pub struct Clock<'a> {
 
 /// Watch for a notice addressed to this session and take it when one arrives.
 ///
-/// `me.1` is the Claude pid of the host. The watcher claims the endpoint's watcher slot with
-/// its own pid, then polls every `POLL_MS` through `clock.sleep_ms`. A pass checks, in order:
-/// the host is alive, the claim deadline has not passed, then whether a notice is pending for
-/// the input session id or the id the endpoint state still names (after `/clear`). The pending
-/// check only peeks; `direct::take` moves the cursor, and only when the loop guard allows a
-/// wake, so a held-back notice stays deliverable by `on_trigger`. The claim is released on
-/// every return path. A subagent, an unsafe id or a lost claim ends at once with `Done`.
+/// `me.1` is the Claude pid of the host. The watcher takes the endpoint's watcher slot with its
+/// own pid (the newest arm wins), then polls every `POLL_MS` through `clock.sleep_ms`. Every
+/// pass checks, in order: the host is alive, `enabled()` still holds (the marker file exists),
+/// this watcher still owns the claim, the claim deadline has not passed, then whether a notice
+/// is pending for the input session id or the id the endpoint state still names (after
+/// `/clear`). The pending check only peeks. While the loop guard holds, the notice is not taken
+/// and the watcher keeps polling, so `on_trigger` can still deliver it at the next prompt or
+/// tool call; `direct::take` moves the cursor once the guard allows, and that take is the wake.
+/// The claim is released on every return path. A subagent or an unsafe id ends at once with
+/// `Done`.
 pub fn watch(
     input: &HookInput,
     me: (&str, u32),
@@ -97,6 +101,7 @@ pub fn watch(
     state: &Path,
     store: &Store,
     clock: &Clock,
+    enabled: &dyn Fn() -> bool,
 ) -> WatchOutcome {
     if input.agent_id.is_some() || !is_safe_component(&input.session_id) || !is_safe_component(me.0)
     {
@@ -107,11 +112,12 @@ pub fn watch(
     if !claim_watcher(&path, own, (clock.now_ms)()) {
         return WatchOutcome::Done;
     }
-    let out = watch_loop(input, me, roots, state, store, clock, &path, own);
+    let out = watch_loop(input, me, roots, state, store, clock, enabled, &path, own);
     release_watcher(&path, own);
     out
 }
 
+/// The poll loop of `watch`; the pass order and the guard rule are described there.
 #[allow(clippy::too_many_arguments)]
 fn watch_loop(
     input: &HookInput,
@@ -120,11 +126,12 @@ fn watch_loop(
     state: &Path,
     store: &Store,
     clock: &Clock,
+    enabled: &dyn Fn() -> bool,
     path: &Path,
     own: u32,
 ) -> WatchOutcome {
     loop {
-        if !pid_alive(roots, me.1) {
+        if !pid_alive(roots, me.1) || !enabled() {
             return WatchOutcome::Done;
         }
         let st = load_or_default(path);
@@ -146,10 +153,7 @@ fn watch_loop(
                     .map(|v| !v.is_empty())
                     .unwrap_or(false)
         });
-        if pending {
-            if !guard_allows(&st.wake_ms, now) {
-                return WatchOutcome::Done;
-            }
+        if pending && guard_allows(&st.wake_ms, now) {
             if let Some(text) = take(&ids, me, roots, state, store) {
                 if let Err(e) = update(path, |s| {
                     s.wake_ms.retain(|&w| now - w <= HOUR_MS);

@@ -171,7 +171,15 @@ fn watch_output() -> Option<String> {
         now_ms: &now_ms,
         sleep_ms: &|ms| std::thread::sleep(std::time::Duration::from_millis(ms)),
     };
-    match watch(&input, (&profile, pid), &roots, &state, &store, &clock) {
+    match watch(
+        &input,
+        (&profile, pid),
+        &roots,
+        &state,
+        &store,
+        &clock,
+        &|| wake_enabled(&env),
+    ) {
         WatchOutcome::Wake(text) => Some(text),
         WatchOutcome::Done => None,
     }

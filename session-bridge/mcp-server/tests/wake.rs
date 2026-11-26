@@ -6,7 +6,7 @@ use session_bridge_mcp::state::{endpoint_path, load_or_default, update};
 use session_bridge_mcp::store::{NewNotice, Origin, Store};
 use session_bridge_mcp::wake::{
     claim_watcher, guard_allows, release_watcher, wake_enabled, watch, Clock, WatchOutcome,
-    DEADLINE_MS, POLL_MS,
+    DEADLINE_MS, GUARD_MIN_INTERVAL_MS, POLL_MS,
 };
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -172,6 +172,16 @@ impl W {
     }
 
     fn run(&self, input: &HookInput, now: &Cell<i64>, on_sleep: &dyn Fn(u32)) -> WatchOutcome {
+        self.run_enabled(input, now, on_sleep, &|| true)
+    }
+
+    fn run_enabled(
+        &self,
+        input: &HookInput,
+        now: &Cell<i64>,
+        on_sleep: &dyn Fn(u32),
+        enabled: &dyn Fn() -> bool,
+    ) -> WatchOutcome {
         let calls = Cell::new(0u32);
         let now_fn = || now.get();
         let sleep = |ms: u64| {
@@ -190,6 +200,7 @@ impl W {
             &self.state_dir,
             &self.store,
             &clock,
+            enabled,
         )
     }
 
@@ -305,24 +316,6 @@ fn host_gone_while_waiting_exits_without_taking() {
 }
 
 #[test]
-fn the_guard_blocks_and_the_notice_survives() {
-    let w = W::alive();
-    update(&w.path(), |s| s.wake_ms = vec![T0 - 1_000]).unwrap();
-    w.post_to("s1", "held back");
-    let now = Cell::new(T0);
-    assert_eq!(w.watch(&input("s1"), &now), WatchOutcome::Done);
-    assert_eq!(w.cursor("s1"), 0);
-    let got = take(
-        &["s1"],
-        (PROFILE, CLAUDE_PID),
-        &w.f.roots,
-        &w.state_dir,
-        &w.store,
-    );
-    assert!(got.expect("still deliverable").contains("held back"));
-}
-
-#[test]
 fn a_wake_is_recorded_for_the_guard() {
     let w = W::alive();
     let old = T0 - 4_000_000;
@@ -393,16 +386,6 @@ fn polling_uses_the_poll_interval() {
 }
 
 #[test]
-fn a_guard_block_releases_the_claim() {
-    let w = W::alive();
-    update(&w.path(), |s| s.wake_ms = vec![T0 - 1_000]).unwrap();
-    w.post_to("s1", "held back");
-    let now = Cell::new(T0);
-    assert_eq!(w.watch(&input("s1"), &now), WatchOutcome::Done);
-    assert_eq!(load_or_default(&w.path()).watcher_pid, None);
-}
-
-#[test]
 fn a_wake_keeps_a_wake_exactly_one_hour_old_and_drops_an_older_one() {
     let w = W::alive();
     update(&w.path(), |s| {
@@ -427,4 +410,81 @@ fn a_watcher_that_lost_its_claim_exits_and_leaves_the_new_claim() {
     assert_eq!(out, WatchOutcome::Done);
     assert!(now.get() < T0 + DEADLINE_MS, "exited before the deadline");
     assert_eq!(load_or_default(&w.path()).watcher_pid, Some(999_999));
+}
+
+const HELD_AT: i64 = 1_000;
+
+#[test]
+fn a_guard_hold_delays_the_wake_until_the_guard_allows() {
+    let w = W::alive();
+    update(&w.path(), |s| s.wake_ms = vec![T0 - HELD_AT]).unwrap();
+    w.post_to("s1", "held back");
+    let now = Cell::new(T0);
+    let out = w.run(&input("s1"), &now, &|_| {
+        // every sleep inside the hold: the notice is not taken, the claim stays
+        if now.get() < T0 - HELD_AT + GUARD_MIN_INTERVAL_MS {
+            assert_eq!(w.cursor("s1"), 0, "held at {}", now.get() - T0);
+            assert_eq!(
+                load_or_default(&w.path()).watcher_pid,
+                Some(std::process::id())
+            );
+        }
+    });
+    match out {
+        WatchOutcome::Wake(t) => assert!(t.contains("held back"), "{t}"),
+        o => panic!("expected a wake after the hold, got {o:?}"),
+    }
+    assert!(now.get() >= T0 - HELD_AT + GUARD_MIN_INTERVAL_MS, "woke only once the guard allowed");
+    assert!(w.cursor("s1") > 0);
+    assert_eq!(load_or_default(&w.path()).watcher_pid, None, "released after the wake");
+    // the notice was taken once: a second watch only runs to its deadline
+    assert_eq!(w.watch(&input("s1"), &now), WatchOutcome::Done);
+}
+
+#[test]
+fn a_held_notice_taken_by_the_prompt_hook_does_not_wake() {
+    let w = W::alive();
+    update(&w.path(), |s| s.wake_ms = vec![T0 - HELD_AT]).unwrap();
+    w.post_to("s1", "held back");
+    let now = Cell::new(T0);
+    let out = w.run(&input("s1"), &now, &|n| {
+        if n == 2 {
+            // what on_trigger does at the next prompt or tool call
+            let got = take(
+                &["s1"],
+                (PROFILE, CLAUDE_PID),
+                &w.f.roots,
+                &w.state_dir,
+                &w.store,
+            );
+            assert!(got.expect("still deliverable").contains("held back"));
+        }
+    });
+    assert_eq!(out, WatchOutcome::Done);
+    assert!(now.get() >= T0 + DEADLINE_MS, "kept waiting to the deadline");
+    assert!(w.cursor("s1") > 0);
+    assert_eq!(load_or_default(&w.path()).watcher_pid, None);
+}
+
+#[test]
+fn removing_the_marker_ends_the_watcher_within_one_poll() {
+    let w = W::alive();
+    w.post_to("s1", "pending");
+    update(&w.path(), |s| s.wake_ms = vec![T0 - HELD_AT]).unwrap();
+    let on = Cell::new(true);
+    let now = Cell::new(T0);
+    let out = w.run_enabled(
+        &input("s1"),
+        &now,
+        &|n| {
+            if n == 2 {
+                on.set(false);
+            }
+        },
+        &|| on.get(),
+    );
+    assert_eq!(out, WatchOutcome::Done);
+    assert_eq!(now.get(), T0 + 2 * POLL_MS as i64);
+    assert_eq!(w.cursor("s1"), 0);
+    assert_eq!(load_or_default(&w.path()).watcher_pid, None);
 }
