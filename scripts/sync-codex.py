@@ -146,7 +146,7 @@ def cache_payload(cache: Path) -> dict[str, bytes | str]:
 
 @contextmanager
 def packaged_marketplace(config: dict, plugin: str) -> Iterator[tuple[str | None, tuple[str, ...]]]:
-    """Stage Companion with the release copy rules for both comparison and installation."""
+    """Stage Buddy and Companion with the release copy rules for comparison and installation."""
     marketplace = config.get("marketplaces", {}).get(MARKETPLACE, {})
     if marketplace.get("source_type") != "local":
         yield None, ()
@@ -157,9 +157,10 @@ def packaged_marketplace(config: dict, plugin: str) -> Iterator[tuple[str | None
 
     root = Path(source)
     catalog = root / ".claude-plugin" / "marketplace.json"
-    if plugin != "codescout-companion" or not catalog.is_file():
+    if plugin not in {"buddy", "codescout-companion"} or not catalog.is_file():
         yield source, ()
         return
+
     entries = json.loads(catalog.read_text()).get("plugins", [])
     if not any(entry.get("name") == plugin and entry.get("source") == f"./{plugin}" for entry in entries):
         yield source, ()

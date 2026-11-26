@@ -200,43 +200,45 @@ out="$(TARGETS="$H/want.json" sync "$VER" 2>&1)"; rc=$?
   && pass "sync: registers a listed plugin when a matching cache already exists" \
   || fail "sync: registers a listed plugin when a matching cache already exists" "rc=$rc $out"
 
-# Companion release packages use the shared copy filter for Codex as well.
-PLUGIN=codescout-companion
-SOURCE="$MARKET_ROOT/$PLUGIN"
-mkdir -p "$SOURCE/.claude-plugin" "$SOURCE/.buddy" "$SOURCE/.codescout" \
-  "$SOURCE/hooks/__pycache__" "$SOURCE/node_modules/ws"
-jq '{name, version, description}' "$ROOT/$PLUGIN/.claude-plugin/plugin.json" > "$SOURCE/.claude-plugin/plugin.json"
-VER="$(jq -r '.version' "$SOURCE/.claude-plugin/plugin.json")"
-printf 'fixture\n' > "$SOURCE/.buddy/local-state"
-printf 'fixture\n' > "$SOURCE/.codescout/local-state"
-printf 'fixture\n' > "$SOURCE/.orphaned_at"
-printf 'fixture\n' > "$SOURCE/hooks/__pycache__/hook.pyc"
-printf 'module.exports = "fixture";\n' > "$SOURCE/node_modules/ws/index.js"
-run codex plugin add "$PLUGIN@$MKT" >/dev/null 2>&1
-CACHE="$H/home/plugins/cache/$MKT/$PLUGIN/$VER"
-[ -f "$CACHE/.buddy/local-state" ] || { fail "fixture: Codex copies raw local state" "$CACHE"; print_summary "sync-codex"; exit 1; }
+# Codex release packages for Buddy and Companion use the shared copy filter.
+for PLUGIN in codescout-companion buddy; do
+  SOURCE="$MARKET_ROOT/$PLUGIN"
+  mkdir -p "$SOURCE/.claude-plugin" "$SOURCE/.buddy" "$SOURCE/.codescout" \
+    "$SOURCE/hooks/__pycache__" "$SOURCE/node_modules/ws"
+  jq '{name, version, description}' "$ROOT/$PLUGIN/.claude-plugin/plugin.json" > "$SOURCE/.claude-plugin/plugin.json"
+  VER="$(jq -r '.version' "$SOURCE/.claude-plugin/plugin.json")"
+  TRACE=.buddy/.session-start-trace.log
+  printf 'fixture\n' > "$SOURCE/$TRACE"
+  printf 'fixture\n' > "$SOURCE/.codescout/local-state"
+  printf 'fixture\n' > "$SOURCE/.orphaned_at"
+  printf 'fixture\n' > "$SOURCE/hooks/__pycache__/hook.pyc"
+  printf 'module.exports = "fixture";\n' > "$SOURCE/node_modules/ws/index.js"
+  run codex plugin add "$PLUGIN@$MKT" >/dev/null 2>&1
+  CACHE="$H/home/plugins/cache/$MKT/$PLUGIN/$VER"
+  [ -f "$CACHE/$TRACE" ] || { fail "$PLUGIN fixture: Codex copies the raw trace" "$CACHE"; print_summary "sync-codex"; exit 1; }
 
-out="$(sync "$VER" --check 2>&1)"; rc=$?
-[ "$rc" = 1 ] && printf '%s' "$out" | grep -q 'STALE:.*\.buddy/' && [ -f "$CACHE/.buddy/local-state" ] \
-  && pass "check: reports extra local state in the raw Companion cache" \
-  || fail "check: reports extra local state in the raw Companion cache" "rc=$rc $out"
-out="$(sync "$VER" 2>&1)"; rc=$?
-[ "$rc" = 0 ] && [ ! -e "$CACHE/.buddy" ] && [ ! -e "$CACHE/.codescout" ] \
-  && [ ! -e "$CACHE/.orphaned_at" ] && [ ! -e "$CACHE/hooks/__pycache__" ] \
-  && [ -f "$SOURCE/.buddy/local-state" ] \
-  && pass "sync: installs the filtered Companion package" \
-  || fail "sync: installs the filtered Companion package" "rc=$rc $out"
-cmp -s "$SOURCE/node_modules/ws/index.js" "$CACHE/node_modules/ws/index.js" \
-  && pass "sync: preserves Companion runtime dependencies" \
-  || fail "sync: preserves Companion runtime dependencies"
-run python3 -c 'import sys,tomllib; assert tomllib.load(open(sys.argv[1],"rb"))["marketplaces"][sys.argv[2]]["source"] == sys.argv[3]' \
-    "$H/home/config.toml" "$MKT" "$MARKET_ROOT" \
-  && pass "sync: preserves the registered marketplace source" \
-  || fail "sync: preserves the registered marketplace source"
-printf 'new state\n' >> "$SOURCE/.buddy/local-state"
-out="$(sync "$VER" --check 2>&1)"; rc=$?
-[ "$rc" = 0 ] && [ ! -e "$CACHE/.buddy" ] \
-  && pass "check: source state changes do not make the filtered cache stale" \
-  || fail "check: source state changes do not make the filtered cache stale" "rc=$rc $out"
+  out="$(sync "$VER" --check 2>&1)"; rc=$?
+  [ "$rc" = 1 ] && printf '%s' "$out" | grep -q 'STALE:.*\.buddy/\.session-start-trace\.log' && [ -f "$CACHE/$TRACE" ] \
+    && pass "$PLUGIN check: detects the trace in an older cache" \
+    || fail "$PLUGIN check: detects the trace in an older cache" "rc=$rc $out"
+  out="$(sync "$VER" 2>&1)"; rc=$?
+  [ "$rc" = 0 ] && [ ! -e "$CACHE/.buddy" ] && [ ! -e "$CACHE/.codescout" ] \
+    && [ ! -e "$CACHE/.orphaned_at" ] && [ ! -e "$CACHE/hooks/__pycache__" ] \
+    && [ -f "$SOURCE/$TRACE" ] \
+    && pass "$PLUGIN sync: installs the filtered package" \
+    || fail "$PLUGIN sync: installs the filtered package" "rc=$rc $out"
+  cmp -s "$SOURCE/node_modules/ws/index.js" "$CACHE/node_modules/ws/index.js" \
+    && pass "$PLUGIN sync: preserves runtime dependencies" \
+    || fail "$PLUGIN sync: preserves runtime dependencies"
+  run python3 -c 'import sys,tomllib; assert tomllib.load(open(sys.argv[1],"rb"))["marketplaces"][sys.argv[2]]["source"] == sys.argv[3]' \
+      "$H/home/config.toml" "$MKT" "$MARKET_ROOT" \
+    && pass "$PLUGIN sync: preserves the registered marketplace source" \
+    || fail "$PLUGIN sync: preserves the registered marketplace source"
+  printf 'new state\n' >> "$SOURCE/$TRACE"
+  out="$(sync "$VER" --check 2>&1)"; rc=$?
+  [ "$rc" = 0 ] && [ ! -e "$CACHE/.buddy" ] \
+    && pass "$PLUGIN check: a changed source trace leaves the cache current" \
+    || fail "$PLUGIN check: a changed source trace leaves the cache current" "rc=$rc $out"
+done
 
 print_summary "sync-codex"
