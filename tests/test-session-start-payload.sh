@@ -9,6 +9,7 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 FAKE_HOME="$T/_home"
 mkdir -p "$FAKE_HOME"
+make_hook_hosts "$T/bin"
 
 make_git_repo "$T/proj"
 make_codescout_dir "$T/proj"
@@ -25,7 +26,7 @@ cat > "$T/proj/.mcp.json" <<'MCP'
 MCP
 
 run_hook() {
-  HOME="$FAKE_HOME" CLAUDE_CONFIG_DIR="" node "$HOOK" 2>/dev/null
+  HOME="$FAKE_HOME" CLAUDE_CONFIG_DIR="" "$T/bin/claude" node "$HOOK" 2>/dev/null
 }
 
 INPUT=$(printf '{"cwd":"%s","session_id":"size-sid","source":"startup"}' "$T/proj")

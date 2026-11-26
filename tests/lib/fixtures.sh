@@ -58,6 +58,17 @@ print_summary() {
 
 # --- Git / filesystem setup ---
 
+# Keep the stand-in process alive while its child reads /proc ancestry.
+make_hook_hosts() {
+  local dir="$1"
+  local host
+  mkdir -p "$dir"
+  for host in claude codex; do
+    printf '#!/bin/sh\n"$@"\n' > "$dir/$host"
+    chmod +x "$dir/$host"
+  done
+}
+
 make_git_repo() {
   local dir="$1"
   mkdir -p "$dir"

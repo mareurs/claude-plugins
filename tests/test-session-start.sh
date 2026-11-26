@@ -5,6 +5,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures.sh"
 echo "── session-start ──"
 HOOK="$HOOK_DIR/session-start.mjs"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+make_hook_hosts "$T/bin"
 
 # write_mcp_json fixture uses fake-ce which doesn't match detect.mjs's
 # /codescout/ regex; write directly with a matching command (a real, exec-able
@@ -62,12 +63,11 @@ write_ce_mcp_json "$T/t4"
 make_ce_dir "$T/t4"
 make_system_prompt "$T/t4"
 OUT=$(printf '{"cwd":"%s"}' "$T/t4" | node "$HOOK" 2>/dev/null)
-if echo "$OUT" | grep -q 'memory(action="read", topic="system-prompt")'; then
-  fail "system-prompt pointer should be removed" "$OUT"
-elif assert_context_contains "$OUT" "codescout-companion:reconnaissance"; then
-  pass "system-prompt pointer removed; recon pointer kept"
+if assert_context_contains "$OUT" "project_hints" &&
+   ! assert_context_contains "$OUT" 'memory(action="read", topic="system-prompt")'; then
+  pass "bootstrap emitted without the system-prompt pointer"
 else
-  fail "recon pointer missing" "$OUT"
+  fail "expected bootstrap without the system-prompt pointer" "$OUT"
 fi
 
 # --- Test 5: index stale → INDEX: Refreshing message ---
@@ -176,17 +176,24 @@ else
     "$(ls -la "$T/t11wt/.codescout/embeddings" 2>/dev/null)"
 fi
 
-# --- Test 12: reconnaissance pointer always emitted when CE configured ---
-# Verbatim SKILL.md body no longer injected (injection-budget redesign).
-# Full body now loads via Skill('codescout-companion:reconnaissance') on demand.
+# --- Test 12: the reconnaissance Skill pointer is specific to Claude Code ---
 make_git_repo "$T/t12"
 write_ce_mcp_json "$T/t12"
 make_ce_dir "$T/t12"
-OUT=$(printf '{"cwd":"%s"}' "$T/t12" | node "$HOOK" 2>/dev/null)
+INPUT=$(printf '{"cwd":"%s"}' "$T/t12")
+OUT=$(printf '%s' "$INPUT" | "$T/bin/claude" node "$HOOK" 2>/dev/null)
 if assert_context_contains "$OUT" "codescout-companion:reconnaissance"; then
-  pass "reconnaissance: pointer emitted"
+  pass "Claude Code: reconnaissance pointer emitted"
 else
-  fail "reconnaissance: pointer emitted" "$(echo "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | head -10)"
+  fail "Claude Code: reconnaissance pointer missing" "$OUT"
+fi
+
+OUT=$(printf '%s' "$INPUT" | "$T/bin/codex" node "$HOOK" 2>/dev/null)
+if assert_context_contains "$OUT" "project_hints" &&
+   ! assert_context_contains "$OUT" "codescout-companion:reconnaissance"; then
+  pass "Codex: bootstrap emitted without the reconnaissance Skill pointer"
+else
+  fail "Codex: expected bootstrap without the reconnaissance Skill pointer" "$OUT"
 fi
 
 # --- Test 13: reconnaissance recon-loaded marker is dropped at SessionStart ---
