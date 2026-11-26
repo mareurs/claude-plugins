@@ -78,6 +78,14 @@ Consequence of G5: the watcher must check that its Claude pid is alive on each p
 
 Two more measurements, same host and mode (headless, probe hooks): a wake that fires while the receiver is busy is not lost (the hook exited 2 at 8.8 s while the turn ran tool calls until 37.7 s, and the model's final answer of that same turn held the wake token, with no second turn); a wake text of 50 089 bytes on stderr arrived complete on an idle session (the model repeated its last line), so the 8-notice cap of about 38 KB needs no byte cap. The hook input of an `asyncRewake` hook holds the full hook JSON with `session_id` and reaches end-of-file at once on `SessionStart` and on `Stop`.
 
+Acceptance of the built feature, 2026-11-26, interactive TUI (`tmux`), Claude Code 2.1.332, binary built from this branch, receiver profile `kat` with the marker file, the `watch` hook entries of this branch added through `--settings`:
+
+- Notice 1 to an idle receiver: the TUI showed `Stop hook feedback` with the notice text about 3 s after the post, and the model answered. The model (haiku) declined to carry out the instruction inside the notice and said it came from hook output, not from its user. The text is peer data, not an instruction, so a wake delivers information; whether the receiver acts on a request in it is the receiver model's choice.
+- Notice 2, 19 s after notice 1: no wake inside the 60 s limit; the watcher kept waiting (a new watcher, started by the `Stop` after the first wake, had replaced the old one); the wake came about one minute after the first (`done 2:38`, then `done 2:39`).
+- Marker removed: the armed watcher ended within 5 s; notice 3 posted after that produced no wake in 20 s.
+- Marker back, one prompt typed to arm a watcher, `kill -9` of the receiver's `claude`: the watcher was gone within 1 s. (Inside `tmux` the closed terminal may end the watcher by itself; the host check is pinned by `tests/wake.rs`.) No `session-bridge watch` process was left.
+- Not covered by the acceptance: the `post_notice` sentence `an idle session is woken`. The sending session ran a server started before the install, and the sentence is pinned by `tests/store.rs`.
+
 Still open: the largest accepted `timeout` (G4). The wake window after the last arm is that timeout: past it the notice stays queued and shows at the next prompt or tool call, as today. Windows stays `unverified`.
 
 ## Risks
