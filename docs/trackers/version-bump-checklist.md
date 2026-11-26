@@ -14,6 +14,19 @@ Release readiness across plugins × profiles. See
 
 ## State
 
+### Current release verification — 2026-11-26 (codescout-display 0.1.4)
+
+Released locally at `b3355f1`. Fresh `claude plugin list --json` reports 0.1.4 enabled in each of the four profiles. The version and install paths pass profile parity.
+
+| Profile | Installed | Cache exists | Profile owns path | Native plugin tests |
+|---|---|---|---|---|
+| `~/.claude` | 0.1.4 ✅ | ✅ | ✅ | 145 passed ✅ |
+| `~/.claude-sdd` | 0.1.4 ✅ | ✅ | ✅ | 145 passed ✅ |
+| `~/.claude-kat` | 0.1.4 ✅ | ✅ | ✅ | 145 passed ✅ |
+| `~/.claude-stef` | 0.1.4 ✅ | ✅ | ✅ | 145 passed ✅ |
+
+Two real `run_command` payloads from a Claude Code transcript replayed as `box · show frictions` and `box · batch open · check` against the new renderer. Both had rendered as `run_command` in 0.1.3. The native renderer tests cover a piped box list and the semantic search card. Used `SKIP_TESTS=1` for the repository-wide gate because its three failures were reproduced on the prior baseline during the 0.1.3 release. Running Claude Code sessions still need a plugin reload.
+
 ### Current release verification — 2026-11-26 (codescout-display 0.1.3)
 
 Released locally with `NO_PUSH=1` at `22990bb`. The version manifest and README agree, and marketplace entries have no version fields.
@@ -1144,6 +1157,10 @@ measured on both candidate load paths rather than argued: the record points at k
 two actually serves, they carry the same bytes — so the question CLAUDE.md flags as
 unsettled does not need settling for this release.
 ## History
+
+### 2026-11-26 — codescout-display 0.1.4
+
+All four Claude Code profiles moved from `0.1.3` to `0.1.4` in local release commit `b3355f1`.
 
 ### 2026-11-26 — codescout-display 0.1.3
 
