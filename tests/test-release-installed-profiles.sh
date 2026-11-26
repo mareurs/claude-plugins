@@ -55,6 +55,39 @@ for p in .claude-sdd .claude-stef; do
 done
 [ -z "$made" ] && pass "no install record created elsewhere" || fail "no install record created elsewhere" "created in:$made"
 
+# --- a sibling element for a deleted worktree ---
+# `local`/`project` installs are one element per project directory. [0] alone was repointed, so the
+# element of a removed worktree kept the old version (sdd in kat and stef, 2026-11-26).
+LIVE="$H/live-project"; GONE="$H/gone-worktree"; mkdir -p "$LIVE"
+cat > "$KAT" <<EOF
+{"version":2,"plugins":{"$PLUGIN@$MKT":[
+ {"scope":"local","projectPath":"$LIVE","version":"0.0.1","installPath":"$H/.claude-kat/plugins/cache/$MKT/$PLUGIN/0.0.1"},
+ {"scope":"local","projectPath":"$GONE","version":"0.0.1","installPath":"$H/.claude-kat/plugins/cache/$MKT/$PLUGIN/0.0.1"},
+ {"scope":"user","version":"0.0.1","installPath":"$H/.claude-kat/plugins/cache/$MKT/$PLUGIN/0.0.1"}]}}
+EOF
+HOME="$H" bash "$ROOT/scripts/bump-cache.sh" $PLUGIN "$VER" >/dev/null 2>&1
+HOME="$H" bash "$ROOT/scripts/repoint-install-records.sh" $PLUGIN "$VER" >/dev/null 2>&1
+[ "$(jq -r "[.plugins[\"$PLUGIN@$MKT\"][].version] | unique | join(\",\")" "$KAT")" = "$VER" ] \
+  && pass "repoint updates every element, siblings included" \
+  || fail "repoint updates every element, siblings included" "$(jq -c '[.plugins[][].version]' "$KAT")"
+out="$(HOME="$H" bash "$ROOT/scripts/check-profile-parity.sh" $PLUGIN 2>&1)"
+printf '%s\n' "$out" | grep -q "ORPHAN: $PLUGIN in $H/.claude-kat — element \[1\]" \
+  && pass "parity names the element of a deleted directory as ORPHAN" \
+  || fail "parity names the element of a deleted directory as ORPHAN" "$out"
+printf '%s\n' "$out" | grep -q "ORPHAN.*$LIVE" \
+  && fail "parity does not flag a live project directory (control)" "$out" \
+  || pass "parity does not flag a live project directory (control)"
+sha_kat="$(sha256sum "$KAT" | cut -d' ' -f1)"
+HOME="$H" bash "$ROOT/scripts/prune-orphan-pins.sh" $PLUGIN >/dev/null 2>&1
+[ "$(sha256sum "$KAT" | cut -d' ' -f1)" = "$sha_kat" ] && pass "prune is a dry run without --apply" \
+  || fail "prune is a dry run without --apply" "$(cat "$KAT")"
+HOME="$H" bash "$ROOT/scripts/prune-orphan-pins.sh" $PLUGIN --apply >/dev/null 2>&1
+[ "$(jq -r "[.plugins[\"$PLUGIN@$MKT\"][] | .projectPath // \"user\"] | join(\",\")" "$KAT")" = "$LIVE,user" ] \
+  && pass "prune --apply removes only the orphan; a live project and the user element stay" \
+  || fail "prune --apply removes only the orphan; a live project and the user element stay" "$(jq -c '[.plugins[][]|.projectPath]' "$KAT")"
+ls "$KAT".bak-orphan-* >/dev/null 2>&1 && pass "prune --apply leaves a backup of the record" || fail "prune --apply leaves a backup of the record"
+rm -rf "$H/.claude-kat/plugins/cache" "$KAT".bak-orphan-*
+
 # --- plugin installed nowhere ---
 rm -rf "$H/.claude-kat/plugins/cache"
 echo '{"version":2,"plugins":{}}' > "$KAT"

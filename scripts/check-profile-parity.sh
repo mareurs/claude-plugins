@@ -24,6 +24,9 @@
 #      Origin: one `/plugin install` run with cwd=~ on 2026-08-24T14:06:57.809Z, which
 #      created project-scope entries for three unrelated plugins in the same second.
 #   2. CROSS-PROFILE — an installPath under a different profile's root (2026-05-16 class).
+#   ORPHAN (a note, not a count) — an element whose projectPath directory is gone, left by a
+#      deleted worktree. Found 2026-11-26: sdd in kat and stef pinned 3.0.1 for the removed
+#      worktree `session-channel` (Claude Code does not prune it). scripts/prune-orphan-pins.sh.
 #   3. MISSING CACHE — a recorded version with no cache dir on disk. The #1 cause of
 #      "plugin appears installed but hook never fires".
 #   4. VERSION SKEW — profiles recording different versions of the same plugin.
@@ -99,6 +102,12 @@ for PLUGIN in "${PLUGINS[@]}"; do
       if [ "$ver" != "$canonical" ]; then
         echo "STALE: $PLUGIN in $P — element [$idx] (scope=$scope${ppath:+, projectPath=$ppath}) records $ver, canonical is $canonical"
         plugin_errors=$((plugin_errors + 1))
+      fi
+
+      # An element for a project directory that is gone (a deleted worktree) is not an error
+      # by itself. It is the usual origin of a STALE line above, so name the cure.
+      if [ -n "$ppath" ] && [ ! -d "$ppath" ]; then
+        echo "ORPHAN: $PLUGIN in $P — element [$idx] projectPath no longer exists: $ppath (drop it: scripts/prune-orphan-pins.sh $PLUGIN --apply)"
       fi
 
       case "$ipath" in
