@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# export-feedback.test.sh: the box export redacts with CS_PRIVACY on, exports raw with it off,
+# export-feedback.test.sh: the box export redacts unless the privacy-off marker file exists, exports raw with it,
 # reads every box through the codescout CLI, and fails with a message that names the fix.
 # A stub `codescout` on PATH serves the fixture, so the run is deterministic and needs no binary.
 set -uo pipefail
@@ -97,14 +97,16 @@ made = ["skeleton: made .codescout/harness.md, docs/boxes/runtime/runtime/readme
 json.dump({"index": {"version": "0.15.0", "os": "linux x86_64", "collections": [{"key": "runtime"}], "skeleton": made}, "boxes": {}}, open(os.environ["FRESH"], "w"))
 PY
 
-# $1 = CS_PRIVACY ("" = unset), $2 = data file, rest = script args. Prints the script's stdout.
+# $1 = privacy: "off" creates the marker file in the profile dir; anything else removes it;
+# "env-off" leaves the marker out and sets the old CS_PRIVACY=off (it must change nothing).
+# $2 = data file, rest = script args. Prints the script's stdout.
 run() {
   local priv="$1" data="$2"; shift 2
-  if [ -z "$priv" ]; then
-    env -u CS_PRIVACY STUB_DATA="$data" PATH="$BIN:$PATH" USER=tester-kx HOME="$HOMEDIR" python3 -I "$EXPORT" --project "$REPO" "$@"
-  else
-    env CS_PRIVACY="$priv" STUB_DATA="$data" PATH="$BIN:$PATH" USER=tester-kx HOME="$HOMEDIR" python3 -I "$EXPORT" --project "$REPO" "$@"
-  fi
+  mkdir -p "$HOMEDIR/.claude"
+  rm -f "$HOMEDIR/.claude/codescout-companion-privacy-off"
+  [ "$priv" = off ] && : > "$HOMEDIR/.claude/codescout-companion-privacy-off"
+  local old=(); [ "$priv" = env-off ] && old=(CS_PRIVACY=off)
+  env -u CLAUDE_CONFIG_DIR -u CODEX_HOME "${old[@]}" STUB_DATA="$data" PATH="$BIN:$PATH" USER=tester-kx HOME="$HOMEDIR" python3 -I "$EXPORT" --project "$REPO" "$@"
 }
 
 echo "== privacy on"
@@ -151,12 +153,12 @@ has    "$OFF" "SECRET_CODE_MARKER" "raw code kept when off"
 has    "$OFF" 'C:\Users\jdoe\proj\a.txt' "raw Windows path kept when off"
 case "$LINE" in *"Read it before"*) bad "no read-through line when off";; *) ok "no read-through line when off";; esac
 
-echo "== default and unknown values mean on"
+echo "== no marker means on; the old env var changes nothing"
 run "" "$TMP/data.json" --out "$TMP/unset.md" >/dev/null 2>&1
-has   "$TMP/unset.md" "- Privacy: on" "unset CS_PRIVACY means on"
-run maybe "$TMP/data.json" --out "$TMP/unknown.md" >/dev/null 2>&1
-has   "$TMP/unknown.md" "- Privacy: on" "unknown CS_PRIVACY value means on"
-lacks "$TMP/unknown.md" "jane.doe@example.org" "unknown value still redacts"
+has   "$TMP/unset.md" "- Privacy: on" "no marker file means on"
+run env-off "$TMP/data.json" --out "$TMP/unknown.md" >/dev/null 2>&1
+has   "$TMP/unknown.md" "- Privacy: on" "CS_PRIVACY=off in the environment no longer turns privacy off"
+lacks "$TMP/unknown.md" "jane.doe@example.org" "the old env var still redacts"
 
 echo "== output options"
 run on "$TMP/data.json" >/dev/null 2>&1

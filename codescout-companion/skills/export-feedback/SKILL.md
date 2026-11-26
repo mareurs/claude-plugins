@@ -21,7 +21,7 @@ python3 "<skill-dir>/export_feedback.py" [--box KEY ...] [--out FILE]
 
 ## Privacy
 
-`CS_PRIVACY` is on unless it is `off`, `0`, `false` or `no`. An unknown value means on. The flag changes the export only; recording is unchanged. On the maintainer's machine it is `off`.
+Privacy is on unless the file `codescout-companion-privacy-off` exists in the profile directory (`$CLAUDE_CONFIG_DIR`, default `~/.claude`, or `$CODEX_HOME`, default `~/.codex`). The file changes the export only; recording is unchanged. `touch` it to export raw text, `rm` it to redact again. On the maintainer's machine it exists.
 
 Redaction is a list of known patterns, not a guarantee. Tell the person to read the file before sending it, and offer to open it. A secret in free text that matches no pattern stays in the file.
 

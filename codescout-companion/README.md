@@ -32,7 +32,7 @@ Start a new Claude Code session — the plugin activates automatically.
 - **Drift warnings** — Surfaces high-drift files and flags stale docs/memories
 - **Worktree guard** — Blocks codescout write tools until `workspace` is called after `EnterWorktree`
 - **Tracker hygiene** — `/codescout-companion:tracker-hygiene` runs a human-gated tracker-corpus sweep (staleness, index drift, terminal-tracker archiving); SessionStart nudges when the project's ledger says a sweep is overdue
-- **Export feedback** — `/codescout-companion:export-feedback` writes every codescout box (frictions, bugs, recon, any box) as one Markdown file for the maintainers. `CS_PRIVACY` (default on; `off` exports raw) redacts paths, names, e-mail addresses, secrets and code blocks in the file. It sends nothing; read the file before you send it.
+- **Export feedback** — `/codescout-companion:export-feedback` writes every codescout box (frictions, bugs, recon, any box) as one Markdown file for the maintainers. Privacy (default on; the file `codescout-companion-privacy-off` in the profile directory exports raw) redacts paths, names, e-mail addresses, secrets and code blocks in the file. It sends nothing; read the file before you send it.
 - **Peer sessions** — moved to the `session-bridge` plugin: its skill `coordinating-sessions` covers posting a notice, reading one, asking a peer and the commit backup. The peer-session skill of this plugin was retired on 2026-11-17, because `session-bridge`'s `list_sessions` already lists the live sessions of every profile, Claude Code and Codex.
 
 ## Full Installation

@@ -8,10 +8,11 @@ Reads every box through the codescout CLI (`box --json`, `box <key> list`,
 `box <key> show`), so it needs no box-specific code and no folder paths.
 Sends nothing. Writes one file (default: ~/codescout-feedback-<date>.md).
 
-Privacy flag CS_PRIVACY:
-    unset, on, 1, true, yes, any other value -> on  (redact; the default)
-    off, 0, false, no                        -> off (export raw text)
-The flag changes the export only. Recording is unchanged.
+Privacy marker: the file `codescout-companion-privacy-off` in the profile directory
+($CLAUDE_CONFIG_DIR, default ~/.claude, or $CODEX_HOME, default ~/.codex).
+    file absent  -> on  (redact; the default)
+    file present -> off (export raw text)
+The marker changes the export only. Recording is unchanged.
 """
 
 import argparse
@@ -24,7 +25,6 @@ from collections import Counter
 from datetime import date
 from pathlib import Path
 
-FALSE_VALUES = {"off", "0", "false", "no"}
 TIMEOUT_S = 60
 
 # Roots that mark a POSIX path as a file-system path (not a URL route such as /api/v1).
@@ -38,12 +38,17 @@ SECRET_WORD = (
 )
 
 
+PRIVACY_OFF_MARKER = "codescout-companion-privacy-off"
+
+
 def privacy_on() -> bool:
-    """Return the mode named by CS_PRIVACY. Unset or unknown means on."""
-    raw = os.environ.get("CS_PRIVACY")
-    if raw is None:
-        return True
-    return raw.strip().lower() not in FALSE_VALUES
+    """Privacy is on unless the off marker is in a profile directory of Claude Code or Codex."""
+    home = Path.home()
+    dirs = (
+        Path(os.environ.get("CLAUDE_CONFIG_DIR") or home / ".claude"),
+        Path(os.environ.get("CODEX_HOME") or home / ".codex"),
+    )
+    return not any((d / PRIVACY_OFF_MARKER).exists() for d in dirs)
 
 
 def _last_segment_path(text: str) -> str:
