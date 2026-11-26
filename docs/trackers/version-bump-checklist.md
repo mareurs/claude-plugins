@@ -13,6 +13,20 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
+### Current release verification — 2026-11-26 (session-bridge 0.4.0)
+
+_Run with `NO_PUSH=1` (not pushed), pre-flight suites on (not skipped), measured at 5dbecce. Evidence is the output of `scripts/release.sh` (exit 0) and a fresh read of each profile's install record plus a fresh `check-profile-parity.sh`._
+
+- `release.sh` step 0 and 0.5: `run-all.sh` and `session-bridge/scripts/build.sh` (cargo test, clippy, cargo install into `~/.cargo/bin`) passed before the bump ✅
+- `check-versions.sh`: all versions consistent; `session-bridge` canonical `0.4.0`, crate `Cargo.toml` `0.4.0`; `marketplace.json` has no version fields ✅
+- `bump-cache.sh`: `0.4.0` cached in 4 of 4 profiles ✅
+- `repoint-install-records.sh`: `0.4.0` recorded in `~/.claude`, `~/.claude-sdd`, `~/.claude-kat`, `~/.claude-stef` ✅
+- Fresh read of every element of the `session-bridge` record in each profile: one element (scope `user`), `0.4.0`, `installPath` inside its own profile, cache directory exists, and the cached `hooks/hooks.json` holds the `run.sh watch` entries ✅ (4 rows)
+- `check-profile-parity.sh`, full run: `OK: session-bridge 0.4.0 — parity across 4 profile(s)` ✅. The full run exits 1 for a reason outside this release: six `sdd` `local`-scope records say `3.0.1` while `plugin.json` says `3.0.2` (bug `2026-11-26-check-profile-parity-six-sdd-local-scope-records-say-3-0-1`).
+
+Contents of this release: the wake of an idle Claude Code session on an addressed notice (`session-bridge watch`, `asyncRewake` hooks on `SessionStart` and `Stop`, marker file `<config-dir>/session-bridge-wake`; spec `docs/superpowers/specs/2026-11-26-session-bridge-wake-design.md`). The binary was installed before the cache was seeded: the new hooks call `run.sh watch`, which stays silent on a binary without the watch mode (final review finding C1), so either order is safe, but the binary-first order is the one measured.
+
+Not done by this session: the cold restart of the four Claude Code instances. The hooks resolve `installPath` at launch, so the `watch` hooks run only in sessions started after the restart.
 ### Current release verification — 2026-11-26 (codescout-companion 1.23.9)
 
 _Run with `NO_PUSH=1 SKIP_TESTS=1` (not pushed). The pre-flight run stopped at `test-skill-call-legality.sh`: 3 `sdd` cases fail on codescout 0.15.0 (bug `2026-11-25-sdd-sdd-init-and-review-create-the-constitution-tracker-with`), none in `tracker-hygiene`. Evidence is the output of `scripts/release.sh` and a fresh `check-profile-parity.sh`: `check-versions.sh` consistent at `1.23.9`, install records repointed, parity green ✅. Ships the D12 oversized-tracker detector (7db77be) and the hygiene-box change. Not verified: per-row reads of the other plugins._
