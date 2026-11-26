@@ -14,6 +14,7 @@ import {
   breakerFile,
   normalizedToolName,
   inputPath,
+  isCodexHost,
 } from './lib.mjs';
 import { SOURCE_EXT_PATTERN } from './detect.mjs';
 import { norm, exemptReason, isSandboxEscalation } from './guard-rules.mjs';
@@ -99,7 +100,23 @@ const ESCAPE_FOOTER_SUBAGENT =
   ESCAPE_FOOTER_COMMON +
   'If no codescout tool is present at all, you cannot reach the user from here: retry the call. ' +
   `This guard stands down after ${BREAKER_THRESHOLD} unanswered redirects, so retrying releases it.`;
-const ESCAPE_FOOTER = input.agent_id ? ESCAPE_FOOTER_SUBAGENT : ESCAPE_FOOTER_MAIN;
+// Codex has neither ToolSearch nor /mcp nor a "! <command>" prompt (measured 2026-11-26, Codex
+// 0.171.0). The opening words stay the same contract as above.
+const CODEX = isCodexHost();
+const ESCAPE_FOOTER_CODEX_COMMON =
+  '\n\nIf a tool named above is not in your tool list, it is not loaded in this session. ' +
+  'Call a codescout tool that IS present to find out: ' +
+  'if `run_command` answers, it reaches the same file with `acknowledge_risk: true`, ' +
+  'but only for a tool that is missing. ' +
+  'If the tool named above IS in your tool list, call it: do not reach the file ' +
+  'through `run_command` with `acknowledge_risk` instead. ';
+const ESCAPE_FOOTER_CODEX = input.agent_id
+  ? ESCAPE_FOOTER_CODEX_COMMON +
+    'If no codescout tool is present at all, you cannot reach the user from here: retry the call. ' +
+    `This guard stands down after ${BREAKER_THRESHOLD} unanswered redirects, so retrying releases it.`
+  : ESCAPE_FOOTER_CODEX_COMMON +
+    'If no codescout tool is present at all, the MCP server is not connected: tell the user and stop.';
+const ESCAPE_FOOTER = CODEX ? ESCAPE_FOOTER_CODEX : input.agent_id ? ESCAPE_FOOTER_SUBAGENT : ESCAPE_FOOTER_MAIN;
 
 // The codescout tool that replaces a native call whose enforce() passes no probes.
 const REDIRECT_TOOL = { Bash: ['run_command'], Grep: ['grep'], Glob: ['tree'] };
@@ -196,8 +213,10 @@ function enforce(reason, probes = []) {
     const pass =
       named.length > 0
         ? ` Use codescout ${named.join(' or ')}.` +
-          `\n\nIf a tool named above is not in your tool list, load it: ` +
-          `ToolSearch select:${named.map((t) => `mcp__codescout__${t}`).join(',')}`
+          (CODEX
+            ? ''
+            : `\n\nIf a tool named above is not in your tool list, load it: ` +
+              `ToolSearch select:${named.map((t) => `mcp__codescout__${t}`).join(',')}`)
         : '';
     denyPreToolUse(`BLOCKED (see previous message).${pass}`);
     process.exit(0);
@@ -220,7 +239,7 @@ function enforce(reason, probes = []) {
         `exposes only a subset of codescout's tools and the redirect names ones you ` +
         `cannot call.\n\n` +
         `If a codescout tool such as run_command is present, the server is up: use it ` +
-        `(with acknowledge_risk: true for a source file). If none is, run /mcp. The ` +
+        `(with acknowledge_risk: true for a source file). If none is, ${CODEX ? 'tell the user' : 'run /mcp'}. The ` +
         `guard re-arms by itself the moment a tool its redirect names answers again — ` +
         `nothing needs resetting by hand.`
     );

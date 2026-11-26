@@ -19,7 +19,7 @@
 // the user edits. tests/test-subagent-guidance.sh pins this.
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { readInput, detectFor, git, emit, resolveCodescoutBinary, hasBugsBox } from './lib.mjs';
+import { readInput, detectFor, git, emit, resolveCodescoutBinary, hasBugsBox, isCodexHost } from './lib.mjs';
 
 const input = readInput();
 if (!input) process.exit(0);
@@ -92,8 +92,10 @@ const pin = root && inLinkedWorktree ? `, workspace="${root}"` : '';
 
 let msg = `codescout is available in this project: an MCP server for code intelligence. Use it for source code and markdown instead of native Read, Grep, Glob or Bash. Native calls on source are blocked, and your profile may deny native Write, Edit and Bash as well.
 
-STEP 1 — load the tools. If no mcp__codescout__* tool is in your tool list, they are deferred. Load them with ONE ToolSearch call: select:mcp__codescout__symbols,mcp__codescout__read_file,mcp__codescout__grep,mcp__codescout__semantic_search,mcp__codescout__run_command,mcp__codescout__memory,mcp__codescout__workspace,mcp__codescout__get_guide
-Add mcp__codescout__edit_code,mcp__codescout__edit_file,mcp__codescout__create_file if you must write, and mcp__codescout__doc for bugs, specs and trackers. Do this even when your brief names only Read and Write.
+${isCodexHost()
+  ? `STEP 1 — the tools. Use the mcp__codescout__* tools in your tool list: symbols, read_file, grep, semantic_search, run_command, memory, workspace, get_guide; edit_code, edit_file and create_file to write; doc for bugs, specs and trackers. If none is in your list, the server is not connected: say so in your report and do not fall back to native calls.`
+  : `STEP 1 — load the tools. If no mcp__codescout__* tool is in your tool list, they are deferred. Load them with ONE ToolSearch call: select:mcp__codescout__symbols,mcp__codescout__read_file,mcp__codescout__grep,mcp__codescout__semantic_search,mcp__codescout__run_command,mcp__codescout__memory,mcp__codescout__workspace,mcp__codescout__get_guide
+Add mcp__codescout__edit_code,mcp__codescout__edit_file,mcp__codescout__create_file if you must write, and mcp__codescout__doc for bugs, specs and trackers. Do this even when your brief names only Read and Write.`}
 
 STEP 2 — enter the project. `;
 

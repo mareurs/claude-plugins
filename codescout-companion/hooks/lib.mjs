@@ -673,6 +673,17 @@ export function isCodexProcess(pid) {
   }
 }
 
+// Is this hook run by a Codex session? The nearest agent host above us decides: ownAncestry()
+// stops at the first Claude Code or Codex process, so a Codex thread started from a Claude
+// session reads as Codex and the other way round. False when no host is found (a bare shell, a
+// test), which keeps the Claude Code wording, the default of every hook text. Hook texts that
+// name a Claude Code tool (Skill, ToolSearch) or command (/mcp, `claude mcp list`) branch on it:
+// a Codex session has none of them.
+export function isCodexHost() {
+  const host = [...ownAncestry()].pop();
+  return host !== undefined && isCodexProcess(host);
+}
+
 // Does a Claude Code command line prove the session has NO `Skill` tool?
 // `--tools <tools...>` sets the built-in tool list: comma- or space-separated names,
 // "" for none, "default" for the default set (`claude --help`). A session started with

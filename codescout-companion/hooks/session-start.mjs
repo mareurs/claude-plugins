@@ -13,7 +13,7 @@ import {
 import { join, dirname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
-import { readInput, detectFor, git, emit, isClaudeProcess, isCodexProcess, skillToolAbsentFromArgv, stampSlotIfStale, resolveCodescoutBinary } from './lib.mjs';
+import { readInput, detectFor, git, emit, isClaudeProcess, isCodexProcess, isCodexHost, skillToolAbsentFromArgv, stampSlotIfStale, resolveCodescoutBinary } from './lib.mjs';
 import { fileURLToPath } from 'node:url';
 import { hotViewBlock } from './hot-view.mjs';
 
@@ -231,8 +231,9 @@ if (d.HAS_CS_MEMORIES === 'true') {
 `;
 }
 
-// Skills. Advice to call Skill(...) is noise in a session that has no Skill tool.
-if (sessionMayHaveSkillTool()) {
+// Skills. Advice to call Skill(...) is noise in a session that has no Skill tool: a Codex session has
+// none, and Codex lists its skills itself.
+if (!isCodexHost() && sessionMayHaveSkillTool()) {
   msg += `SKILLS AVAILABLE:
 - Reconnaissance — Skill('codescout-companion:reconnaissance'). Recommended before subagent dispatch or shape-changing edits.
 
@@ -407,7 +408,12 @@ if (hotView && source !== 'resume') {
 }
 
 // Connectivity note.
-msg += `codescout: Detected in config (${d.CS_SERVER_NAME}).
+msg += isCodexHost()
+  ? `codescout: Detected in config (${d.CS_SERVER_NAME}).
+If tools are unavailable, the MCP server failed to connect (check \`codex mcp list\`).
+
+`
+  : `codescout: Detected in config (${d.CS_SERVER_NAME}).
 If the tools are deferred, load them with ToolSearch (select:mcp__codescout__<tool>).
 If tools are unavailable, the MCP server failed to connect (check \`claude mcp list\`).
 
