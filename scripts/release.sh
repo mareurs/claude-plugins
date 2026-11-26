@@ -28,6 +28,10 @@
 #   4.5. copilot    — scripts/sync-copilot.sh (separate app/marketplace; soft-skips
 #                     if this machine has no Copilot install or this plugin isn't
 #                     registered there)
+#   4.6. codex      — scripts/sync-codex.py: `codex plugin add` when the plugin is installed in
+#                     Codex and its cache lacks this version, then renew the hook approvals
+#                     that the add cancelled (only ones already approved, content-only changes;
+#                     new or redeclared hooks are listed for /hooks). Soft-skips without Codex.
 #   5. records     — repoint version + installPath in the install record of every profile
 #                    that has the plugin (scripts/repoint-install-records.sh)
 #   6. sanity      — recorded version's cache dir exists; installPath owns its profile
@@ -112,6 +116,11 @@ git commit -m "chore: bump $PLUGIN to $VERSION" \
 # 4.5. sync to GitHub Copilot's separate marketplace/cache (soft-skips if this
 #      machine has no Copilot install, or this plugin isn't registered there) --
 ./scripts/sync-copilot.sh "$PLUGIN" "$VERSION"
+
+# 4.6. sync to Codex: re-add the plugin and renew the hook approvals the add cancels ----
+#      (soft-skips if this machine has no Codex or the plugin is not installed there).
+python3 ./scripts/sync-codex.py "$PLUGIN" "$VERSION" || {
+  echo "✗ Codex sync failed — NOT pushing. Fix the Codex side (see the lines above), then re-run."; exit 1; }
 
 # 5 + 6. repoint version + installPath in the install record of every profile that has
 #        the plugin, then sanity-check (cache dir exists; installPath owns its profile).

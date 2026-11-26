@@ -126,6 +126,7 @@ for PLUGIN in "${PLUGINS[@]}"; do
   if [ "${#present_profiles[@]}" -eq 0 ]; then
     # Not installed anywhere is not a failure — sdd is stable and uninstalled by design.
     echo "OK: $PLUGIN $canonical — not installed in any profile (nothing to keep in parity)"
+    python3 "$REPO_ROOT/scripts/sync-codex.py" "$PLUGIN" "$canonical" --check || errors=$((errors + 1))
     unset seen_versions
     continue
   fi
@@ -142,6 +143,10 @@ for PLUGIN in "${PLUGINS[@]}"; do
   if [ "${#present_profiles[@]}" -ne "${#PROFILES[@]}" ]; then
     echo "WARN: $PLUGIN installed in ${#present_profiles[@]}/${#PROFILES[@]} profiles (${present_profiles[*]})"
   fi
+
+  # Codex keeps its own cache and hook approvals; a stale cache or a modified hook fails here
+  # like a stale profile does. Skips itself when Codex or the plugin is absent.
+  python3 "$REPO_ROOT/scripts/sync-codex.py" "$PLUGIN" "$canonical" --check || plugin_errors=$((plugin_errors + 1))
 
   if [ "$plugin_errors" -eq 0 ]; then
     echo "OK: $PLUGIN $canonical — parity across ${#present_profiles[@]} profile(s), one canonical version, caches present"
