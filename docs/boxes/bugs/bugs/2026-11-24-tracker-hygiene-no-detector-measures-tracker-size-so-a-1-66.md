@@ -1,12 +1,14 @@
 ---
 kind: entry
-status: open
+status: fixed
 title: 'tracker-hygiene: no detector measures tracker size, so a 1.66 MB session log stayed active and open-ended'
+closed: 2026-11-26
 created: 2026-11-24
 entry_kind: bug
 log:
 - '2026-11-24 open created codescout:be5c3984-2bd4-45c8-897a-3b17ba6e951e'
-status_since: 2026-11-24
+- '2026-11-26 open -> fixed codescout:f28fefc6-99c0-4659-8dd2-25250cd05f33'
+status_since: 2026-11-26
 ---
 
 **Summary:** The tracker-hygiene skill (D1-D11) has no size or entry-age detector. D3 and D10 test only the last git touch, so a tracker that is touched often never reaches them, however large it grows. In codescout, `docs/trackers/bug-fix-session-log.md` reached 1,661,589 B (417 entries, 18,710 lines) and stayed `status: active`, `time_scope: open-ended`. Every codescout agent that searches the tracker corpus pays for it.
@@ -38,7 +40,18 @@ status_since: 2026-11-24
 
 **Resume:** Implement D12 in `skills/tracker-hygiene/SKILL.md` with a fixture of one oversized active tracker and one small one. Not verified: the cost of `doctor`, `link_scan` and `librarian(action="context")` on the file, and how often an agent reads it whole (81 of 104 codescout transcripts name the stem; that counts mentions only).
 
+## Fix provenance
+
+- **SHA:** 7db77be (main)
+- **patch-id:** 70e6fdbedef958c2eeb0941886152bde5ca16b97
+
+Verified 2026-11-26: `d12_sizes.py` of the installed codescout-companion 1.23.9 lists 6 live trackers of codescout at 154 KB to 763 KB. The surfacing part of the first proposal moved to codescout `quality/bugs` 2026-11-26-semantic-search-returns-chunks-of-archived-documents-files.
+
 ## Now
 
 Done 2026-11-25 in 7db77be (not released yet): D12 oversized-tracker (>=150 KB or >=300 entries) with `d12_sizes.py` and an 8-case test; D10 also fires on a D12 hit and ignores citation-only commits; the hygiene-log template has D12 rows. First real hit: this repository's own `docs/trackers/version-bump-checklist.md`, 260 KB.
 Open: (1) release codescout-companion so the skill text is live; (2) the surfacing part of the fix: the archive step adds the archive path to `[ignored_paths]` in `.codescout/project.toml` so an archived file leaves the chunk index. Not started. Close as fixed after both.
+
+## Closed
+
+D12 oversized-tracker and the D10 fix are in main (7db77be) and in codescout-companion 1.23.9; d12_sizes.py lists 6 oversized live trackers of codescout. The surfacing part moved to codescout quality/bugs 2026-11-26-semantic-search-returns-chunks-of-archived-documents-files.
