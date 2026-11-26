@@ -1,13 +1,15 @@
 ---
 kind: entry
-status: open
+status: fixed
 title: release.sh stages the whole README.md, so a peer session's edit made during the run lands in the release commit (session-bridge 0.4.0 swept an sdd 3.0.2 row)
+closed: 2026-11-26
 created: 2026-11-26
 entry_kind: bug
 last_observed: 2026-11-26
 log:
 - '2026-11-26 open created codescout:6bb10174-8084-4777-b7ef-38b92a18572d'
 - '2026-11-26 edited:title codescout:6bb10174-8084-4777-b7ef-38b92a18572d'
+- '2026-11-26 open -> fixed codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
 severity: low
 status_since: 2026-11-26
 ---
@@ -30,3 +32,7 @@ An earlier version of this entry said that commit `b52f029` was titled 3.0.1 but
 
 - `release.sh` should stage only the lines it changed, or refuse when `README.md` or any `plugin.json` differs from the version it read at step 0 (re-check `git status --porcelain` right before step 3).
 - The `sdd` release itself belongs to the session that started it; this entry does not cover it.
+
+## Closed
+
+Fixed: release.sh re-checks README.md, plugin.json and package.json right before the bump (step 0.9) and refuses a README with more than one changed row (step 1). tests/test-release-guard.sh runs a release in a scratch clone with a peer edit made after the pre-flight check: the old script commits the edit, the new one stops with no bump commit; the controls (no edit) pass on both.
