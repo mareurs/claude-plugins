@@ -1,12 +1,14 @@
 ---
 kind: entry
-status: open
+status: fixed
 title: Reconnaissance statusline guidance selects a different session in Codex
+closed: 2026-11-26
 created: 2026-11-26
 entry_kind: bug
 last_observed: 2026-11-26
 log:
 - '2026-11-26 open created codescout:anonymous'
+- '2026-11-26 open -> fixed codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
 severity: low
 status_since: 2026-11-26
 ---
@@ -49,3 +51,7 @@ None for this filing. A regression case should isolate the fallback file and giv
 ## Resume
 
 Identify whether Codex consumes that marker. If it does, use the current Codex identity; otherwise omit the marker step in Codex.
+
+## Closed
+
+Fixed in the source (commit after 598d62e): Codex's tui.status_line is a fixed list of built-in items (config.toml lines 204-214), and the only reader of .buddy/<sid>/recon-active is buddy/scripts/statusline.py, a Claude Code statusline; so under Codex the marker has no consumer and the last-writer pointer names a foreign session. recon_count.py returns no session id when CODEX_SESSION_ID or CODEX_THREAD_ID is set and CLAUDE_CODE_SESSION_ID is not; the SKILL.md snippet skips under the same condition and says so. tests/test-recon-count.sh case 8 runs the counter and the SKILL snippet under each env, with Claude Code controls. The Codex env variables come from the filing's measurement (run_command exposed CODEX_SESSION_ID); I did not start a Codex turn to read them. Live in the skill after the next codescout-companion release and a Codex plugin sync.
