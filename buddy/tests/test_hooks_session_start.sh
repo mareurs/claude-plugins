@@ -9,10 +9,24 @@ PASS=0; FAIL=0
 fail() { echo "FAIL: $1"; FAIL=$((FAIL+1)); }
 pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
 
-WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
-EVENT='{"session_id":"sid-aaa","cwd":"'"$WORK"'","source":"startup","timestamp":1700000000}'
+make_project() {
+  local project="$SUITE_ROOT/$1"
+  mkdir -p "$project/.git"
+  printf '%s\n' "$project"
+}
 
-echo "$EVENT" | python3 "$DISPATCH" session-start >/dev/null 2>&1 || true
+SUITE_ROOT=$(mktemp -d)
+trap 'rm -rf "$SUITE_ROOT"' EXIT
+export HOME="$SUITE_ROOT/home"
+export CLAUDE_CONFIG_DIR="$HOME/.claude"
+export BUDDY_HOME="$HOME/.buddy"
+unset CLAUDE_PROJECT_DIR BUDDY_HOOK_PPID
+
+WORK=$(make_project startup-gc)
+mkdir -p "$WORK/subdir"
+EVENT='{"session_id":"sid-aaa","cwd":"'"$WORK/subdir"'","source":"startup","timestamp":1700000000}'
+
+python3 "$DISPATCH" session-start <<< "$EVENT" >/dev/null
 
 [ -f "$WORK/.buddy/.current_session_id" ] && [ "$(cat "$WORK/.buddy/.current_session_id")" = "sid-aaa" ] \
   && pass "pointer file written" || fail "pointer file"
@@ -29,7 +43,7 @@ echo "stale-sid" > "$WORK/.buddy/by-ppid/99999/session_id"
 echo "BOGUS_TIME" > "$WORK/.buddy/by-ppid/99999/started_at"
 
 EVENT2='{"session_id":"sid-bbb","cwd":"'"$WORK"'","source":"resume","timestamp":1700001000}'
-echo "$EVENT2" | python3 "$DISPATCH" session-start >/dev/null 2>&1 || true
+python3 "$DISPATCH" session-start <<< "$EVENT2" >/dev/null
 
 [ ! -d "$WORK/.buddy/by-ppid/99999" ] \
   && pass "GC removed stale entry" || fail "GC stale entry — still exists"
@@ -37,24 +51,15 @@ echo "$EVENT2" | python3 "$DISPATCH" session-start >/dev/null 2>&1 || true
 # Dead file cleanup: seed and verify removal
 mkdir -p "$HOME/.claude/buddy"
 DEAD="$HOME/.claude/buddy/state.json"
-DEAD_BACKUP=""
-if [ -f "$DEAD" ]; then DEAD_BACKUP=$(mktemp); cp "$DEAD" "$DEAD_BACKUP"; fi
 echo '{"version":1}' > "$DEAD"
 
 EVENT3='{"session_id":"sid-ccc","cwd":"'"$WORK"'","source":"startup","timestamp":1700002000}'
-echo "$EVENT3" | python3 "$DISPATCH" session-start >/dev/null 2>&1 || true
+python3 "$DISPATCH" session-start <<< "$EVENT3" >/dev/null
 
 [ ! -f "$DEAD" ] && pass "dead global state.json removed" || fail "dead global state.json still exists"
 
-# Restore if we backed up the user's real one
-if [ -n "$DEAD_BACKUP" ]; then mv "$DEAD_BACKUP" "$DEAD"; fi
-
-echo
-echo "Total: $((PASS+FAIL))  Pass: $PASS  Fail: $FAIL"
-[ "$FAIL" -eq 0 ]
-
 # Nudge test: 31 entries in prompt-hamsa triggers capacity nudge
-NUDGE_WORK=$(mktemp -d); trap 'rm -rf "$NUDGE_WORK"' EXIT
+NUDGE_WORK=$(make_project nudge)
 NUDGE_MEM="$NUDGE_WORK/.buddy/memory/prompt-hamsa"
 mkdir -p "$NUDGE_MEM"
 for i in $(seq 1 31); do
@@ -62,7 +67,7 @@ for i in $(seq 1 31); do
 done
 
 NUDGE_EVENT='{"session_id":"sid-nudge","cwd":"'"$NUDGE_WORK"'","source":"startup","timestamp":1700003000}'
-NUDGE_OUT=$(echo "$NUDGE_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" python3 "$DISPATCH" session-start 2>/dev/null || true)
+NUDGE_OUT=$(python3 "$DISPATCH" session-start <<< "$NUDGE_EVENT")
 
 echo "$NUDGE_OUT" | grep -q "consider /buddy:consolidate prompt-hamsa" \
   && pass "capacity nudge fires for 31 entries" \
@@ -70,16 +75,16 @@ echo "$NUDGE_OUT" | grep -q "consider /buddy:consolidate prompt-hamsa" \
 
 # Env-leak test: CLAUDE_PROJECT_DIR set to bogus path must NOT override
 # event.cwd — the hook must operate on what the event says, not inherited env.
-LEAK_WORK=$(mktemp -d); trap 'rm -rf "$LEAK_WORK"' EXIT
+LEAK_WORK=$(make_project env-leak)
 LEAK_MEM="$LEAK_WORK/.buddy/memory/prompt-hamsa"
 mkdir -p "$LEAK_MEM"
 for i in $(seq 1 31); do
   echo "# entry $i" > "$LEAK_MEM/entry-$(printf '%03d' $i).md"
 done
-BOGUS_DIR=$(mktemp -d); trap 'rm -rf "$BOGUS_DIR"' EXIT
+BOGUS_DIR=$(make_project bogus)
 
 LEAK_EVENT='{"session_id":"sid-leak","cwd":"'"$LEAK_WORK"'","source":"startup","timestamp":1700003500}'
-LEAK_OUT=$(echo "$LEAK_EVENT" | CLAUDE_PROJECT_DIR="$BOGUS_DIR" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" python3 "$DISPATCH" session-start 2>/dev/null || true)
+LEAK_OUT=$(CLAUDE_PROJECT_DIR="$BOGUS_DIR" python3 "$DISPATCH" session-start <<< "$LEAK_EVENT")
 
 echo "$LEAK_OUT" | grep -q "consider /buddy:consolidate prompt-hamsa" \
   && pass "hook uses event.cwd over inherited CLAUDE_PROJECT_DIR" \
@@ -88,7 +93,7 @@ echo "$LEAK_OUT" | grep -q "consider /buddy:consolidate prompt-hamsa" \
 # Resume test: specialists are already in the restored transcript, so resume
 # must NOT re-emit them (no reload/dismissal block) — but active_specialists
 # carries forward so the statusline stays correct.
-RELOAD_WORK=$(mktemp -d); trap 'rm -rf "$RELOAD_WORK"' EXIT
+RELOAD_WORK=$(make_project reload)
 PREV_SID="prev-sid-reload"
 NEW_SID="new-sid-reload"
 
@@ -118,7 +123,7 @@ EOF
 echo "$PREV_SID" > "$RELOAD_WORK/.buddy/.current_session_id"
 
 RELOAD_EVENT='{"session_id":"'"$NEW_SID"'","cwd":"'"$RELOAD_WORK"'","source":"resume","timestamp":1700004000}'
-RELOAD_OUT=$(echo "$RELOAD_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" python3 "$DISPATCH" session-start 2>/dev/null || true)
+RELOAD_OUT=$(python3 "$DISPATCH" session-start <<< "$RELOAD_EVENT")
 
 if echo "$RELOAD_OUT" | grep -q "buddy:reloaded\|buddy:dismissed"; then
   fail "resume must NOT emit a reload/dismissal block — output: $RELOAD_OUT"
@@ -127,15 +132,14 @@ else
 fi
 
 # Verify new session state carries forward
-NEW_ACTIVE=$(jq -r '.active_specialists[0] // ""' "$RELOAD_WORK/.buddy/$NEW_SID/state.json" 2>/dev/null)
-[ "$NEW_ACTIVE" = "debugging-yeti" ] \
+RESUMED_STATE="$RELOAD_WORK/.buddy/$NEW_SID/state.json"
+jq -e '.active_specialists[0] == "debugging-yeti"' "$RESUMED_STATE" >/dev/null \
   && pass "new session carries active_specialists" \
-  || fail "new session did not carry active_specialists — got: $NEW_ACTIVE"
+  || fail "new session did not carry active_specialists"
 
-NEW_PARENT=$(jq -r '.parent_sid // ""' "$RELOAD_WORK/.buddy/$NEW_SID/state.json" 2>/dev/null)
-[ "$NEW_PARENT" = "$PREV_SID" ] \
+jq -e --arg sid "$PREV_SID" '.parent_sid == $sid' "$RESUMED_STATE" >/dev/null \
   && pass "new session records parent_sid" \
-  || fail "parent_sid not set — got: $NEW_PARENT"
+  || fail "new session did not record parent_sid"
 
 # ── Compact: history is summarized away → release the specialists. Emit a
 # dismissal notice (names, NO body) and clear active_specialists so they leave
@@ -145,9 +149,11 @@ COMPACT_SID="new-sid-compact"
 # A compaction keeps its session id (Claude Code 2.1.332), so the compacting session holds
 # its own specialists: seed this session's state, not a previous session's.
 mkdir -p "$RELOAD_WORK/.buddy/$COMPACT_SID"
-cp "$RELOAD_WORK/.buddy/$PREV_SID/state.json" "$RELOAD_WORK/.buddy/$COMPACT_SID/state.json"
+COMPACT_STATE="$RELOAD_WORK/.buddy/$COMPACT_SID/state.json"
+jq --arg sid "$COMPACT_SID" '.current_session_id = $sid' \
+  "$RELOAD_WORK/.buddy/$PREV_SID/state.json" > "$COMPACT_STATE"
 COMPACT_EVENT='{"session_id":"'"$COMPACT_SID"'","cwd":"'"$RELOAD_WORK"'","source":"compact","timestamp":1700004100}'
-COMPACT_OUT=$(echo "$COMPACT_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" python3 "$DISPATCH" session-start 2>/dev/null || true)
+COMPACT_OUT=$(python3 "$DISPATCH" session-start <<< "$COMPACT_EVENT")
 
 echo "$COMPACT_OUT" | grep -q "buddy:dismissed-on-compact" \
   && pass "compact emits dismissal notice" \
@@ -163,13 +169,12 @@ else
   pass "compact omits specialist bodies (no reload block)"
 fi
 
-COMPACT_ACTIVE=$(jq -r '.active_specialists | length' "$RELOAD_WORK/.buddy/$COMPACT_SID/state.json" 2>/dev/null)
-[ "$COMPACT_ACTIVE" = "0" ] \
+jq -e '.active_specialists == []' "$COMPACT_STATE" >/dev/null \
   && pass "compact clears active_specialists (statusline emptied)" \
-  || fail "compact did not clear active_specialists — got: $COMPACT_ACTIVE"
+  || fail "compact did not clear active_specialists"
 
 # Startup must NOT emit reload block even if .current_session_id points at a prev
-STARTUP_WORK=$(mktemp -d); trap 'rm -rf "$STARTUP_WORK"' EXIT
+STARTUP_WORK=$(make_project startup)
 mkdir -p "$STARTUP_WORK/.buddy/prev-sid-startup"
 cat > "$STARTUP_WORK/.buddy/prev-sid-startup/state.json" <<EOF
 {"version":1,"current_session_id":"prev-sid-startup","signals":{"context_pct":0,"last_edit_ts":0,"last_commit_ts":0,"session_start_ts":0,"prompt_count":0,"tool_call_count":0,"last_test_result":null,"recent_errors":[],"idle_ts":0,"judge_verdict":null,"judge_severity":null,"judge_block_count":0,"judge_last_ts":0,"cs_judge_verdict":null,"cs_judge_severity":null,"cs_tool_call_count":0,"cs_active_project":null,"root_cwd":null},"derived_mood":"flow","suggested_specialist":null,"last_mood_transition_ts":0,"active_specialists":["debugging-yeti"],"parent_sid":""}
@@ -177,17 +182,19 @@ EOF
 echo "prev-sid-startup" > "$STARTUP_WORK/.buddy/.current_session_id"
 
 STARTUP_EVENT='{"session_id":"fresh-startup-sid","cwd":"'"$STARTUP_WORK"'","source":"startup","timestamp":1700100000}'
-STARTUP_OUT=$(echo "$STARTUP_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" python3 "$DISPATCH" session-start 2>/dev/null || true)
+STARTUP_OUT=$(python3 "$DISPATCH" session-start <<< "$STARTUP_EVENT")
 
-if echo "$STARTUP_OUT" | grep -q "buddy:reloaded"; then
-  fail "startup must NOT emit reload block — output: $STARTUP_OUT"
+if jq -e '.current_session_id == "fresh-startup-sid"' \
+     "$STARTUP_WORK/.buddy/fresh-startup-sid/state.json" >/dev/null &&
+   ! grep -q "buddy:reloaded" <<< "$STARTUP_OUT"; then
+  pass "startup writes session state without a reload block"
 else
-  pass "startup does not emit reload block"
+  fail "expected startup state without a reload block — output: $STARTUP_OUT"
 fi
 
 
-# ── Same-SID resume: CC reuses session_id on resume; reload must still fire ──
-SAMESID_WORK=$(mktemp -d)
+# ── Same-SID resume: CC reuses session_id and restores the transcript ──
+SAMESID_WORK=$(make_project same-sid)
 SAMESID="same-sid-resume"
 mkdir -p "$SAMESID_WORK/.buddy/$SAMESID"
 cat > "$SAMESID_WORK/.buddy/$SAMESID/state.json" <<EOF
@@ -196,21 +203,21 @@ EOF
 echo "$SAMESID" > "$SAMESID_WORK/.buddy/.current_session_id"
 
 SAMESID_EVENT='{"session_id":"'"$SAMESID"'","cwd":"'"$SAMESID_WORK"'","source":"resume","timestamp":1700004000}'
-SAMESID_OUT=$(echo "$SAMESID_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" python3 "$DISPATCH" session-start 2>/dev/null || true)
+SAMESID_OUT=$(python3 "$DISPATCH" session-start <<< "$SAMESID_EVENT")
 
-if echo "$SAMESID_OUT" | grep -q "buddy:reloaded\|buddy:dismissed"; then
-  fail "same-SID resume must NOT emit a reload/dismissal block — output: $SAMESID_OUT"
+if jq -e '.signals.session_start_ts == 1700004000' \
+     "$SAMESID_WORK/.buddy/$SAMESID/state.json" >/dev/null &&
+   ! grep -Eq 'buddy:(reloaded|dismissed)' <<< "$SAMESID_OUT"; then
+  pass "same-SID resume updates state without a reload block"
 else
-  pass "same-SID resume emits no reload block (bodies already in transcript)"
+  fail "expected updated same-SID state without a reload block — output: $SAMESID_OUT"
 fi
-
-rm -rf "$SAMESID_WORK"
 
 # ── Recon is the sole auto-reload, and ONLY on compact: codescout present →
 # reconnaissance SKILL.md is re-injected (its body was summarized away).
 # Resume would NOT reload it (transcript intact); this case uses source=compact.
 # ──
-RECON_WORK=$(mktemp -d)
+RECON_WORK=$(make_project recon)
 RECON_SID="recon-marker-sid"
 mkdir -p "$RECON_WORK/.buddy/$RECON_SID"
 # codescout detect convention: .codescout/project.toml signals onboarding.
@@ -232,14 +239,13 @@ echo "# Reconnaissance test stub" > "$FAKE_RECON_SKILL"
 # via Path(__file__).resolve(), which collapses symlinks back to the dev repo —
 # only real copies keep plugin_root inside the cache-layout path so the
 # sister-plugin SKILL resolution (codescout-companion/reconnaissance) works.
-# CLAUDE_PLUGIN_ROOT is deliberately NOT set: the hook ignores it and self-locates.
 cp -r "$PLUGIN_ROOT/scripts" "$FAKE_BUDDY_ROOT/scripts"
 cp -r "$PLUGIN_ROOT/hooks" "$FAKE_BUDDY_ROOT/hooks"
 cp -r "$PLUGIN_ROOT/skills" "$FAKE_BUDDY_ROOT/skills"
 
 RECON_EVENT='{"session_id":"'"$RECON_SID"'","cwd":"'"$RECON_WORK"'","source":"compact","timestamp":1700004000}'
 # Run the COPIED dispatcher so __file__.resolve() lands in the fake cache.
-RECON_OUT=$(echo "$RECON_EVENT" | HOME="$RECON_WORK/_fake_claude/.." python3 "$FAKE_BUDDY_ROOT/hooks/hook_dispatch.py" session-start 2>/dev/null || true)
+RECON_OUT=$(python3 "$FAKE_BUDDY_ROOT/hooks/hook_dispatch.py" session-start <<< "$RECON_EVENT")
 
 echo "$RECON_OUT" | grep -q "reconnaissance" \
   && pass "codescout detected: reconnaissance included in reload" \
@@ -249,4 +255,6 @@ echo "$RECON_OUT" | grep -q "Reconnaissance test stub" \
   && pass "codescout detected: SKILL.md body inlined via sister-scope" \
   || fail "recon SKILL body not inlined — output: $(echo "$RECON_OUT" | head -c 400)"
 
-rm -rf "$RECON_WORK"
+echo
+echo "Total: $((PASS+FAIL))  Pass: $PASS  Fail: $FAIL"
+[ "$FAIL" -eq 0 ]
