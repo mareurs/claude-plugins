@@ -19,9 +19,9 @@ hook approval required"). This script does both halves:
   3. List again; every renewed hook must read `trusted`.
 
 Soft-skips (exit 0) when there is no `codex` binary, no `$CODEX_HOME/config.toml`, or the plugin
-is not installed in Codex (`[plugins."<plugin>@<marketplace>"]`): a release must not install a
-plugin where it never was (F-15). `--check` changes nothing and exits 1 on a stale cache or a
-`modified` hook, so check-profile-parity.sh can gate on it.
+is absent from the Codex config or explicitly disabled. Re-adding a disabled plugin
+would enable it. `--check` changes nothing and exits 1 on a stale cache or a `modified`
+hook of an enabled plugin, so check-profile-parity.sh can gate on it.
 
 Env: CODEX_HOME (default ~/.codex), MARKETPLACE (default sdd-misc-plugins), CODEX_BIN (default
 `codex`). Exit 1 on a failure; "needs review" items are a warning, not a failure.
@@ -120,9 +120,13 @@ def main(argv: list[str]) -> int:
         print(f"= no Codex install on this machine ({HOME}/config.toml or `{CODEX}` missing): skipping")
         return 0
     with open(HOME / "config.toml", "rb") as f:
-        if sel not in tomllib.load(f).get("plugins", {}):
-            print(f"= {plugin} is not installed in Codex: skipping")
-            return 0
+        settings = tomllib.load(f).get("plugins", {}).get(sel)
+    if settings is None:
+        print(f"= {plugin} is not installed in Codex: skipping")
+        return 0
+    if settings.get("enabled") is False:
+        print(f"= {plugin} is disabled in Codex: skipping")
+        return 0
 
     cache = HOME / "plugins" / "cache" / MARKETPLACE / plugin / version
     if not cache.is_dir():

@@ -110,4 +110,17 @@ out="$(sync "$VER" 2>&1)"; rc=$?
   && pass "sync: a missing cache runs codex plugin add and seeds the version" \
   || fail "sync: a missing cache runs codex plugin add and seeds the version" "rc=$rc $out"
 
+# An explicitly disabled plugin stays disabled even when its version is missing.
+# plugin add would enable it as a side effect.
+sed -i 's/^enabled = true$/enabled = false/' "$H/home/config.toml"
+rm -rf "$CACHE"
+out="$(sync "$VER" --check 2>&1)"; rc=$?
+[ "$rc" = 0 ] && printf '%s' "$out" | grep -q "disabled in Codex" \
+  && pass "check: a disabled plugin does not require a current cache" \
+  || fail "check: a disabled plugin does not require a current cache" "rc=$rc $out"
+out="$(sync "$VER" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && [ ! -e "$CACHE" ] && grep -qx 'enabled = false' "$H/home/config.toml" \
+  && pass "sync: a disabled plugin stays disabled and is not reinstalled" \
+  || fail "sync: a disabled plugin stays disabled and is not reinstalled" "rc=$rc $out"
+
 print_summary "sync-codex"
