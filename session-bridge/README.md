@@ -33,7 +33,7 @@ plugin uses (Codex does not read it: `install-codex.py` takes the executable as 
 `--binary`, see the Codex section; the link points at the cargo path, so a later release never leaves it stale, and
 re-running the script replaces it; it prints both paths). Put that directory on `PATH`, or set
 `SESSION_BRIDGE_BIN` to the absolute path. The Claude plugin runs
-`${HOME}/.cargo/bin/session-bridge serve` and `hooks/run.sh` runs `$HOME/.cargo/bin/session-bridge`.
+`sh -c 'exec "$HOME/.cargo/bin/session-bridge" serve'` (Codex does not expand `${HOME}` in a plugin command, the shell does) and `hooks/run.sh` runs `$HOME/.cargo/bin/session-bridge`.
 So a default `CARGO_HOME` is required, or the binary must end up at
 `~/.cargo/bin/session-bridge`. When the binary is missing, the hooks exit 0 and print nothing.
 

@@ -14,9 +14,10 @@
   ],
   "mcpServers": {
     "session-bridge": {
-      "command": "${HOME}/.cargo/bin/session-bridge",
+      "command": "sh",
       "args": [
-        "serve"
+        "-c",
+        "exec \"$HOME/.cargo/bin/session-bridge\" serve"
       ]
     }
   }

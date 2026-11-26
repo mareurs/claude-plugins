@@ -26,4 +26,12 @@ else fail "default target dir" "$(cat "$TMP/seen")"; fi
 
 [ ! -e "$HERE/../session-bridge/mcp-server/target" ] && pass "no target/ inside the plugin directory" || fail "plugin dir" "target/ exists"
 
+# Codex starts a plugin MCP command without expanding ${VAR}; the shell must do it.
+if python3 - "$HERE/../session-bridge/.claude-plugin/plugin.json" <<'PY'
+import json,sys
+c=json.load(open(sys.argv[1]))['mcpServers']['session-bridge']
+sys.exit(0 if '${' not in json.dumps(c) and c['command']=='sh' else 1)
+PY
+then pass "plugin MCP command needs no variable expansion by the host"; else fail "plugin MCP command" "uses \${...}"; fi
+
 echo "$PASS passed, $FAIL failed"; [ "$FAIL" -eq 0 ]
