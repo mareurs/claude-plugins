@@ -673,6 +673,26 @@ export function isCodexProcess(pid) {
   }
 }
 
+// The profile directory of the host that runs this hook: CODEX_HOME (default ~/.codex) under
+// Codex, CLAUDE_CONFIG_DIR (default ~/.claude) otherwise. A plugin setting is a marker file here:
+// the file's presence is the non-default state (`<plugin>-<feature>` opts in, `<plugin>-<feature>-off`
+// opts out of a default-on feature); a valued setting is one trimmed line. Convention: memory
+// `conventions`, entry `plugin-settings-are-env-vars-…` in the bugs box.
+export function profileDir(env = process.env) {
+  if (isCodexHost()) return env.CODEX_HOME || join(homedir(), '.codex');
+  return env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
+}
+
+// Does the marker file `name` exist in the profile directory? False on any error (fail open).
+export function markerSet(name, env = process.env) {
+  try {
+    return existsSync(join(profileDir(env), name));
+  } catch {
+    return false;
+  }
+}
+
+
 // Is this hook run by a Codex session? The nearest agent host above us decides: ownAncestry()
 // stops at the first Claude Code or Codex process, so a Codex thread started from a Claude
 // session reads as Codex and the other way round. False when no host is found (a bare shell, a

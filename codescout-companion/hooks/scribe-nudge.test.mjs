@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, rmSync, utimesSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -75,10 +75,21 @@ test('calls that are not a box write pass', () => {
   }
 });
 
-test('CS_SCRIBE_NUDGE=false turns the hook off', () => {
-  const { out, dir } = run(call(ADD), { CS_SCRIBE_NUDGE: 'false' });
+test('the marker file codescout-companion-scribe-nudge-off in the profile dir turns the hook off', () => {
+  const profile = mkdtempSync(join(tmpdir(), 'scribe-profile-'));
+  writeFileSync(join(profile, 'codescout-companion-scribe-nudge-off'), '');
+  const { out, dir } = run(call(ADD), { CLAUDE_CONFIG_DIR: profile, CODEX_HOME: profile });
   assert.equal(out, '');
   rmSync(dir, { recursive: true, force: true });
+  rmSync(profile, { recursive: true, force: true });
+});
+
+test('an empty profile dir leaves the hook on, and the old env var no longer turns it off', () => {
+  const profile = mkdtempSync(join(tmpdir(), 'scribe-profile-'));
+  const { out, dir } = run(call(ADD), { CLAUDE_CONFIG_DIR: profile, CODEX_HOME: profile, CS_SCRIBE_NUDGE: 'false' });
+  assert.notEqual(out, '');
+  rmSync(dir, { recursive: true, force: true });
+  rmSync(profile, { recursive: true, force: true });
 });
 
 test('the marker is per session: another session is refused again', () => {

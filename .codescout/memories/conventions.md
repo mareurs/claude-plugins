@@ -39,3 +39,14 @@ A skill whose mechanics differ by harness (Claude Code, Codex, OpenCode) or by o
 - **Add a pair file only after you measure that pair.** A guessed macOS or Windows block is worse than none: a block that finds nothing looks like a true zero. `references/unmeasured.md` says "stop and ask the operator" until a measured file exists.
 - **Split only when a skill has real harness or OS content.** Measured 2026-11-10 over 22 skills: the peer-session skill of this repository had the most (67 harness lines, 21 tool-name lines, `/proc` and `/run/user` paths). It was retired on 2026-11-17: `session-bridge`'s own tools list the live sessions, so its replacement, `coordinating-sessions`, holds no per-harness mechanics. `sdd-flow` already splits by harness: `references/opencode.md` holds the OpenCode command names. Every other skill has 5 or fewer such lines, and those name plugin paths such as `CLAUDE.md`, or one 2-row dispatch table in `research-subagent`. Re-measure before you split another skill, and measure after `git pull`: a first measurement here ran on a checkout that lacked the OpenCode work on `origin`.
 - No skill is split by operating system now. `sdd-flow` splits by harness only. `session-bridge/skills/coordinating-sessions` splits by topic: `references/commit-backup.md` holds the backup rules, and `tests/test-session-bridge-skill.sh` pins its facts.
+
+## Plugin settings are marker files in the profile directory
+
+A plugin setting is a file in the profile directory of the host that runs the code: `$CLAUDE_CONFIG_DIR` (default `~/.claude`) in Claude Code, `$CODEX_HOME` (default `~/.codex`) in Codex. Node hooks read it with `markerSet(name)` and `profileDir()` in `codescout-companion/hooks/lib.mjs`.
+
+- **Polarity.** The file's presence is the non-default state. `<plugin>-<feature>` opts in to a feature that is off by default. `<plugin>-<feature>-off` opts out of a feature that is on by default.
+- **Content.** An empty file is a switch. A valued setting is one trimmed line; the reader uses the default when the file is absent or the line does not parse. A secret file has mode 0600.
+- **One way.** When a setting moves to a file, the old environment variable is removed in the same change, not kept beside it.
+- **Not settings.** Identity, loop guards, test hooks, and paths or binaries stay environment variables.
+
+First moved: `codescout-companion-scribe-nudge-off` (was `CS_SCRIBE_NUDGE=false`). Inventory and open choices: bugs box entry `2026-11-25-plugin-settings-are-env-vars-a-plugin-file-and-a-profile`.

@@ -10,13 +10,13 @@
 //
 // Claude Code only. Not registered in hooks.json: the refusal changed no behaviour in 0 of 16
 // measured runs (where-agents-listen). Add a PreToolUse entry for `Bash|mcp__codescout__run_command`
-// to run it. CS_SCRIBE_NUDGE=false turns it off. Fail open: an error, a missing field or
+// to run it. The file `<profile dir>/codescout-companion-scribe-nudge-off` turns it off. Fail open: an error, a missing field or
 // a marker that cannot be written lets the call through (lib.mjs FAIL-OPEN CONTRACT).
 // Test knobs: CS_SCRIBE_STATE_DIR (marker directory) and CS_SCRIBE_WINDOW_MS.
 import { statSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readInput, denyPreToolUse, sanitizeSessionId, shortHash } from './lib.mjs';
+import { readInput, denyPreToolUse, sanitizeSessionId, shortHash, markerSet } from './lib.mjs';
 import { boxHelpWriteVerb, boxWriteVerb, COMPLEX_VERBS, MESSAGE_NO_EXIT, MESSAGE_THRESHOLD, SCRIBE_MESSAGE } from './scribe-rules.mjs';
 
 // One refusal per session in practice: the replay of real sessions showed that a refusal after the
@@ -30,7 +30,7 @@ const STAND_DOWN_AFTER = 3;
 function main() {
   const input = readInput();
   if (!input) return;
-  if (process.env.CS_SCRIBE_NUDGE === 'false') return;
+  if (markerSet('codescout-companion-scribe-nudge-off')) return;
   if (input.tool_name !== 'Bash' && input.tool_name !== 'mcp__codescout__run_command') return;
   if (input.agent_id) return;
   const command = input.tool_input && input.tool_input.command;
