@@ -54,3 +54,11 @@ A grep for `CS_`, `BUDDY_`, `SESSION_BRIDGE_`, `CODESCOUT_WAKE_` in code outside
 ## Fix direction
 
 Do the wake opt-in as a marker file first (the spec). Then pick one existing switch, move it, and write the convention (file name, content rule, location) into the `conventions` memory. Migrate the rest as they are touched.
+
+## Progress 2026-11-26
+
+- **Convention written** in memory `conventions` (polarity, content, profile directory, one way).
+- **Moved (3):** `CS_SCRIBE_NUDGE` → `codescout-companion-scribe-nudge-off` (`36d075d`), `CS_PRIVACY` → `codescout-companion-privacy-off` (`a9ffe01`, companion 1.23.11), `SESSION_BRIDGE_ASK_BOUND_USD` → `session-bridge-ask-bound-usd` (`b426d22`, session-bridge 0.4.4). Each removed its env var in the same change.
+- **What is set on this machine:** only those three were set (in the `env` of `settings.json`). The `CODESCOUT_*` entries in `~/.claude/settings.json` configure the codescout server, not a plugin, and are out of scope. `buddy/hooks/judge.env` is a local file, not tracked, with the judge switched off.
+- **Rest stays as is.** The other names are defaults nobody sets, test knobs (`CODESCOUT_WAKE_DEADLINE_SECS` has 6 references, all code and tests) or paths. Move one when it is touched, by the convention. Open choices: whether `judge.env` keeps the buddy judge values or each becomes a file, and how a secret (`BUDDY_JUDGE_API_KEY`, empty here) is stored (mode 0600).
+- **Not verified:** a live session on companion 1.23.11 and session-bridge 0.4.4 reading the files.
