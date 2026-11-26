@@ -1,12 +1,14 @@
 ---
 kind: entry
-status: open
+status: fixed
 title: 'session-bridge: an addressed post_notice result names the receiver by pid key, the notice header by session-id prefix, so one session reads as two'
+closed: 2026-11-26
 created: 2026-11-24
 entry_kind: bug
 log:
 - '2026-11-24 open created codescout:be5c3984-2bd4-45c8-897a-3b17ba6e951e'
-status_since: 2026-11-24
+- '2026-11-26 open -> fixed codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
+status_since: 2026-11-26
 ---
 
 **Summary:** A notice header labels its author `<profile>:<first 8 chars of session id>`. The result of `post_notice(to=...)` labels the receiver `<profile>:<pid>`. Both have the shape `main:<hex-ish>`, so a sender who replies to a notice by name sees a different label and concludes the message went to the wrong session. Every agent that answers a notice is affected.
@@ -27,3 +29,7 @@ status_since: 2026-11-24
 **Tests added:** None yet. A regression test pins that the addressed result for a target with a known session id contains the same `<profile>:<id8>` label that `render_nudge` gives that session as an author.
 
 **Resume:** Change `addressed_result` to take the target's name and session id, and add the test beside `addressed_result_warns_when_the_target_never_ran_a_hook` (`session-bridge/mcp-server/tests/store.rs`).
+
+## Closed
+
+Fixed in the source: server.rs receiver_label gives the receiver as `<name> (<short profile>:<first 8 of the session id>)`, the label render_nudge gives that session as an author; tools.rs uses it for the result of an addressed post (a Codex thread, or a session with no id yet, keeps its endpoint key); Session::name() added. Four tests in tests/store.rs pin the shape, the unknown-id and Codex cases and the cleaning of a name; the full cargo suite passes (462 tests), clippy and fmt are clean. README and the coordinating-sessions skill name the new result text. The wiring in tools.rs is covered by the compiler and the label tests, not by an end-to-end addressed-post test. Live after the next session-bridge release (it rebuilds the binary) and a cold restart of each session.
