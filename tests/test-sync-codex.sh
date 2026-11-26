@@ -18,7 +18,9 @@ VER="$(jq -r '.version' "$ROOT/$PLUGIN/.claude-plugin/plugin.json")"
 H="$(mktemp -d)"
 trap 'rm -rf "$H"' EXIT
 
-run() { CODEX_HOME="$H/home" "$@"; }
+echo '{"codex": []}' > "$H/none.json"
+echo "{\"codex\": [\"$PLUGIN\"]}" > "$H/want.json"
+run() { CODEX_HOME="$H/home" HARNESS_TARGETS="${TARGETS:-$H/none.json}" "$@"; }
 sync() { run python3 "$SYNC" "$PLUGIN" "$@"; }
 
 # --- soft skips ---
@@ -34,6 +36,12 @@ out="$(sync "$VER" 2>&1)"; rc=$?
 out="$(CODEX_BIN=no-such-codex-binary sync "$VER" 2>&1)"; rc=$?
 [ "$rc" = 0 ] && printf '%s' "$out" | grep -q "no Codex install" && pass "no codex binary: skips with exit 0" \
   || fail "no codex binary: skips with exit 0" "rc=$rc $out"
+
+# --- a plugin listed in harness-targets.json is MISSING under --check, installed otherwise ---
+out="$(TARGETS="$H/want.json" sync "$VER" --check 2>&1)"; rc=$?
+[ "$rc" = 1 ] && printf '%s' "$out" | grep -q "^MISSING: $PLUGIN" && pass "listed and absent: --check reports MISSING, exit 1" \
+  || fail "listed and absent: --check reports MISSING, exit 1" "rc=$rc $out"
+[ ! -e "$H/home/plugins" ] && pass "listed and absent: --check installs nothing" || fail "listed and absent: --check installs nothing"
 
 if ! command -v codex >/dev/null 2>&1; then
   echo "  SKIP: codex not on PATH; the app-server cases need it"
@@ -122,5 +130,13 @@ out="$(sync "$VER" 2>&1)"; rc=$?
 [ "$rc" = 0 ] && [ ! -e "$CACHE" ] && grep -qx 'enabled = false' "$H/home/config.toml" \
   && pass "sync: a disabled plugin stays disabled and is not reinstalled" \
   || fail "sync: a disabled plugin stays disabled and is not reinstalled" "rc=$rc $out"
+
+# --- listed and absent: the sync installs it (config.toml has the marketplace, not the plugin) ---
+rm -rf "$H/home"; mkdir -p "$H/home"
+run codex plugin marketplace add "$ROOT" >/dev/null 2>&1
+out="$(TARGETS="$H/want.json" sync "$VER" 2>&1)"; rc=$?
+[ "$rc" = 0 ] && [ -d "$H/home/plugins/cache/$MKT/$PLUGIN/$VER" ] \
+  && pass "sync: a plugin listed in harness-targets.json and absent is installed" \
+  || fail "sync: a plugin listed in harness-targets.json and absent is installed" "rc=$rc $out"
 
 print_summary "sync-codex"

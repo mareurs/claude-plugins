@@ -10,7 +10,9 @@ upgrade` does nothing for a local marketplace. Every `add` that changes content 
 plugin's hook approvals (`trustStatus: modified`, hooks fail with "plugin contents changed;
 hook approval required"). This script does both halves:
 
-  1. If the plugin is installed in Codex and the cache lacks <version>: `codex plugin add`.
+  1. If the plugin is installed in Codex, or listed under "codex" in scripts/harness-targets.json,
+     and the cache lacks <version>: `codex plugin add`. A listed plugin that is absent is installed;
+     with `--check` it is reported as MISSING (exit 1).
   2. Through `codex app-server` (stdio JSON-RPC, the same write path as `/hooks`): list the
      plugin's hooks. A hook that is `modified` AND whose declaration half of `currentHash`
      equals its recorded `trusted_hash` changed in content only; its `trusted_content_hash`
@@ -19,11 +21,11 @@ hook approval required"). This script does both halves:
   3. List again; every renewed hook must read `trusted`.
 
 Soft-skips (exit 0) when there is no `codex` binary, no `$CODEX_HOME/config.toml`, or the plugin
-is absent from the Codex config or explicitly disabled. Re-adding a disabled plugin
+is absent from the Codex config and not listed in harness-targets.json, or explicitly disabled. Re-adding a disabled plugin
 would enable it. `--check` changes nothing and exits 1 on a stale cache or a `modified`
 hook of an enabled plugin, so check-profile-parity.sh can gate on it.
 
-Env: CODEX_HOME (default ~/.codex), MARKETPLACE (default sdd-misc-plugins), CODEX_BIN (default
+Env: HARNESS_TARGETS (default scripts/harness-targets.json), CODEX_HOME (default ~/.codex), MARKETPLACE (default sdd-misc-plugins), CODEX_BIN (default
 `codex`). Exit 1 on a failure; "needs review" items are a warning, not a failure.
 """
 from __future__ import annotations
@@ -122,9 +124,15 @@ def main(argv: list[str]) -> int:
     with open(HOME / "config.toml", "rb") as f:
         settings = tomllib.load(f).get("plugins", {}).get(sel)
     if settings is None:
-        print(f"= {plugin} is not installed in Codex: skipping")
-        return 0
-    if settings.get("enabled") is False:
+        wanted = plugin in json.loads(Path(os.environ.get("HARNESS_TARGETS") or REPO / "scripts" / "harness-targets.json").read_text()).get("codex", [])
+        if not wanted:
+            print(f"= {plugin} is not installed in Codex: skipping")
+            return 0
+        if check:
+            print(f"MISSING: {plugin} is listed for Codex in scripts/harness-targets.json but not installed; run scripts/sync-codex.py {plugin} {version}")
+            return 1
+        print(f"  {plugin} is listed for Codex and not installed: installing")
+    elif settings.get("enabled") is False:
         print(f"= {plugin} is disabled in Codex: skipping")
         return 0
 
