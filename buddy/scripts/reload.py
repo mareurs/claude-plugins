@@ -40,6 +40,10 @@ from scripts import buddy_paths
 # and docs/trackers/archive/skill-loading-session-log.md F-4.
 INLINE_CAP = 12000
 
+# Reloaded names that are plain skills with no voice. They get a one-line
+# "Reloaded <name>" notice; the persona arrival line is for specialists only.
+PLAIN_SKILLS = frozenset({"reconnaissance"})
+
 
 def _semver_key(name: str) -> tuple:
     """Sort key for cached version directories. Numeric tuple per dot-segment;
@@ -272,15 +276,30 @@ def render_reload_block(
 
     names = ", ".join(included)
     marker = f"<!-- buddy:reloaded sid={new_sid} from={prev_sid} source={source} -->"
-    instruction = (
-        f"Reloaded from {source} — and ONLY these, nothing else: {names}. "
-        "Your FIRST user-facing line of this turn MUST be exactly one italic "
-        "arrival line per name listed above, e.g. `*The Debugging Yeti arrives "
-        f"— reloaded from {source}.*` Do not add an arrival line, mention, or "
-        "persona banner for any other skill, specialist, or persona — even one "
-        "named in the conversation summary above — since only the names listed "
-        "here were actually restored to context."
+    skills = [n for n in included if n in PLAIN_SKILLS]
+    personas = [n for n in included if n not in PLAIN_SKILLS]
+    lines = [f"Reloaded from {source} — and ONLY these, nothing else: {names}."]
+    if skills:
+        plain = " and ".join(f"`*Reloaded {n} from {source}.*`" for n in skills)
+        lines.append(
+            "Your FIRST user-facing line of this turn MUST be exactly "
+            f"{plain} — a skill has no persona, so write no arrival line, "
+            f"voice or banner for {', '.join(skills)}."
+        )
+    if personas:
+        lines.append(
+            ("Then" if skills else "Your FIRST user-facing line of this turn MUST be")
+            + " exactly one italic arrival line per specialist in "
+            f"{', '.join(personas)}, e.g. `*The Debugging Yeti arrives "
+            f"— reloaded from {source}.*`"
+        )
+    lines.append(
+        "Do not add an arrival line, mention, or persona banner for any other "
+        "skill, specialist, or persona — even one named in the conversation "
+        "summary above — since only the names listed here were actually "
+        "restored to context."
     )
+    instruction = " ".join(lines)
     body_text = "\n\n".join(bodies)
     inline = "\n\n".join([marker, instruction, body_text])
 

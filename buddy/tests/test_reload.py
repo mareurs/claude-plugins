@@ -666,3 +666,33 @@ def test_session_start_total_stdout_stays_under_the_cap(tmp_path, capsys):
     spilled = proj / ".buddy" / "sid-total" / "reload-payload-compact.md"
     assert spilled.is_file()
     assert len(spilled.read_text()) > len(out)
+
+
+def test_render_reload_block_a_skill_gets_a_plain_line_not_a_persona_arrival(tmp_path):
+    """`reconnaissance` is a skill with no voice. Telling the model to write
+    "The Reconnaissance arrives" invents a persona; a reloaded skill gets a
+    plain one-line notice, and only a specialist gets the arrival line.
+    """
+    from scripts.reload import render_reload_block
+    plug = tmp_path / "plug"
+    for name in ("reconnaissance", "debugging-yeti"):
+        f = plug / "skills" / name / "SKILL.md"
+        f.parent.mkdir(parents=True)
+        f.write_text(f"# {name}\nbody of {name}")
+
+    skill_only = render_reload_block(
+        specialists=["reconnaissance"],
+        new_sid="s", prev_sid="s", source="compact",
+        plugin_root=plug, project_root=tmp_path / "proj",
+    )
+    assert "arrives" not in skill_only.lower()
+    assert "persona" in skill_only.lower()  # told NOT to invent one
+    assert "*Reloaded reconnaissance from compact.*" in skill_only
+
+    mixed = render_reload_block(
+        specialists=["reconnaissance", "debugging-yeti"],
+        new_sid="s", prev_sid="s", source="resume",
+        plugin_root=plug, project_root=tmp_path / "proj",
+    )
+    assert "*Reloaded reconnaissance from resume.*" in mixed
+    assert "arrives" in mixed.lower()  # the specialist still gets one
