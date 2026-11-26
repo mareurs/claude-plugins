@@ -21,6 +21,8 @@
 #   0.5. build     — runs <plugin>/scripts/build.sh when it exists (session-bridge: cargo
 #                    test + clippy + cargo install into ~/.cargo/bin); a red build aborts
 #                    before any bump (scripts/lib-plugin-build.sh)
+#   0.9. re-check  — README.md and the version files are still clean (the tests took minutes;
+#                    a peer's edit in between would be staged whole at step 3)
 #   1. version     — bump <plugin>/.claude-plugin/plugin.json + README.md table
 #   2. consistency — scripts/check-versions.sh
 #   3. commit      — "chore: bump <plugin> to <version>"
@@ -89,6 +91,17 @@ fi
 source "$REPO_ROOT/scripts/lib-plugin-build.sh"
 run_plugin_build "$REPO_ROOT" "$PLUGIN" "$VERSION" || exit 1
 
+# 0.9. the steps above take minutes, and other sessions share this checkout. A file that step 1
+#      rewrites and step 3 stages WHOLE must still be what step 0 saw clean: an edit made in
+#      between would land in the release commit (session-bridge 0.4.0 swept an sdd README row,
+#      2026-11-26). The Cargo files are not checked: step 0.5 bumped them on purpose.
+for f in README.md "$PLUGIN_JSON" "$PACKAGE_JSON"; do
+  if [ -n "$(git status --porcelain -- "$f")" ]; then
+    echo "✗ $f changed since the pre-flight check (another session?) — NOT bumping. Commit or stash it, then re-run."
+    git status --short -- "$f"; exit 1
+  fi
+done
+
 # 1. bump version sources ------------------------------------------------------
 tmp="$(mktemp)"; jq --arg v "$VERSION" '.version = $v' "$PLUGIN_JSON" > "$tmp" && mv "$tmp" "$PLUGIN_JSON"
 if [ -f "$PACKAGE_JSON" ]; then
@@ -96,6 +109,12 @@ if [ -f "$PACKAGE_JSON" ]; then
 fi
 # README version-table row:  | **[<plugin>](./<plugin>/)** | <ver> | <desc> |
 sed -i -E "s#(\*\*\[$PLUGIN\]\(\./$PLUGIN/\)\*\* [|] )[^ |]+( [|])#\1$VERSION\2#" README.md
+
+# The README sed changes one row. More changed lines than that is not this release's edit.
+n="$(git diff --numstat -- README.md | awk '{print $1 + $2}')"
+if [ "${n:-0}" -gt 2 ]; then
+  echo "✗ README.md has ${n} changed lines after the bump; this release changes one row. Check git diff README.md."; exit 1
+fi
 
 # 2. consistency gate (also catches a mis-fired README sed) --------------------
 ./scripts/check-versions.sh
