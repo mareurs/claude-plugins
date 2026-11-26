@@ -15,6 +15,10 @@ echo "── subagent-guidance ──"
 HOOK="$HOOK_DIR/subagent-guidance.mjs"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/empty"
+# These fixtures check Claude Code guidance even when the suite runs inside Codex.
+GUIDANCE_HOST="$T/claude"
+printf '#!/bin/bash\nnode "$@"\n' > "$GUIDANCE_HOST"
+chmod +x "$GUIDANCE_HOST"
 
 # Gate OPEN for $T/proj.
 make_git_repo "$T/proj"
@@ -37,7 +41,7 @@ clean_path() {
 run_hook() {
   local _rc
   printf '{"cwd":"%s","agent_type":"%s","agent_id":"a1","session_id":"s1"}' "$1" "$2" \
-    | PATH="${HOOK_PATH:-$(clean_path)}" HOME="$T" CLAUDE_CONFIG_DIR="$T/empty" node "$HOOK" 2>/dev/null
+    | PATH="${HOOK_PATH:-$(clean_path)}" HOME="$T" CLAUDE_CONFIG_DIR="$T/empty" "$GUIDANCE_HOST" "$HOOK" 2>/dev/null
   _rc=$?
   return $_rc
 }
