@@ -13,6 +13,10 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
+
+### Current release verification — 2026-11-26 (sdd 3.0.2)
+
+Released with `NO_PUSH=1` and the full test gate (no `SKIP_TESTS`): `7acd2f7`, cached in 4 of 4 profiles. `release.sh` stopped at the parity step: `sdd` in `.claude-kat` and `.claude-stef` had a second element, `scope=local`, `projectPath=…/claude-plugins.worktrees/session-channel` (a deleted worktree), still on 3.0.1. Cause: a `local` install is one element per project directory, and `repoint-install-records.sh` wrote `[0]` only. Repaired by hand with a backup (`installed_plugins.json.bak-orphan-20261126`), then parity held on 4 profiles. Fixed for the future in `3cb913e`: repoint updates every element, `check-profile-parity.sh` prints `ORPHAN` for a projectPath that is gone, and `scripts/prune-orphan-pins.sh <plugin> [--apply]` removes such elements. Not verified: whether Claude Code creates the element for a new worktree path, or prunes it (the docs are silent). One more orphan exists outside this repo's plugins: `chrome-devtools-mcp` in `.claude` (a deleted `.claude/worktrees/…` path). The sdd skill edits are live only after a cold restart or `/reload-plugins`.
 ### Current release verification — 2026-11-26 (session-bridge 0.4.0)
 
 _Run with `NO_PUSH=1` (not pushed), pre-flight suites on (not skipped), measured at 5dbecce. Evidence is the output of `scripts/release.sh` (exit 0) and a fresh read of each profile's install record plus a fresh `check-profile-parity.sh`._
