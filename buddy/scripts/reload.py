@@ -307,11 +307,13 @@ def render_reload_block(
     )
     pointer = (
         f"The reloaded bodies ({len(body_text):,} bytes) are in `{rel}` — they are NOT "
-        "inline below. **Read that one file now, with native `Read`, before your "
-        "arrival line.** Use `Read`, not `read_markdown`: the path is guard-exempt and "
-        "a heading map would fragment a skill body. This indirection exists because "
-        "CC truncates hook stdout over its inline cap to a ~2 KB preview with no "
-        "handle to fetch the rest, so inlining this would silently drop most of it."
+        "inline below. Claude Code may already have restored them as invoked skills. "
+        f"If the instructions of {names} are not already in your context, **read that "
+        "one file with native `Read` before your arrival line.** If they are already in "
+        "your context, do not read it. Use `Read`, not `read_markdown`: the path is "
+        "guard-exempt and a heading map would fragment a skill body. This indirection "
+        "exists because CC truncates hook stdout over its inline cap to a ~2 KB preview "
+        "with no handle to fetch the rest, so inlining this would silently drop most of it."
     )
     return "\n\n".join([spilled_marker, instruction, pointer])
 

@@ -142,6 +142,10 @@ NEW_PARENT=$(jq -r '.parent_sid // ""' "$RELOAD_WORK/.buddy/$NEW_SID/state.json"
 # the statusline. Reuses RELOAD_WORK's seeded prev state (debugging-yeti); no
 # .codescout here, so recon does not fire.
 COMPACT_SID="new-sid-compact"
+# A compaction keeps its session id (Claude Code 2.1.332), so the compacting session holds
+# its own specialists: seed this session's state, not a previous session's.
+mkdir -p "$RELOAD_WORK/.buddy/$COMPACT_SID"
+cp "$RELOAD_WORK/.buddy/$PREV_SID/state.json" "$RELOAD_WORK/.buddy/$COMPACT_SID/state.json"
 COMPACT_EVENT='{"session_id":"'"$COMPACT_SID"'","cwd":"'"$RELOAD_WORK"'","source":"compact","timestamp":1700004100}'
 COMPACT_OUT=$(echo "$COMPACT_EVENT" | CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" python3 "$DISPATCH" session-start 2>/dev/null || true)
 

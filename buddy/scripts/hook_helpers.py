@@ -332,6 +332,12 @@ def handle_session_start(
         dismissed_specialists: list[str] = []
         recon_reload = False
         prev_sid = os.environ.get("BUDDY_PREV_SID", "").strip()
+        if source == "compact":
+            # A compaction keeps the session id (Claude Code 2.1.332: the compact event
+            # carries the id of the session that compacted). BUDDY_PREV_SID is the
+            # last-writer pointer of `.buddy/.current_session_id`, so on compact it names a
+            # PEER; the compacting session is its own previous session.
+            prev_sid = incoming_sid
         if source in ("resume", "compact", "fork"):
             # event.cwd may be missing on some CC builds; fall back to the
             # process cwd (bash hook inherits it from CC's launch dir). Without

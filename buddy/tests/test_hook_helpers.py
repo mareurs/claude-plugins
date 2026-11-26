@@ -435,34 +435,79 @@ def test_session_start_resume_carries_active_specialists_from_prev_sid(tmp_path)
     assert result["current_session_id"] == new_sid
 
 
-def test_session_start_compact_releases_active_specialists(tmp_path):
+def test_session_start_compact_ignores_a_peer_in_the_last_writer_pointer(tmp_path, capsys):
+    """A compaction keeps the session id, so the compacting session is its OWN previous session.
+
+    Measured 2026-11-26 (Claude Code 2.1.332): the compact SessionStart event carries the
+    same session_id as the session that compacted (probe: `claude -p`, then `/compact`
+    with --resume; and all rows of a real compacted transcript carry one sid). BUDDY_PREV_SID
+    comes from `.buddy/.current_session_id`, which is last-writer across every session of the
+    repository, so on compact it names a PEER. Reading the peer's state released the peer's
+    specialists in this session's notice and left this session's own unnamed.
+    """
     import os
     from scripts.hook_helpers import handle_session_start
     from scripts.state import load_state, save_state, default_state
 
     project = tmp_path
     (project / ".git").mkdir()
-    prev_sid = "prev-sid"
-    new_sid = "new-sid"
+    own_sid, peer_sid = "sid-own-compacting", "sid-peer"
 
-    prev_state = default_state()
-    prev_state["active_specialists"] = ["testing-snow-leopard"]
-    save_state(project / ".buddy" / prev_sid / "state.json", prev_state)
+    for sid, specialists in ((own_sid, ["architecture-snow-lion"]),
+                             (peer_sid, ["debugging-yeti", "prompt-hamsa"])):
+        st = default_state()
+        st["current_session_id"] = sid
+        st["active_specialists"] = specialists
+        save_state(project / ".buddy" / sid / "state.json", st)
 
-    new_path = project / ".buddy" / new_sid / "state.json"
-    os.environ["BUDDY_PREV_SID"] = prev_sid
+    own_path = project / ".buddy" / own_sid / "state.json"
+    os.environ["BUDDY_PREV_SID"] = peer_sid  # what hook_entry exports: the last writer
     try:
         handle_session_start(
-            {"timestamp": 1700000000, "session_id": new_sid,
+            {"timestamp": 1700000000, "session_id": own_sid,
              "source": "compact", "cwd": str(project)},
-            path=new_path,
+            path=own_path,
         )
     finally:
         del os.environ["BUDDY_PREV_SID"]
 
-    result = load_state(new_path)
+    out = capsys.readouterr().out
+    assert "architecture-snow-lion" in out, "the notice must name this session's own specialist"
+    assert "debugging-yeti" not in out and "prompt-hamsa" not in out, \
+        "the notice named a peer session's specialists"
+    result = load_state(own_path)
     assert result["active_specialists"] == []
-    assert result["parent_sid"] == prev_sid
+    assert result.get("parent_sid") != peer_sid, "a peer was recorded as this session's parent"
+    # the peer's own state is untouched
+    assert load_state(project / ".buddy" / peer_sid / "state.json")["active_specialists"] == \
+        ["debugging-yeti", "prompt-hamsa"]
+
+
+
+def test_session_start_compact_releases_active_specialists(tmp_path):
+    """On compact the session id is unchanged: the compacting session releases ITS OWN specialists."""
+    from scripts.hook_helpers import handle_session_start
+    from scripts.state import load_state, save_state, default_state
+
+    project = tmp_path
+    (project / ".git").mkdir()
+    sid = "same-sid"
+
+    state = default_state()
+    state["current_session_id"] = sid
+    state["active_specialists"] = ["testing-snow-leopard"]
+    path = project / ".buddy" / sid / "state.json"
+    save_state(path, state)
+
+    handle_session_start(
+        {"timestamp": 1700000000, "session_id": sid,
+         "source": "compact", "cwd": str(project)},
+        path=path,
+    )
+
+    result = load_state(path)
+    assert result["active_specialists"] == []
+    assert not result.get("parent_sid"), "a compaction has no parent session"
 def test_session_start_compact_from_subagent_leaves_parent_state_alone(tmp_path, capsys):
     """A SUBAGENT's compaction must not touch the parent's state.
 

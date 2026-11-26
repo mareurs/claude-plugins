@@ -460,6 +460,37 @@ def test_render_reload_block_spilled_form_keeps_the_arrival_instruction(tmp_path
     assert "read_markdown" in block
 
 
+def test_render_reload_block_spilled_pointer_reads_only_when_the_body_is_missing(tmp_path):
+    """Claude Code re-attaches Skill-tool skills itself after a compaction (an
+    `invoked_skills` attachment), so the same body can already be in context.
+
+    Measured 2026-11-24..26 over 47 + 24 compactions: `reconnaissance` was in invoked_skills
+    in 24 and 17, complete every time (12,534 chars), and the buddy payload copied it again.
+    It was missing from invoked_skills in 23 and a few others (older sessions, cap eviction),
+    where the payload is the only copy. The decision therefore stays with the model, which
+    can see the attachment: the pointer must make the Read conditional, not unconditional.
+    """
+    from scripts.reload import render_reload_block
+    plug = tmp_path / "plug"
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    _big_skill(plug, "reconnaissance")
+
+    block = render_reload_block(
+        specialists=["reconnaissance"],
+        new_sid="sid-cond", prev_sid="sid-cond", source="compact",
+        plugin_root=plug, project_root=proj,
+    )
+    assert "payload-file=.buddy/sid-cond/reload-payload-compact.md" in block
+    assert "Read that one file now" not in block, "the Read is still unconditional"
+    # the condition and its opposite are both stated, so the model cannot guess
+    assert "already in your context" in block
+    assert "do not read" in block.lower()
+    # the guard-exempt `Read` advice survives
+    assert "`Read`" in block and "read_markdown" in block
+
+
+
 def test_render_reload_block_inlines_when_under_cap(tmp_path):
     """Under the cap, behaviour is unchanged — no pointer, no file written."""
     from scripts.reload import render_reload_block
