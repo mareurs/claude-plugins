@@ -1,12 +1,14 @@
 ---
 kind: entry
-status: investigating
+status: fixed
 title: Codescout Companion blocks Codex native escalation before the approval flow and redirects to a tool without that capability
+closed: 2026-11-26
 created: 2026-11-24
 entry_kind: bug
 log:
 - '2026-11-24 investigating created codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
-status_since: 2026-11-24
+- '2026-11-26 investigating -> fixed codescout:anonymous'
+status_since: 2026-11-26
 ---
 
 Migrated from `docs/issues/2026-10-09-companion-routing-blocks-codex-native-escalation.md` on 2026-11-24; opened 2026-10-09; tags codescout-companion, codex, hooks, permissions, tool-routing; old id cd15dd2c76c1f7eb.
@@ -271,10 +273,12 @@ The Codex adapter half lives in the Codex repository (`5eedcdc543`, as recorded 
 
 ## Now
 
-On this workstation, a fresh shell now resolves `codex` to `/usr/bin/codex` from Arch package `openai-codex 0.171.0-1`. At the operator's request, the previous CLI link was restored and the temporary user-local package was removed after its last process exited. The operator plans to handle installation through Arch.
+On Arch Codex 0.172.0, the stock Bash hook delivers `permission_mode: "default"` and omits per-call `sandbox_permissions` for both ordinary and escalated shell calls. The maintainer chose advisory routing for this payload. Companion detects the Linux Codex host and recommends `run_command` while Codex handles native execution and approval.
 
-Before removal, the user-local build of the official `rust-v0.171.0` commit `ccf9be8cc458bd6b8336fe84d68d8893f2691a5e` passed a real nested execution probe with the Companion guard, an isolated Codex profile and a local mock Responses server. Each escalated call reached exactly one native approval request. Accept created the temporary marker and decline left it absent. An ordinary call stayed guard-blocked. The `/usr/bin/codex` comparator dropped `sandbox_permissions` and produced zero approval requests with the same fixture.
+The companion fix passed the real nested approval fixture on stock `/usr/bin/codex` 0.172.0 with an isolated profile and a loopback mock Responses server. Accept and decline reached one native approval request each. Accept created the marker after the decision and decline left it absent. The ordinary read-only control completed with zero approval requests. The regression fixtures cover explicit default, explicit escalation, null metadata, Read/Edit and Claude Code routing. The full Companion routing matrix passed all 90 assertions.
 
-The [0.171.0 source patch](../../../patches/2026-11-26-codex-0.171.0-native-approval-hook-payload.patch) has SHA-256 `18f9e466dee85549473aaff0d5b3bd4722d247094e1d95b7106a6c0d25263097`. Apply and reverse byte checks passed on the four original files. The regression failed on the missing approval metadata before the production hunk was applied. After application, all three focused unit tests, all 101 hooks integration tests and all 11 Companion routing fixtures passed.
+Deliver the local compatibility fix through a Companion release. The [0.171.0 Codex source patch](../../../patches/2026-11-26-codex-0.171.0-native-approval-hook-payload.patch) remains evidence for the upstream metadata issue, which can affect other hooks.
 
-Delivery through Arch remains open. Related residual is `stock-codex-adapter-release-and-install-in-the-six-real`.
+## Closed
+
+Fixed in Companion source. Verified against the stock Arch Codex binary. Plugin release pending.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test matrix for pre-tool-guard.sh — path-agnostic contract (2026-05-21).
+# Claude Code routing matrix for pre-tool-guard.mjs.
 #
 # Bash, Read, Edit, Write, Grep, and Glob all route to codescout regardless
 # of path or extension. Native Read has two exemptions: binary images/PDF
@@ -20,6 +20,10 @@ HOOK="${PRE_TOOL_GUARD_HOOK:-$(cd "$(dirname "$0")" && pwd)/pre-tool-guard.mjs}"
 GUARD_TEST_TMP="$(mktemp -d "${TMPDIR:-/tmp}/cs-guard-test-XXXXXX")" || exit 1
 export TMPDIR="$GUARD_TEST_TMP"
 trap 'rm -rf "$GUARD_TEST_TMP"' EXIT
+# Pin the host so this suite exercises Claude Code even when launched by Codex.
+GUARD_HOST="$GUARD_TEST_TMP/claude"
+printf '#!/bin/bash\nnode "$@"\n' > "$GUARD_HOST"
+chmod +x "$GUARD_HOST"
 
 # Synthetic fixture projects, NOT the author's real checkouts. The suite used to
 # hardcode /home/marius/work/claude/{codescout,claude-plugins}: on any other host
@@ -77,7 +81,7 @@ assert() {
     input=$(jq -n --arg c "$cmd" --arg cwd "$ACTIVE_CWD" \
         '{tool_name:"Bash", cwd:$cwd, tool_input:{command:$c}}')
     local got
-    got=$(verdict "$(echo "$input" | node "$HOOK")")
+    got=$(verdict "$(echo "$input" | "$GUARD_HOST" "$HOOK")")
     if [[ "$got" == "$expected" ]]; then
         echo "PASS [$label]"
         PASS=$((PASS+1))
@@ -97,7 +101,7 @@ assert_tool() {
     input=$(jq -n --arg t "$tool" --arg cwd "$ACTIVE_CWD" --argjson ti "$tinput" \
         '{tool_name:$t, cwd:$cwd, tool_input:$ti}')
     local got
-    got=$(verdict "$(echo "$input" | node "$HOOK")")
+    got=$(verdict "$(echo "$input" | "$GUARD_HOST" "$HOOK")")
     if [[ "$got" == "$expected" ]]; then
         echo "PASS [$label]"; PASS=$((PASS+1))
     else
@@ -203,10 +207,10 @@ fire() {  # <session_id> <cmd>  -> raw hook stdout
     clean_window
     if [[ -n "$1" ]]; then
         jq -n --arg s "$1" --arg c "$2" --arg cwd "$ACTIVE_CWD" \
-            '{tool_name:"Bash", session_id:$s, cwd:$cwd, tool_input:{command:$c}}' | node "$HOOK"
+            '{tool_name:"Bash", session_id:$s, cwd:$cwd, tool_input:{command:$c}}' | "$GUARD_HOST" "$HOOK"
     else
         jq -n --arg c "$2" --arg cwd "$ACTIVE_CWD" \
-            '{tool_name:"Bash", cwd:$cwd, tool_input:{command:$c}}' | node "$HOOK"
+            '{tool_name:"Bash", cwd:$cwd, tool_input:{command:$c}}' | "$GUARD_HOST" "$HOOK"
     fi
 }
 
@@ -264,7 +268,7 @@ check "breaker-liveness-rearms" "$(verdict "$OUT")" "deny"
 fire_edit() {  # <session_id> -> raw hook stdout of a native Edit deny
     clean_window
     jq -n --arg s "$1" --arg cwd "$ACTIVE_CWD" --arg p "$ACTIVE_CWD/src/lib.rs" \
-        '{tool_name:"Edit", session_id:$s, cwd:$cwd, tool_input:{file_path:$p}}' | node "$HOOK"
+        '{tool_name:"Edit", session_id:$s, cwd:$cwd, tool_input:{file_path:$p}}' | "$GUARD_HOST" "$HOOK"
 }
 answer() {  # <session_id> <short tool name> -- a PostToolUse payload for a codescout tool
     echo "{\"session_id\":\"$1\",\"tool_name\":\"mcp__codescout__$2\"}" | node "$LIVENESS"
@@ -358,7 +362,7 @@ esac
 fire_sub() {  # <session_id> <cmd>  -> raw hook stdout, as a subagent
     clean_window
     jq -n --arg s "$1" --arg c "$2" --arg cwd "$ACTIVE_CWD" \
-        '{tool_name:"Bash", session_id:$s, cwd:$cwd, agent_id:"a1b2c3d4e5f6a7b8c", agent_type:"general-purpose", tool_input:{command:$c}}' | node "$HOOK"
+        '{tool_name:"Bash", session_id:$s, cwd:$cwd, agent_id:"a1b2c3d4e5f6a7b8c", agent_type:"general-purpose", tool_input:{command:$c}}' | "$GUARD_HOST" "$HOOK"
 }
 clean
 SUB_OUT=$(fire_sub "sub-footer-$$" "echo sub")
@@ -399,9 +403,9 @@ assert_cfg() {  # <label> <cwd> <expected> <hatch: on|off> [sub]  ("sub" = the c
         '{tool_name:"Read", cwd:$cwd, tool_input:{file_path:($cwd+"/src/main.rs")}}
          + (if $sub == "sub" then {agent_id:"a1b2c3d4e5f6a7b8c", agent_type:"general-purpose"} else {} end)')
     if [[ "$4" == "off" ]]; then
-        got=$(verdict "$(echo "$payload" | env -u CS_COMPANION_IGNORE_PROJECT_CONFIG node "$HOOK")")
+        got=$(verdict "$(echo "$payload" | env -u CS_COMPANION_IGNORE_PROJECT_CONFIG "$GUARD_HOST" "$HOOK")")
     else
-        got=$(verdict "$(echo "$payload" | node "$HOOK")")
+        got=$(verdict "$(echo "$payload" | "$GUARD_HOST" "$HOOK")")
     fi
     if [[ "$got" == "$3" ]]; then
         echo "PASS [$1]"; PASS=$((PASS+1))
@@ -434,7 +438,7 @@ assert_sub_file() {  # <label> <path> <expected>
     local payload got
     payload=$(jq -n --arg cwd "$CFG_TMP/optout" --arg p "$2" \
         '{tool_name:"Read", cwd:$cwd, agent_id:"a1b2c3d4e5f6a7b8c", agent_type:"general-purpose", tool_input:{file_path:$p}}')
-    got=$(verdict "$(echo "$payload" | env -u CS_COMPANION_IGNORE_PROJECT_CONFIG node "$HOOK")")
+    got=$(verdict "$(echo "$payload" | env -u CS_COMPANION_IGNORE_PROJECT_CONFIG "$GUARD_HOST" "$HOOK")")
     if [[ "$got" == "$3" ]]; then
         echo "PASS [$1]"; PASS=$((PASS+1))
     else
@@ -462,7 +466,7 @@ assert_tool "copilot-read-file-path-deny" "read_file" \
 call_as() {  # <session> <agent_id or ""> -> raw hook stdout of a native Read of a source file
     jq -n --arg cwd "$ACTIVE_CWD" --arg s "$1" --arg a "$2" \
         '{session_id:$s, tool_name:"Read", cwd:$cwd, tool_input:{file_path:($cwd+"/src/main.rs")}}
-         + (if $a != "" then {agent_id:$a, agent_type:"general-purpose"} else {} end)' | node "$HOOK"
+         + (if $a != "" then {agent_id:$a, agent_type:"general-purpose"} else {} end)' | "$GUARD_HOST" "$HOOK"
 }
 reason_of() { printf '%s' "$1" | jq -r '.hookSpecificOutput.permissionDecisionReason // "none"' 2>/dev/null; }
 is_full()    { [[ "$(reason_of "$1")" == *"faster path for source files"* ]]; }

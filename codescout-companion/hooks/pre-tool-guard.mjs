@@ -268,6 +268,15 @@ if (toolName === 'Bash') {
     process.exit(0);
   }
 
+  // Some Codex releases send the same command-only input for ordinary and escalated Bash.
+  // Keep routing advisory so Codex can apply its normal execution and approval policy.
+  if (CODEX && !Object.hasOwn(input.tool_input ?? {}, 'sandbox_permissions')) {
+    contextPreToolUse(
+      'Use codescout run_command for routine shell work. Codex handles execution and any native approval for this call.'
+    );
+    process.exit(0);
+  }
+
   const cmd = (input.tool_input && input.tool_input.command) || '';
   let hint;
   if (/^(grep|rg) /.test(cmd)) {

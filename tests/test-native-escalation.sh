@@ -31,22 +31,46 @@ with tempfile.TemporaryDirectory(prefix='cs-native-approval-', dir=os.environ.ge
         ('read-does-not-inherit-exemption', 'Read', {'file_path': str(project / 'app.rs'), 'sandbox_permissions': 'require_escalated'}, True),
         ('edit-does-not-inherit-exemption', 'Edit', {'file_path': str(project / 'app.rs'), 'sandbox_permissions': 'require_escalated'}, True),
     ]
+    hosts = root / 'hosts'
+    hosts.mkdir()
+    # The hook identifies the nearest agent by its process name on Linux.
+    for host in ('claude', 'codex'):
+        runner = hosts / host
+        runner.write_text('#!/bin/bash\nnode "$@"\n')
+        runner.chmod(0o700)
+
+    host_cases = [
+        ('claude', label, tool, ti, None if denied else 'host approval flow')
+        for label, tool, ti, denied in cases
+    ]
+    if sys.platform == 'linux':
+        host_cases.extend([
+            ('codex', 'codex-command-only', 'Bash', {'command': 'true'}, 'run_command'),
+            ('codex', 'codex-explicit-default', 'Bash', {'command': 'true', 'sandbox_permissions': 'use_default'}, None),
+            ('codex', 'codex-null-permissions', 'Bash', {'command': 'true', 'sandbox_permissions': None}, None),
+            ('codex', 'codex-explicit-escalation', 'Bash', {'command': 'true', 'sandbox_permissions': 'require_escalated'}, 'host approval flow'),
+            ('codex', 'codex-read-without-permissions', 'Read', {'file_path': str(project / 'app.rs')}, None),
+            ('codex', 'codex-edit-without-permissions', 'Edit', {'file_path': str(project / 'app.rs')}, None),
+        ])
+
     failures = []
-    for label, tool, ti, denied in cases:
+    for host, label, tool, ti, advisory in host_cases:
         scratch = root / label
         scratch.mkdir()
         env = dict(os.environ, HOME=str(home), CLAUDE_CONFIG_DIR=str(home / '.claude'), TMPDIR=str(scratch), XDG_STATE_HOME=str(scratch / 'state'))
         payload = {'hook_event_name': 'PreToolUse', 'tool_name': tool, 'cwd': str(project), 'session_id': 'approval-fixture', 'tool_input': ti}
-        child = subprocess.run(['node', str(hook)], input=json.dumps(payload), text=True, capture_output=True, timeout=15, env=env, check=True)
+        if host == 'codex':
+            payload['permission_mode'] = 'default'
+        child = subprocess.run([str(hosts / host), str(hook)], input=json.dumps(payload), text=True, capture_output=True, timeout=15, env=env, check=True)
         output = json.loads(child.stdout) if child.stdout.strip() else {}
         specific = output.get('hookSpecificOutput', {})
         decision = specific.get('permissionDecision')
-        if denied:
+        if advisory is None:
             ok = decision == 'deny' and 'run_command' in specific.get('permissionDecisionReason', '') if tool == 'Bash' else decision == 'deny'
         else:
             # No auto-approval, input rewrite, or breaker/dedup strike: host keeps control.
             ok = (decision is None and 'updatedInput' not in specific
-                  and 'host approval flow' in specific.get('additionalContext', '')
+                  and advisory in specific.get('additionalContext', '')
                   and not list(scratch.glob('cs-*')))
         if ok:
             print('PASS [' + label + ']')
