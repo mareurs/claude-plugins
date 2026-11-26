@@ -75,4 +75,38 @@ for ev in watch prompt; do
   else fail "no binary: $ev" "rc=$RC out=[$OUT] err=[$ERR]"; fi
 done
 
+# (6) Codex: the same hooks.json runs there, and the binary's default harness is claude. The host is
+# the nearest `codex` or `claude` process above run.sh (comm, which is the file name of a script);
+# stand-in scripts of those names play the hosts. Bug 2026-11-26 "codex plugin add installs hooks
+# that run as harness claude".
+mkdir -p "$TMP/bin"
+for h in codex claude; do printf '#!/bin/sh\n"$@"\n' >"$TMP/bin/$h"; chmod +x "$TMP/bin/$h"; done
+run_under() {  # run_under <codex|claude|none> <run.sh args>: sets RC, OUT, ERR
+  local host="$1"; shift; RC=0
+  if [ "$host" = none ]; then run_sh "$@"; return; fi
+  env -u CLAUDE_CONFIG_DIR HOME="$TMP/home" "$TMP/bin/$host" "$RUN_SH" "$@" >"$TMP/out" 2>"$TMP/err" || RC=$?
+  OUT="$(cat "$TMP/out")"; ERR="$(cat "$TMP/err")"
+}
+for ev in session-start prompt post-tool; do
+  fake 0; run_under codex "$ev"
+  if [ "$RC" -eq 0 ] && grep -qx "hook $ev --harness codex" "$TMP/calls.log"; then
+    pass "under codex, $ev calls hook $ev --harness codex"
+  else fail "under codex, $ev" "rc=$RC calls=[$(cat "$TMP/calls.log")]"; fi
+  for host in claude none; do
+    fake 0; run_under $host "$ev"
+    if [ "$RC" -eq 0 ] && grep -qx "hook $ev" "$TMP/calls.log"; then
+      pass "control: under $host, $ev still calls hook $ev with no harness flag"
+    else fail "control: under $host, $ev" "rc=$RC calls=[$(cat "$TMP/calls.log")]"; fi
+  done
+done
+mkdir -p "$TMP/home/.claude"; touch "$TMP/home/.claude/session-bridge-wake"
+fake 0; run_under codex watch
+if [ "$RC" -eq 0 ] && [ -z "$OUT$ERR" ] && [ ! -s "$TMP/calls.log" ]; then
+  pass "under codex, watch is a silent no-op even with the marker (the binary is not called)"
+else fail "under codex, watch" "rc=$RC out=[$OUT] err=[$ERR] calls=[$(cat "$TMP/calls.log")]"; fi
+fake 0; run_under claude watch
+if [ "$RC" -eq 2 ] && [ "$ERR" = "WAKE TEXT" ]; then
+  pass "control: under claude, watch still runs with the marker"
+else fail "control: under claude, watch" "rc=$RC err=[$ERR]"; fi
+
 print_summary "session-bridge-run-sh"
