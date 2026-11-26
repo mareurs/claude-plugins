@@ -1,12 +1,14 @@
 ---
 kind: entry
-status: open
+status: fixed
 title: 'reconnaissance seam-classes: the binary-grep freshness recipe holds for string literals only, and a stripped binary answers 0 for every identifier'
+closed: 2026-11-26
 created: 2026-11-24
 entry_kind: bug
 log:
 - '2026-11-24 open created codescout:be5c3984-2bd4-45c8-897a-3b17ba6e951e'
-status_since: 2026-11-24
+- '2026-11-26 open -> fixed codescout:ce0a6936-5650-4ce2-bd20-10d01f955692'
+status_since: 2026-11-26
 ---
 
 **Summary:** The freshness law in `seam-classes.md` tells a reader to run `grep -c "<new string>" target/release/<bin>` to see whether a change is in the build. It states no bound. On a stripped binary the grep answers 0 for every identifier, and a reader who probes a renamed function or a changed match arm takes the 0 for "the fix is not in the build".
@@ -24,3 +26,7 @@ status_since: 2026-11-24
 **Tests added:** none.
 
 **Resume:** Edit `seam-classes.md:28` with the bound, and check whether `tests/test-recon-count.sh` pins that line.
+
+## Closed
+
+Fixed: the freshness law in seam-classes.md now says the `grep -c "<new string>"` probe answers the build axis only for a change that adds a new string literal; on a stripped binary (`file <bin>` says stripped) a 0 for an identifier, a rename or a changed match arm is no evidence, and the control must be a literal known to be in the binary. tests/test-recon-skill-split.sh case 8 pins both phrases; the previous text has neither, so the case fails there. I did not re-run the filing's greps on the codescout binary. Live in the skill after the next codescout-companion release and a cold restart.
