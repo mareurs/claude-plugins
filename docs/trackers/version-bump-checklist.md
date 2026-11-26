@@ -14,9 +14,9 @@ Release readiness across plugins × profiles. See
 
 ## State
 
-### Current release verification — 2026-11-26 (session-bridge 0.4.3)
+### Current release verification — 2026-11-26 (codescout-companion 1.23.10)
 
-Released with `NO_PUSH=1` and the full test gate: `3a9aa4e`, cached in 4 of 4 profiles, parity holds. Two fixes: `build.sh` builds into `~/.cache/session-bridge/target` (`16e1f6c`), so the plugin dir is 1.1 MB, and the plugin MCP command goes through `sh -c` (`962a152`), because Codex does not expand `${HOME}` (0 tools before, 4 after, measured in a scratch `CODEX_HOME`). Step 4.6 ran for real for the first time: `codex plugin add` seeded cache 0.4.3 and reported "5 hook(s) trusted (5 renewed)". Verified afterwards in the real Codex home: `hooks/list` shows 5 `trusted`, `mcpServerStatus/list` shows 4 session-bridge tools, the Codex cache is 116 MB. The manual install (MCP entry, three user hooks) is removed; backups are `~/.codex/*.before-plugin-form-20261126`. Bug `2026-11-26-session-bridge-codex-plugin-add-copies-the-whole-plugin-dir` is closed. Not verified: a running Codex or Claude session on 0.4.3; they need a restart or MCP reconnect.
+Released with `NO_PUSH=1` and the full test gate: `e81428f`, cached in 4 of 4 profiles, parity holds. It ships the companion fixes committed after 1.23.9: native approvals on stock Codex (`0cc6e66`), the POST-COMPACT block first on compact (`c39b164`), Codex host texts (`81919fb`), fixture isolation (`c95461c`). Step 4.6: `codex plugin add` seeded cache 1.23.10 and renewed 27 hooks; a second pass reads 27 `trusted`, 0 to renew, 0 to review. Not verified: a running Claude Code or Codex session on 1.23.10; each needs a cold restart (Claude Code) or a new session (Codex).
 
 ### Current release verification — 2026-11-26 (session-bridge 0.4.1)
 
