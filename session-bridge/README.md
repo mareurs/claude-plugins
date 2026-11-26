@@ -134,6 +134,10 @@ An OpenCode session reaches a Claude Code session through `ask_session` (a read-
 | `SESSION_BRIDGE_OPENCODE_BIN` | absolute path of the `opencode` executable; else `PATH` |
 | `SESSION_BRIDGE_OPENCODE_RECENT_HOURS` | how long an idle top-level session stays live (default 24) |
 
+### Settings
+
+The wake of an idle Claude Code session is on when the file `<config-dir>/session-bridge-wake` exists, with `<config-dir>` = `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`. It is a file, not an environment variable. Create it with `touch`; its content is not read. Remove it to turn the wake off.
+
 ### Limits
 
 Delivery into OpenCode is queued behind a running turn, not an interruption. A live session needs an MCP reconnect (Claude, Codex) or an OpenCode restart (plugin) to see new tools.
@@ -174,8 +178,15 @@ works across repositories and profiles, for Claude Code sessions and Codex threa
 
 - An addressed notice is not filtered. No model call runs, and the receiver pays nothing.
 - Only the addressee sees it. No other session lists it, not even one in the same repository.
-- It shows at the receiver's next prompt or tool call, and at its session start. An idle session
-  does not wake up.
+- It shows at the receiver's next prompt or tool call, and at its session start.
+- An idle Claude Code session is woken by it when its profile has the file
+  `<config-dir>/session-bridge-wake` (see Settings). The plugin's `SessionStart` and `Stop` hooks
+  run `session-bridge watch`, which waits for a notice and exits with code 2 and the notice text.
+  At most one wake per 60 s and ten per hour per session apply; over the limit the notice stays
+  queued and shows at the next prompt or tool call. A watcher runs for at most 7000 s after the
+  last arm; after that, the notice shows at the next prompt or tool call. Without the file nothing
+  wakes. The result of `post_notice` says `an idle session is woken` when a watcher is armed on the
+  receiver.
 - At most 8 addressed notices show per call, oldest first. The rest show at the next call.
 - Delivery is at most once. The result of the call says `queued`, never `delivered`.
 - The plugin must be enabled in the receiver's profile. When no hook has run there, the result
