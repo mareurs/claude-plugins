@@ -13,7 +13,7 @@ import {
 import { join, dirname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
-import { readInput, detectFor, git, emit, isClaudeProcess, isCodexProcess, isCodexHost, skillToolAbsentFromArgv, stampSlotIfStale, resolveCodescoutBinary } from './lib.mjs';
+import { readInput, detectFor, git, emit, isClaudeProcess, isCodexProcess, isCodexHost, skillToolAbsentFromArgv, stampSlotIfStale, isSlotOfAnotherCodexThread, resolveCodescoutBinary } from './lib.mjs';
 import { fileURLToPath } from 'node:url';
 import { hotViewBlock } from './hot-view.mjs';
 
@@ -72,6 +72,7 @@ if (sessionId) {
         try {
           const e = JSON.parse(readFileSync(f, 'utf8'));
           if (!ancestry.has(e.ppid)) continue;
+          if (isSlotOfAnotherCodexThread(e, sessionId, ancestry)) continue;
           ownSlots++;
           stampSlotIfStale(f, e, sessionId, source, stampedAt);
         } catch {

@@ -759,6 +759,25 @@ export function stampSlotIfStale(f, e, sessionId, source, stampedAt) {
   return true;
 }
 
+// Under a Codex host, is the slot `e` another thread's server? One `codex` process is the
+// parent of EVERY thread's server, in every project, so the ppid-in-ancestry match selects all
+// of them; stamping them all rekeyed each server's ledger to a conversation that is not its
+// own (15 live slots with one session, measured 2026-11-26). A slot with a session of its own
+// that is not `sessionId` belongs to a sibling thread. An empty slot is still ours to stamp.
+// Claude Code has no such sibling: its servers are children of one Claude process each.
+// codescout:docs/boxes/quality/bugs/2026-11-26-codex-threads-re-send-the-bootstrap-guide-repeatedly-in-one.md
+export function isSlotOfAnotherCodexThread(e, sessionId, ancestry) {
+  const host = [...ancestry].pop();
+  return (
+    host !== undefined &&
+    isCodexProcess(host) &&
+    typeof e.session === 'string' &&
+    e.session !== '' &&
+    e.session !== sessionId
+  );
+}
+
+
 export function parentOf(pid) {
   try {
     if (process.platform === 'linux') {

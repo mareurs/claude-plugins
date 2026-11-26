@@ -266,6 +266,41 @@ else
   pass "rendezvous (nested, codex): N/A (comm is read from /proc)"
 fi
 
+# --- rendezvous: under ONE codex process, a thread stamps only its own server ---
+# One `codex` app-server process is the parent of EVERY thread's server, in every project, so
+# the ppid-in-ancestry match cannot tell threads apart: a SessionStart in thread X stamped
+# X's id into all of them, and each server's poll() then rekeyed its ledger to a conversation
+# that is not its own (15 live slots, one session, measured 2026-11-26). Under a Codex host
+# a slot is stamped only when its session is this thread's or still empty.
+# codescout:docs/boxes/quality/bugs/2026-11-26-codex-threads-re-send-the-bootstrap-guide-repeatedly-in-one.md
+if [ "$(uname)" = "Linux" ]; then
+  mkdir -p "$TMP/bin"; ln -sf "$(command -v bash)" "$TMP/bin/codex"
+  CX_RV="$TMP/cx-state/codescout/servers"; mkdir -p "$CX_RV"
+  NEST_CFG="$NEST_CFG" TMP="$TMP" HOOK="$HOOK" CX_RV="$CX_RV" "$TMP/bin/codex" -c '
+    slot() {  # <pid> <session-json> <hook_at-json>
+      printf "{\"pid\":%s,\"ppid\":%s,\"started_at\":\"2026-01-01T00:00:00Z\",\"cwd\":\"/\",\"session\":%s,\"hook_at\":%s}" \
+        "$1" "$$" "$2" "$3" > "$CX_RV/$1.json"
+    }
+    slot 999141 "\"sst-codex-own\"" null
+    slot 999142 "\"thread-sibling\"" "\"2026-01-01T00:00:00Z\""
+    slot 999143 null null
+    printf "{\"cwd\":\"%s\",\"source\":\"resume\",\"session_id\":\"sst-codex-own\"}" "$TMP" \
+      | CLAUDE_CONFIG_DIR="$NEST_CFG" XDG_STATE_HOME="$TMP/cx-state" node "$HOOK" >/dev/null 2>&1
+    rc=$?  # a command after the pipeline keeps this shell alive as the parent of the hook
+  '
+  jq -e '.session == "sst-codex-own" and .hook_at != null and .hook_source == "resume"' "$CX_RV/999141.json" >/dev/null \
+    && pass "rendezvous (codex threads): the thread's own server is stamped, with its source" \
+    || fail "rendezvous (codex threads): the thread's own server was not stamped ($(cat "$CX_RV/999141.json"))"
+  jq -e '.session == "thread-sibling" and .hook_at == "2026-01-01T00:00:00Z"' "$CX_RV/999142.json" >/dev/null \
+    && pass "rendezvous (codex threads): a sibling thread's server keeps its session" \
+    || fail "rendezvous (codex threads): a sibling thread's server was stamped ($(cat "$CX_RV/999142.json"))"
+  jq -e '.session == "sst-codex-own" and .hook_at != null' "$CX_RV/999143.json" >/dev/null \
+    && pass "rendezvous (codex threads): a server with no session yet is stamped" \
+    || fail "rendezvous (codex threads): a server with no session was left unstamped ($(cat "$CX_RV/999143.json"))"
+else
+  pass "rendezvous (codex threads): N/A (comm is read from /proc)"
+fi
+
 # --- rendezvous: a server that publishes AFTER SessionStart still gets stamped ---
 # codescout:docs/issues/archive/2026-09-24-sessionstart-can-run-before-the-resumed-servers-slot-exists.md
 # Interactive Claude Code fires SessionStart about 220 ms BEFORE its codescout
