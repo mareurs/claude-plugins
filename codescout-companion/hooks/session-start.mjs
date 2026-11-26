@@ -416,9 +416,14 @@ ${driftFiles.map((f) => `  ${f}`).join('\n')}
 // d.CS_BINARY: CS_BINARY is the MCP *launch command*, which may be `bash`, `uvx` or `docker`
 // (review I-1). Spec:
 // docs/superpowers/specs/2026-11-15-session-start-hot-view-design.md
+//
+// Built here, appended LAST. The view is the one unbounded block (12 KB of a 14 KB payload,
+// measured 2026-11-26), and Claude Code cuts a payload over ~10 KB to a 2 KB preview: whatever
+// follows the view is lost. The short, fixed blocks (connectivity, worktree, rules) go before it.
+let hotViewText = '';
 if (hotView && source !== 'resume') {
   const hvRoot = git(cwd, ['rev-parse', '--show-toplevel']);
-  if (hvRoot) msg += hotViewBlock({ root: hvRoot, binary: resolveCodescoutBinary(cwd) || '' });
+  if (hvRoot) hotViewText = hotViewBlock({ root: hvRoot, binary: resolveCodescoutBinary(cwd) || '' });
 }
 
 // Connectivity note.
@@ -466,6 +471,9 @@ msg += `CODESCOUT RULES (compression-resilient reminder):
 • Never pipe unbounded run_command output — run bare, query @cmd_* buffer (bounded LHS like ls, cat, awk, sed, find -maxdepth N is OK)
 
 `;
+
+// Last on purpose: see the note at the hot view above.
+msg += hotViewText;
 
 emit({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: msg } });
 process.exit(0);

@@ -633,9 +633,13 @@ echo "$HV_START" | grep -q "HOT VIEW (codescout hot-view;" \
   || fail "hot view: startup context lacks the HOT VIEW block"
 HV_POS_VIEW=$(echo "$HV_START" | grep -n "HOT VIEW (codescout hot-view;" | head -1 | cut -d: -f1)
 HV_POS_CONN=$(echo "$HV_START" | grep -n "codescout: Detected in config" | head -1 | cut -d: -f1)
-{ [ -n "$HV_POS_VIEW" ] && [ -n "$HV_POS_CONN" ] && [ "$HV_POS_VIEW" -lt "$HV_POS_CONN" ]; } \
-  && pass "hot view: the block comes before the connectivity note" \
-  || fail "hot view: block is not before the connectivity note ($HV_POS_VIEW vs $HV_POS_CONN)"
+HV_POS_RULES=$(echo "$HV_START" | grep -n "CODESCOUT RULES" | head -1 | cut -d: -f1)
+# The view is the one unbounded block (12 KB measured, 2026-11-26). Claude Code cuts a payload
+# over ~10 KB to a 2 KB preview, so everything after the view is lost: the view goes last.
+{ [ -n "$HV_POS_VIEW" ] && [ -n "$HV_POS_CONN" ] && [ -n "$HV_POS_RULES" ] \
+    && [ "$HV_POS_VIEW" -gt "$HV_POS_CONN" ] && [ "$HV_POS_VIEW" -gt "$HV_POS_RULES" ]; } \
+  && pass "hot view: the block comes last, after the connectivity note and the rules" \
+  || fail "hot view: block is not last (view $HV_POS_VIEW, connectivity $HV_POS_CONN, rules $HV_POS_RULES)"
 # The entry line, not the string `HOT VIEW`: the header carries that string even when the
 # collection is "not shown", so a header-only grep passes while the fake is never called.
 for s in compact clear; do
