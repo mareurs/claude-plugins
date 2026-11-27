@@ -13,6 +13,16 @@ Release readiness across plugins × profiles. See
 `docs/superpowers/specs/2026-05-18-version-bump-checklist-tracker-design.md`.
 
 ## State
+### Current release verification — 2026-11-27 (codescout-companion 1.23.12, buddy 0.12.6)
+
+Released locally with `NO_PUSH=1` at `00b8331` and `94e39d4`. Both release invocations ran the complete repository suite and Buddy pytest. Each reported 85 successful skill-contract checks and 587 passing Python tests. The preflights used the local Codescout 0.15.0 acceptance build `codescout-cold-final` (SHA-256 `fb026246e01967e67283f756bdc6030bda5a1723c484ac2f3d9e19d450915f81`) because the current checkout build had moved document creation to the derived catalog contract. Test fixture support for derived catalogs landed separately in `6295110`.
+
+| Plugin | Version | Claude Code profile parity | Codex hooks trusted |
+|---|---|---|---|
+| codescout-companion | 1.23.12 | 4/4 ✅ | 27 ✅ |
+| buddy | 0.12.6 | 4/4 ✅ | 5 ✅ |
+
+Every install record for these releases points inside its owning profile. The installed files checked in each Claude Code cache and in `~/.codex` match the release source. The Buddy Codex cache excludes the local SessionStart trace. The three additional Codex profile paths listed in the operator notes were absent on this machine. Already-running Claude Code sessions still need a plugin reload or cold start. Already-running Codex sessions need a new session to exercise the installed versions.
 
 ### Current release verification — 2026-11-27 (codescout-display 0.1.6)
 
