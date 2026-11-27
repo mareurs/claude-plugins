@@ -165,8 +165,9 @@ def run_catalog_examples(cs, skills, ok, bad, info, covered):
                         body="# Contract fixture\n\n| ID | Date | … |\n")
         if not reply.ok:
             raise ValueError(reply.error or reply.text[:200])
-        made.append(reply.payload["id"])
-        return reply.payload["id"]
+        ref = reply.document_ref
+        made.append(ref)
+        return ref
 
     checked = executed = fragments = delegated = roadmap = 0
     try:
@@ -225,12 +226,13 @@ def run_catalog_examples(cs, skills, ok, bad, info, covered):
                                       body=bindings["template_body"])
                     if not fixture.ok:
                         raise ValueError(fixture.error or fixture.text[:200])
-                    made.append(fixture.payload["id"])
-                    reply = cs.call(tool, **dict(call, id=fixture.payload["id"]))
+                    fixture_ref = fixture.document_ref
+                    made.append(fixture_ref)
+                    reply = cs.call(tool, **dict(call, id=fixture_ref))
                     if not reply.ok:
                         bad(f"{label}: prescribed append accepted", reply.error or reply.text[:300])
                         continue
-                    got = cs.call("doc", action="get", id=fixture.payload["id"], full=True).payload["body"]
+                    got = cs.call("doc", action="get", id=fixture_ref, full=True).payload["body"]
                     eid = reply.payload["id"]
                     if f"## {eid} — {call['title']}" not in got or f"| {eid} |" not in got:
                         bad(f"{label}: append writes both section and index", got[:300])
@@ -263,13 +265,26 @@ def run_catalog_examples(cs, skills, ok, bad, info, covered):
                     for field in ("src_id", "dst_id"):
                         real[field] = roles.get(real[field], real[field])
                 reply = cs.call(tool, **real)
+                if (tool == "librarian" and action == "link_scan" and real.get("write") is True and
+                        reply.error.startswith("link_scan write=true is refused on this checkout:")):
+                    context = " ".join(part.strip() for part in path.read_text().splitlines()[line - 1:line + 7])
+                    if "derived-index checkout" in context and "refused" in context:
+                        del real["write"]
+                        report = cs.call(tool, **real)
+                        if report.ok:
+                            executed += 1
+                            ok(f"{label}: derived index refuses edge writes and accepts the report")
+                        else:
+                            bad(f"{label}: derived index accepts the report", report.error or report.text[:300])
+                        continue
                 if not reply.ok:
                     bad(f"{label}: prescribed call is accepted", reply.error or reply.text[:300])
                     continue
                 executed += 1
                 if tool == "doc" and action == "create":
-                    made.append(reply.payload["id"])
-                    got = cs.call("doc", action="get", id=reply.payload["id"], full=True).payload
+                    ref = reply.document_ref
+                    made.append(ref)
+                    got = cs.call("doc", action="get", id=ref, full=True).payload
                     if got.get("extra", {}).get("entry_prefix") != call["extra"]["entry_prefix"]:
                         bad(f"{label}: declared prefix persisted", str(got.get("extra")))
                         continue

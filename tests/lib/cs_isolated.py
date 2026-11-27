@@ -51,6 +51,11 @@ class Reply:
     def error(self) -> str:
         return str(self.payload.get("error", "")) if not self.ok else ""
 
+    @property
+    def document_ref(self) -> str:
+        """Reference returned by a successful doc create in either catalog mode."""
+        return self.payload.get("key") or self.payload["id"]
+
 
 def _decode(text: str) -> dict:
     stripped = text.lstrip()

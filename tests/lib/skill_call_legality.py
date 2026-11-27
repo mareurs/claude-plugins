@@ -60,10 +60,17 @@ def info(msg: str) -> None:
 
 def git_repo(path: Path) -> None:
     path.mkdir(parents=True)
-    for cmd in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"]):
+    for cmd in (
+        ["init", "-q"],
+        ["config", "user.email", "t@t"],
+        ["config", "user.name", "t"],
+        ["config", "commit.gpgsign", "false"],
+    ):
         subprocess.run(["git", "-C", str(path), *cmd], check=True)
     (path / "README.md").write_text("# scratch\n")
-    subprocess.run(["git", "-C", str(path), "add", "-A"], check=True)
+    # Codescout gates writes on a committed ignore rule for the derived index.
+    (path / ".gitignore").write_text("/.codescout/derived.db*\n")
+    subprocess.run(["git", "-C", str(path), "add", "--", "README.md", ".gitignore"], check=True)
     subprocess.run(["git", "-C", str(path), "commit", "-qm", "init"], check=True)
 
 
@@ -143,7 +150,7 @@ def make_ledger(cs: IsolatedCodescout, slug: str, prefix: str, heading: str) -> 
     if not made.ok:
         bad(f"fixture ledger {slug} created", made.error or made.text[:200])
         return None
-    tid = made.payload["id"]
+    tid = made.document_ref
     CREATED.append(tid)
     declared = cs.call("doc", action="update", id=tid, patch={"extra": {"entry_prefix": prefix}})
     if not declared.ok:
@@ -507,7 +514,7 @@ def case_spec_drift(cs: IsolatedCodescout) -> None:
                    body="# Fixture design\n\n## Acceptance criteria\n\n- Exports a CSV\n")
     if not made.ok:
         return bad("fixture kind=spec artifact created", made.error or made.text[:200])
-    sid = made.payload["id"]
+    sid = made.document_ref
     CREATED.append(sid)
 
     # CONTROL FIRST: an unknown event kind must be refused, or the PASS below proves nothing.
@@ -572,7 +579,7 @@ def case_spec_drift_finds(cs: IsolatedCodescout) -> None:
                    body="# Fixture design\n\n## Acceptance criteria\n\n- Exports a CSV\n")
     if not made.ok:
         return bad("spec-drift fixture spec created", made.error or made.text[:200])
-    sid = made.payload["id"]
+    sid = made.document_ref
     CREATED.append(sid)
 
     # CONTROL FIRST: the filter the skill used to prescribe must be refused, or the PASSes prove nothing.
@@ -590,7 +597,7 @@ def case_spec_drift_finds(cs: IsolatedCodescout) -> None:
             continue
         ok(f"{where}: find call is accepted")
         if set(call) <= {"action", "kind", "filter"} and call.get("kind") == "spec":
-            if sid in reply.text:
+            if any(sid in (item.get("key"), item.get("id")) for item in reply.payload.get("items", [])):
                 ok(f"{where}: returns the fixture spec")
             else:
                 bad(f"{where}: returns the fixture spec", reply.text[:200])
@@ -634,8 +641,9 @@ def case_sdd_calls(cs: IsolatedCodescout) -> None:
                    body="# Fixture design\n\n## Acceptance criteria\n\n- Exports a CSV\n")
     if not spec.ok:
         return bad("sdd fixture spec created", spec.error or spec.text[:200])
-    ids = {"<spec id>": spec.payload["id"]}
-    made = [spec.payload["id"]]
+    spec_ref = spec.document_ref
+    ids = {"<spec id>": spec_ref}
+    made = [spec_ref]
     verdict = cs.call("doc", action="event_create", id=ids["<spec id>"],
                       event={"kind": "verdict", "payload": {"outcome": "refuted", "gate": "no-go"}})
     if not verdict.ok:
