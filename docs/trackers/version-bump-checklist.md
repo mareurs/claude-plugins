@@ -24,6 +24,8 @@ Released locally with `NO_PUSH=1` at `00b8331` and `94e39d4`. Both release invoc
 
 Every install record for these releases points inside its owning profile. The installed files checked in each Claude Code cache and in `~/.codex` match the release source. The Buddy Codex cache excludes the local SessionStart trace. The three additional Codex profile paths listed in the operator notes were absent on this machine. Already-running Claude Code sessions still need a plugin reload or cold start. Already-running Codex sessions need a new session to exercise the installed versions.
 
+Independent Buddy verification after `6295110` passed the standard preflight with the current Codescout build in derived-index mode. The runner invoked all 207 suites. SessionStart passed all 18 checks from each of the four installed Claude Code caches. A fresh Codex hook listing confirmed Buddy's PostToolUse hook is disabled and the `cs-hint-codex` PostToolUse hook is enabled and trusted.
+
 ### Current release verification — 2026-11-27 (codescout-display 0.1.6)
 
 Released locally at `c9b02c9`. The repository test runner and all 587 Buddy Python tests passed during preflight. Profile parity passed. Fresh `claude plugin list --json` invocations reported 0.1.6 enabled from each profile's own cache. The cached manifest, hooks and test files checked against the source matched byte for byte, including the 20,000-character cap.
