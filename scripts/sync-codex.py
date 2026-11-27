@@ -42,6 +42,7 @@ import tempfile
 import tomllib
 from collections.abc import Iterator
 from contextlib import contextmanager
+from importlib.util import source_from_cache
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -132,13 +133,21 @@ def plugin_cache(profile: Path, plugin: str, version: str) -> Path:
 
 
 def cache_payload(cache: Path) -> dict[str, bytes | str]:
-    """Fingerprint the files and symlink targets in a Codex cache."""
+    """Fingerprint installed files and symlink targets, excluding Python runtime bytecode."""
     payload = {}
     for path in cache.rglob("*"):
         name = path.relative_to(cache).as_posix()
         if path.is_symlink():
             payload[name] = os.readlink(path)
         elif path.is_file():
+            if path.parent.name == "__pycache__" and path.suffix == ".pyc":
+                try:
+                    source = Path(source_from_cache(path))
+                except ValueError:
+                    pass
+                else:
+                    if source.is_file():
+                        continue
             with path.open("rb") as stream:
                 payload[name] = hashlib.file_digest(stream, "sha256").digest()
     return payload

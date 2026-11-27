@@ -213,6 +213,7 @@ for PLUGIN in codescout-companion buddy; do
   printf 'fixture\n' > "$SOURCE/.orphaned_at"
   printf 'fixture\n' > "$SOURCE/hooks/__pycache__/hook.pyc"
   printf 'module.exports = "fixture";\n' > "$SOURCE/node_modules/ws/index.js"
+  printf 'VALUE = 1\n' > "$SOURCE/hooks/runtime_probe.py"
   run codex plugin add "$PLUGIN@$MKT" >/dev/null 2>&1
   CACHE="$H/home/plugins/cache/$MKT/$PLUGIN/$VER"
   [ -f "$CACHE/$TRACE" ] || { fail "$PLUGIN fixture: Codex copies the raw trace" "$CACHE"; print_summary "sync-codex"; exit 1; }
@@ -239,6 +240,12 @@ for PLUGIN in codescout-companion buddy; do
   [ "$rc" = 0 ] && [ ! -e "$CACHE/.buddy" ] \
     && pass "$PLUGIN check: a changed source trace leaves the cache current" \
     || fail "$PLUGIN check: a changed source trace leaves the cache current" "rc=$rc $out"
+
+  run python3 -m py_compile "$CACHE/hooks/runtime_probe.py"
+  out="$(sync "$VER" --check 2>&1)"; rc=$?
+  [ "$rc" = 0 ] && compgen -G "$CACHE/hooks/__pycache__/runtime_probe.*.pyc" >/dev/null \
+    && pass "$PLUGIN check: generated Python bytecode leaves the cache current" \
+    || fail "$PLUGIN check: generated Python bytecode leaves the cache current" "rc=$rc $out"
 done
 
 print_summary "sync-codex"
