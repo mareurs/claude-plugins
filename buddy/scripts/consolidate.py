@@ -723,6 +723,7 @@ def apply_plan_from_cache() -> str:
                 subprocess.run(
                     ["git", "add", str(channel_root)],
                     check=False, capture_output=True, cwd=str(channel_root.parent),
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 )
             except OSError:
                 pass

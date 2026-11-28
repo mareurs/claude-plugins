@@ -66,7 +66,7 @@ async function install(profilePath) {
 async function installedCli(profile) {
   // Codex is the authority on selection: a newer cached directory may be a rolled-back version.
   const result = spawnSync('codex', ['plugin', 'list', '--json'], {
-    env: {...process.env, CODEX_HOME: profile}, encoding: 'utf8', timeout: 15000, maxBuffer: 4 * 1024 * 1024,
+    env: {...process.env, CODEX_HOME: profile}, encoding: 'utf8', timeout: 15000, maxBuffer: 4 * 1024 * 1024, windowsHide: true,
   });
   if (result.error || result.status !== 0) throw new Error('cannot query installed Codex plugins');
   const registry = JSON.parse(result.stdout);
@@ -98,7 +98,7 @@ async function launch() {
   const cli = await installedCli(profile);
   if (!cli) return;
   const result = spawnSync(process.execPath, [cli, 'launch', '--harness', 'codex', '--profile', profile, '--environment', config.environmentId], {
-    env: {...process.env, CODEX_HOME: profile}, stdio: ['inherit', 'pipe', 'pipe'], encoding: 'utf8', timeout: 20000, maxBuffer: 64 * 1024,
+    env: {...process.env, CODEX_HOME: profile}, stdio: ['inherit', 'pipe', 'pipe'], encoding: 'utf8', timeout: 20000, maxBuffer: 64 * 1024, windowsHide: true,
   });
   if (result.stderr) process.stderr.write(result.stderr.slice(0, 2000));
   if (result.error || result.signal) throw new Error('background wake launch did not complete');

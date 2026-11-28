@@ -38,6 +38,7 @@ function ask(binary, key, root, timeoutMs) {
     encoding: 'utf8',
     timeout: timeoutMs,
     stdio: ['ignore', 'pipe', 'ignore'],
+    windowsHide: true,
   });
   const out = typeof r.stdout === 'string' ? r.stdout : '';
   if (r.status === 0 && out.trim()) {

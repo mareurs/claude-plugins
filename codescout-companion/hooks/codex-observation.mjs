@@ -31,7 +31,7 @@ export async function runHook({event,workspace,codescoutPath='codescout',stdin=p
  try{
   const gitEnv={...process.env};
   for(const key of ['GIT_DIR','GIT_WORK_TREE','GIT_COMMON_DIR'])delete gitEnv[key];
-  const checkout=execFileSync('git',['--no-optional-locks','-C',realpathSync(workspace),'rev-parse','--show-toplevel'],{env:gitEnv,timeout:200,maxBuffer:8192,stdio:['ignore','pipe','ignore']});
+  const checkout=execFileSync('git',['--no-optional-locks','-C',realpathSync(workspace),'rev-parse','--show-toplevel'],{env:gitEnv,timeout:200,maxBuffer:8192,stdio:['ignore','pipe','ignore'],windowsHide:true});
   const root=realpathSync(new TextDecoder('utf-8',{fatal:true}).decode(checkout).replace(/\n$/,''));
   const input=await readInput(stdin);if(input===null)return;
   const payload=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(input));

@@ -130,7 +130,7 @@ export function detectFor(cwd) {
 export function codescoutJson(binary, args, timeoutMs = 3000) {
   if (!binary) return null;
   try {
-    const r = spawnSync(binary, args, { encoding: 'utf8', timeout: timeoutMs, stdio: ['ignore', 'pipe', 'ignore'] });
+    const r = spawnSync(binary, args, { encoding: 'utf8', timeout: timeoutMs, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
     if (r.status !== 0 || typeof r.stdout !== 'string') return null;
     return JSON.parse(r.stdout);
   } catch {
@@ -228,6 +228,7 @@ export function git(cwd, args) {
     return execFileSync('git', ['-C', cwd, ...args], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true, // see hook-spawn.test.mjs: no console window for a hook's child process
     }).trim();
   } catch {
     return null;
@@ -799,6 +800,7 @@ export function parentOf(pid) {
     const out = execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], {
       encoding: 'utf8',
       timeout: 2000,
+      windowsHide: true,
     });
     const ppid = Number.parseInt(out.trim(), 10);
     return Number.isNaN(ppid) ? null : ppid;

@@ -165,6 +165,7 @@ function parentOf(pid) {
     const out = execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], {
       encoding: 'utf8',
       timeout: 2000,
+      windowsHide: true,
     });
     const ppid = Number.parseInt(out.trim(), 10);
     return Number.isNaN(ppid) ? null : ppid;

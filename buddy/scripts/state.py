@@ -17,6 +17,9 @@ STATE_VERSION = 1
 # start-time API (short of ctypes/psutil, which we decline — buddy stays
 # dependency-free). Where unsupported, the by-ppid index keys on PPID alone.
 _START_TIME_SUPPORTED = os.name != "nt"
+# A process started from a daemon that has no console of its own makes Windows allocate one, and
+# Windows Terminal opens a window for it. 0 on POSIX, where creationflags must stay 0.
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def default_state() -> dict:
@@ -194,6 +197,7 @@ def pid_started_at(pid: int) -> str | None:
         result = subprocess.run(
             ["ps", "-o", "lstart=", "-p", str(pid)],
             capture_output=True, text=True, timeout=2,
+            creationflags=_NO_WINDOW,
         )
         if result.returncode != 0:
             return None
@@ -238,6 +242,7 @@ def _parent_pid(pid: int) -> int | None:
         result = subprocess.run(
             ["ps", "-o", "ppid=", "-p", str(pid)],
             capture_output=True, text=True, timeout=2,
+            creationflags=_NO_WINDOW,
         )
         out = result.stdout.strip()
         if result.returncode != 0 or not out.isdigit():

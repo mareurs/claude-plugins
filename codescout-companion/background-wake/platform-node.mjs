@@ -21,7 +21,7 @@ export function createPlatform({profileRoot,stateDir,pythonArgv=[process.platfor
   if(!isAbsolute(profileRoot)||!isAbsolute(stateDir)||!Array.isArray(pythonArgv)||!pythonArgv.length)throw new Error('explicit native profile/state and Python argv are required');
   const sandbox=process.env.CS_TEST_STATE_SANDBOX;
   const root=sandbox?join(resolve(sandbox),'background-wake',createHash('sha256').update(resolve(profileRoot)).digest('hex')):resolve(stateDir);
-  const spawnArgv=(executable,args,options={})=>spawn(executable,args,{...options,shell:false,stdio:options.stdio||['pipe','pipe','pipe']});
+  const spawnArgv=(executable,args,options={})=>spawn(executable,args,{windowsHide:true,...options,shell:false,stdio:options.stdio||['pipe','pipe','pipe']});
   const invoke=(command)=>new Promise((done)=>{
     const child=spawnArgv(pythonArgv[0],[...pythonArgv.slice(1),'-X','utf8','-I',helper,'--state-dir',root]);
     let out='',err='',finished=false;

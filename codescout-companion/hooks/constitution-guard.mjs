@@ -32,6 +32,7 @@ try {
   raw = execFileSync(csBin, ['constitution-check', '--path', targetPath, '--project', cwd], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
+    windowsHide: true,
   });
 } catch {
   process.exit(0);
