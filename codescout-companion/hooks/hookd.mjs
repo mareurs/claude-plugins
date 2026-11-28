@@ -14,8 +14,6 @@ import http from 'node:http';
 import { performance } from 'node:perf_hooks';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { Worker } from 'node:worker_threads';
-import { finished } from 'node:stream/promises';
 import { readFileSync, appendFileSync, realpathSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,8 +28,7 @@ const TOKEN = process.env.CLAUDE_PLUGINS_HOOKD_TOKEN || '';
 // brings it back, and 12 h covers a normal working day without a pause killing it.
 const IDLE_MS = Number(process.env.COMPANION_HOOKD_IDLE_MS || 12 * 60 * 60 * 1000);
 const MAX_BODY = 8 * 1024 * 1024;
-const EVENTS = new Set(['PreToolUse', 'PostToolUse', 'wake']);
-const WAKE_HOOK = process.env.COMPANION_WAKE_HOOK || join(HERE, 'wake-on-job-end.mjs');
+const EVENTS = new Set(['PreToolUse', 'PostToolUse']);
 const TIMING_LOG = process.env.COMPANION_HOOKD_TIMING_LOG || ''; // one line per request: handler time in ms
 
 // Identifies the code the daemon loads once. A daemon that started before a plugin update
@@ -94,42 +91,6 @@ function bodyFor(event, merged) {
   return out.startsWith('{') ? out : '';
 }
 
-// POST /wake: the asyncRewake hook, served without starting a process per tool call.
-// A client process (hooks/wake-client.cmd) posts the PostToolUse event and waits. The wake hook
-// runs unchanged in a worker: for a foreground call it ends at once and the answer is empty; for a
-// background job it stays alive until the job ends and exits 2 with the wake text, which becomes
-// the answer body. If the client goes away first (Claude Code stopped the hook), the worker is
-// stopped too, so no watcher outlives its session.
-function serveWake(res, raw) {
-  let cwd = '';
-  try { cwd = JSON.parse(raw).cwd || ''; } catch { /* the hook decides what an unparsable event means */ }
-  let worker;
-  try {
-    worker = new Worker(WAKE_HOOK, {
-      workerData: { hookInput: raw },
-      // The hook only asks that CLAUDE_PROJECT_DIR is set (a session-specific variable the daemon
-      // does not inherit); the event's cwd stands in for it.
-      env: { ...process.env, CLAUDE_PROJECT_DIR: process.env.CLAUDE_PROJECT_DIR || cwd || 'unknown' },
-      stdout: true,
-      stderr: true,
-    });
-  } catch {
-    res.writeHead(200); return res.end();
-  }
-  let err = '';
-  let over = false;
-  worker.stderr.setEncoding('utf8').on('data', (d) => { err += d; });
-  worker.stdout.resume();
-  worker.on('error', () => { err = ''; });
-  res.on('close', () => { if (!over) worker.terminate(); });
-  worker.on('exit', async (code) => {
-    await Promise.all([finished(worker.stdout), finished(worker.stderr)]).catch(() => {});
-    over = true;
-    res.writeHead(200, { 'content-type': 'text/plain' });
-    res.end(code === 2 ? err : '');
-  });
-}
-
 function serve() {
   const table = JSON.parse(readFileSync(join(HERE, 'dispatch-table.json'), 'utf8'));
   const version = codeVersion();
@@ -141,9 +102,7 @@ function serve() {
       res.end(body);
     };
     if (req.method === 'GET' && req.url === '/health') return done(200, JSON.stringify({ ok: true, version }));
-    // `X-Hookd-Token` carries the token for the cmd/curl wake client, whose command line cannot
-    // hold a header value with a space.
-    const authorized = !TOKEN || req.headers.authorization === `Bearer ${TOKEN}` || req.headers['x-hookd-token'] === TOKEN;
+    const authorized = !TOKEN || req.headers.authorization === `Bearer ${TOKEN}`;
     if (req.method === 'POST' && req.url === '/quit') {
       if (!authorized) return done(401);
       done(200);
@@ -162,7 +121,6 @@ function serve() {
       if (res.writableEnded) return;
       try {
         const raw = Buffer.concat(chunks).toString('utf8');
-        if (event === 'wake') return serveWake(res, raw);
         if (process.env.COMPANION_HOOKD_DUMP) appendFileSync(`${process.env.COMPANION_HOOKD_DUMP}-${event}.json`, raw + '\n');
         const t0 = performance.now();
         const merged = await dispatch(event, raw, table, HERE);
