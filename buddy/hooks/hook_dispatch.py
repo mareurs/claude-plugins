@@ -36,6 +36,15 @@ def main() -> int:
         return 0
     event_name = sys.argv[1]
 
+    # The per-tool-call hooks are served by scripts/hookd.py over HTTP; the session start
+    # is the one place that makes sure it is running (SessionStart hooks cannot be http).
+    if event_name == "session-start":
+        try:
+            from scripts.hookd import ensure
+            ensure()
+        except Exception:
+            pass
+
     # judge.env supplies BUDDY_JUDGE_* config. Match the bash wrappers' precedence
     # per event: session-start / post-tool-use sourced it unconditionally (file
     # wins → override=True), pre-tool-use preserved any caller/test vars (caller

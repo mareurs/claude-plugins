@@ -18,7 +18,7 @@ import { dispatch } from './dispatch.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.COMPANION_HOOKD_PORT || 47615);
-const TOKEN = process.env.COMPANION_HOOK_TOKEN || '';
+const TOKEN = process.env.CLAUDE_PLUGINS_HOOKD_TOKEN || '';
 const IDLE_MS = Number(process.env.COMPANION_HOOKD_IDLE_MS || 30 * 60 * 1000);
 const MAX_BODY = 8 * 1024 * 1024;
 const EVENTS = new Set(['PreToolUse', 'PostToolUse']);

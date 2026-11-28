@@ -1,9 +1,68 @@
 {
   "hooks": {
-    "PreToolUse": [{ "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs pre-tool-use" }] }],
-    "SessionStart": [{ "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs session-start" }] }],
-    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs session-end" }] }],
-    "PostToolUse": [{ "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs post-tool-use" }] }],
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs user-prompt-submit" }] }]
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://127.0.0.1:47616/pre-tool-use",
+            "headers": {
+              "Authorization": "Bearer $CLAUDE_PLUGINS_HOOKD_TOKEN"
+            },
+            "allowedEnvVars": [
+              "CLAUDE_PLUGINS_HOOKD_TOKEN"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs session-start"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs session-end"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://127.0.0.1:47616/post-tool-use",
+            "headers": {
+              "Authorization": "Bearer $CLAUDE_PLUGINS_HOOKD_TOKEN"
+            },
+            "allowedEnvVars": [
+              "CLAUDE_PLUGINS_HOOKD_TOKEN"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs user-prompt-submit"
+          }
+        ]
+      }
+    ]
   }
 }

@@ -76,15 +76,29 @@ if [ "$FOUND" -eq 0 ]; then
   fail "at least one plugin hooks.json was discovered" "found none"
 fi
 
-# Buddy-specific: all five hooks route through the same run.mjs dispatcher,
-# distinguished only by the event-name argument folded into the command
+# Buddy-specific: the per-session and per-prompt hooks route through the same run.mjs
+# dispatcher, distinguished only by the event-name argument folded into the command
 # string — a copy-paste error there (wrong or missing event name) would not
 # be caught by the generic "no args array" check above, since the string
 # would still have no args key. Assert the mapping directly.
+# PreToolUse and PostToolUse run on every tool call, so they are http hooks that POST to the
+# daemon scripts/hookd.py on 127.0.0.1 (no process start per call); the route is the event name.
 BUDDY_HOOKS="$REPO_ROOT/buddy/hooks/hooks.json"
 if [ -f "$BUDDY_HOOKS" ]; then
-  for pair in "PreToolUse:pre-tool-use" "SessionStart:session-start" "SessionEnd:session-end" \
-              "PostToolUse:post-tool-use" "UserPromptSubmit:user-prompt-submit"; do
+  for pair in "PreToolUse:pre-tool-use" "PostToolUse:post-tool-use"; do
+    event="${pair%%:*}"
+    arg="${pair##*:}"
+    h=$(jq -c --arg e "$event" '.hooks[$e][0].hooks[0]' "$BUDDY_HOOKS")
+    if [[ "$(jq -r '.type' <<<"$h")" == "http" \
+       && "$(jq -r '.url' <<<"$h")" == "http://127.0.0.1:47616/$arg" \
+       && "$(jq -r '.headers.Authorization' <<<"$h")" == 'Bearer $CLAUDE_PLUGINS_HOOKD_TOKEN' \
+       && "$(jq -r '.allowedEnvVars | index("CLAUDE_PLUGINS_HOOKD_TOKEN") != null' <<<"$h")" == "true" ]]; then
+      pass "buddy $event: http hook to the daemon route /$arg"
+    else
+      fail "buddy $event: http hook to the daemon route /$arg" "got: $h"
+    fi
+  done
+  for pair in "SessionStart:session-start" "SessionEnd:session-end" "UserPromptSubmit:user-prompt-submit"; do
     event="${pair%%:*}"
     arg="${pair##*:}"
     cmd=$(jq -r --arg e "$event" '.hooks[$e][0].hooks[0].command // empty' "$BUDDY_HOOKS")
