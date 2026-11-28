@@ -177,9 +177,14 @@ test('hooks.json routes PreToolUse and PostToolUse to the daemon with a matcher 
   }
 });
 
-test('SessionStart makes sure the daemon is running', () => {
-  const cmds = hooksJson.hooks.SessionStart.flatMap((g) => g.hooks.map((h) => h.command));
-  assert.ok(cmds.includes('node ${CLAUDE_PLUGIN_ROOT}/hooks/hookd.mjs --ensure'));
+// A session can outlive the daemon (idle exit, a crash). Every hook of a tool call then fails with
+// ECONNREFUSED and the guards are silently off, so the daemon is ensured at the start of a session
+// AND at every prompt, not only once.
+test('the daemon is ensured at SessionStart and at every UserPromptSubmit', () => {
+  for (const event of ['SessionStart', 'UserPromptSubmit']) {
+    const cmds = hooksJson.hooks[event].flatMap((g) => g.hooks.map((h) => h.command));
+    assert.ok(cmds.includes('node ${CLAUDE_PLUGIN_ROOT}/hooks/hookd.mjs --ensure'), `${event} runs hookd.mjs --ensure`);
+  }
 });
 
 test('no table hook is also registered on its own in hooks.json', () => {

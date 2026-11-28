@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { createServer } from 'node:net';
+import { createServer, connect } from 'node:net';
 import { createServer as createHttpServer } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -119,6 +119,41 @@ test('/wake stops the watcher when the client goes away', async () => {
     assert.ok(size > 0, 'the watcher ran while the client waited');
     assert.equal(statSync(beat).size, size, 'the watcher stopped after the client left');
   } finally { child.kill(); }
+});
+
+test('the daemon exits after its idle time, and a request keeps it alive', async () => {
+  const port = await freePort();
+  const child = spawn(process.execPath, [DAEMON], { env: { ...env(port), COMPANION_HOOKD_IDLE_MS: '1200' }, stdio: 'ignore' });
+  try {
+    assert.ok(await until(async () => (await call(port, 'GET', '/health'))?.status === 200), 'daemon is up');
+    for (let i = 0; i < 4; i++) { // 4 x 500 ms: longer than the idle time in total, never idle for 1200 ms
+      await new Promise((r) => setTimeout(r, 500));
+      assert.equal((await call(port, 'GET', '/health'))?.status, 200, `still up after request ${i + 1}`);
+    }
+    // Probe with a bare TCP connect: an HTTP request would count as activity and keep it alive.
+    const listening = () => new Promise((resolve) => {
+      const s = connect(port, '127.0.0.1');
+      s.on('connect', () => { s.destroy(); resolve(true); });
+      s.on('error', () => resolve(false));
+    });
+    assert.ok(await until(async () => !(await listening()), 8000), 'daemon exits once idle');
+  } finally { child.kill(); }
+});
+
+test('--ensure brings a stopped daemon back (a session outliving the daemon)', async () => {
+  const port = await freePort();
+  try {
+    assert.equal((await call(port, 'GET', '/health')), null, 'nothing listens yet');
+    assert.equal(spawnSync(process.execPath, [DAEMON, '--ensure'], { env: env(port), timeout: 15000 }).status, 0);
+    assert.equal((await call(port, 'GET', '/health'))?.status, 200);
+    await call(port, 'POST', '/quit');
+    await until(async () => (await call(port, 'GET', '/health')) === null);
+    assert.equal(spawnSync(process.execPath, [DAEMON, '--ensure'], { env: env(port), timeout: 15000 }).status, 0);
+    assert.equal((await call(port, 'GET', '/health'))?.status, 200, 'ensure started it again');
+  } finally {
+    await call(port, 'POST', '/quit');
+    await until(async () => (await call(port, 'GET', '/health')) === null);
+  }
 });
 
 test('--ensure replaces a daemon that runs another code version', async () => {

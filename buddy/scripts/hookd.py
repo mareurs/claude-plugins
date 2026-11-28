@@ -40,7 +40,9 @@ if str(PLUGIN_ROOT) not in sys.path:
 
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("BUDDY_HOOKD_PORT", "47616"))
-IDLE_S = float(os.environ.get("BUDDY_HOOKD_IDLE_S", str(30 * 60)))
+# 12 h: session-start and every user-prompt-submit make sure the daemon runs (hook_dispatch.py),
+# so a pause only costs the first prompt after it, and a working day never loses it.
+IDLE_S = float(os.environ.get("BUDDY_HOOKD_IDLE_S", str(12 * 60 * 60)))
 MAX_BODY = 8 * 1024 * 1024
 
 # URL path -> (hook_dispatch event name, Claude Code event name)

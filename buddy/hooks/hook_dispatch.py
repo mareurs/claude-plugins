@@ -36,9 +36,10 @@ def main() -> int:
         return 0
     event_name = sys.argv[1]
 
-    # The per-tool-call hooks are served by scripts/hookd.py over HTTP; the session start
-    # is the one place that makes sure it is running (SessionStart hooks cannot be http).
-    if event_name == "session-start":
+    # The per-tool-call hooks are served by scripts/hookd.py over HTTP. SessionStart hooks cannot be
+    # http, and a session can outlive the daemon (idle exit, a crash), so the start of a session and
+    # every prompt make sure it is running: one health check when it is.
+    if event_name in ("session-start", "user-prompt-submit"):
         try:
             from scripts.hookd import ensure
             ensure()

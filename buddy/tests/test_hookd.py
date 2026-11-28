@@ -148,6 +148,34 @@ def test_http_health_route_and_a_deny_round_trip(monkeypatch, server):
     assert status == 200 and json.loads(body)["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
+def _run_dispatch(monkeypatch, event_name):
+    """Run hooks/hook_dispatch.py's main() for one event with the daemon ensure recorded."""
+    import importlib.util
+    import io
+
+    spec = importlib.util.spec_from_file_location("hook_dispatch_under_test", PLUGIN_ROOT / "hooks" / "hook_dispatch.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    calls = []
+    monkeypatch.setattr(hookd, "ensure", lambda: calls.append(1))
+    monkeypatch.setitem(hook_entry.DISPATCH, event_name, lambda e, r, p: 0)
+    monkeypatch.setattr(sys, "argv", ["hook_dispatch.py", event_name])
+    monkeypatch.setattr(sys, "stdin", io.StringIO("{}"))
+    assert mod.main() == 0
+    return calls
+
+
+# A session can outlive the daemon (idle exit, a crash), and every http hook then fails silently.
+@pytest.mark.parametrize("event_name", ["session-start", "user-prompt-submit"])
+def test_session_start_and_every_prompt_make_sure_the_daemon_runs(monkeypatch, event_name):
+    assert _run_dispatch(monkeypatch, event_name) == [1]
+
+
+@pytest.mark.parametrize("event_name", ["pre-tool-use", "post-tool-use", "session-end"])
+def test_other_events_do_not_start_the_daemon(monkeypatch, event_name):
+    assert _run_dispatch(monkeypatch, event_name) == []
+
+
 def test_code_version_is_a_stable_identifier_of_the_scripts():
     assert len(hookd.code_version()) == 12
     assert hookd.code_version() == hookd.code_version()

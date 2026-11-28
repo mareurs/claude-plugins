@@ -25,7 +25,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.COMPANION_HOOKD_PORT || 47615);
 const TOKEN = process.env.CLAUDE_PLUGINS_HOOKD_TOKEN || '';
-const IDLE_MS = Number(process.env.COMPANION_HOOKD_IDLE_MS || 30 * 60 * 1000);
+// A session that stays open past this idle time finds the port closed: hooks.json starts the daemon
+// at SessionStart and again at every UserPromptSubmit, so the first prompt after a long pause
+// brings it back, and 12 h covers a normal working day without a pause killing it.
+const IDLE_MS = Number(process.env.COMPANION_HOOKD_IDLE_MS || 12 * 60 * 60 * 1000);
 const MAX_BODY = 8 * 1024 * 1024;
 const EVENTS = new Set(['PreToolUse', 'PostToolUse', 'wake']);
 const WAKE_HOOK = process.env.COMPANION_WAKE_HOOK || join(HERE, 'wake-on-job-end.mjs');
@@ -176,7 +179,7 @@ function serve() {
   });
   server.on('error', (e) => process.exit(e.code === 'EADDRINUSE' ? 0 : 1)); // another daemon already serves this port
   server.listen(PORT, HOST);
-  setInterval(() => { if (Date.now() - last > IDLE_MS) process.exit(0); }, 60_000).unref();
+  setInterval(() => { if (Date.now() - last > IDLE_MS) process.exit(0); }, Math.min(60_000, Math.max(100, IDLE_MS / 2))).unref();
 }
 
 const isEntryPoint = () => {
