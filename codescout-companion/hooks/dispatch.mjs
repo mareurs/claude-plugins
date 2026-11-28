@@ -33,7 +33,8 @@ export function selectHooks(table, event, toolName) {
 
 export function runHook(entry, raw, hooksDir = HERE) {
   return new Promise((resolve) => {
-    const result = { hook: entry.hook, code: 0, out: '', err: '' };
+    const started = Date.now();
+    const result = { hook: entry.hook, code: 0, out: '', err: '', ms: 0 };
     let settled = false;
     let worker;
     const settle = async () => {
@@ -41,7 +42,9 @@ export function runHook(entry, raw, hooksDir = HERE) {
       settled = true;
       clearTimeout(timer);
       // Wait for the worker's stdio to drain: output written just before process.exit().
+      result.exitMs = Date.now() - started;
       await Promise.all([finished(worker.stdout), finished(worker.stderr)]).catch(() => {});
+      result.ms = Date.now() - started;
       resolve(result);
     };
     try {
@@ -119,7 +122,9 @@ export async function dispatch(event, raw, table, hooksDir = HERE) {
   const selected = selectHooks(table, event, input.tool_name || '');
   if (selected.length === 0) return { code: 0, stdout: '', stderr: '' };
   const results = await Promise.all(selected.map((h) => runHook(h, raw, hooksDir)));
-  return mergeResults(results);
+  const merged = mergeResults(results);
+  merged.timings = results.map((r) => `${r.hook.replace('.mjs', '')}:${r.exitMs}/${r.ms}`).join(',');
+  return merged;
 }
 
 async function main() {
