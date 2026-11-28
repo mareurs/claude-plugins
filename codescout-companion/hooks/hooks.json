@@ -16,6 +16,14 @@
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/wake-missed-jobs.mjs"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/hookd.mjs --ensure"
+          }
+        ]
       }
     ],
     "SubagentStart": [
@@ -69,8 +77,15 @@
         "matcher": "Edit|Write|Grep|Glob|Read|Bash|Agent|mcp__codescout__.*",
         "hooks": [
           {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.mjs PreToolUse"
+            "type": "http",
+            "url": "http://127.0.0.1:47615/PreToolUse",
+            "headers": {
+              "Authorization": "Bearer $CLAUDE_PLUGINS_HOOKD_TOKEN"
+            },
+            "allowedEnvVars": [
+              "CLAUDE_PLUGINS_HOOKD_TOKEN"
+            ],
+            "timeout": 10
           }
         ]
       }
@@ -80,8 +95,15 @@
         "matcher": "Bash|EnterWorktree|mcp__codescout__.*|mcp__.*__(workspace|symbols|run_command|read_file|create_file|grep|semantic_search|edit_code|edit_file|tree|references|call_graph|symbol_at|doc|memory|index|onboarding|librarian)",
         "hooks": [
           {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.mjs PostToolUse"
+            "type": "http",
+            "url": "http://127.0.0.1:47615/PostToolUse",
+            "headers": {
+              "Authorization": "Bearer $CLAUDE_PLUGINS_HOOKD_TOKEN"
+            },
+            "allowedEnvVars": [
+              "CLAUDE_PLUGINS_HOOKD_TOKEN"
+            ],
+            "timeout": 10
           }
         ]
       },

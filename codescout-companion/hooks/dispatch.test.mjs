@@ -153,13 +153,19 @@ test('every hook in the table exists on disk and parses', () => {
   }
 });
 
-test('hooks.json routes PreToolUse and PostToolUse through the dispatcher with a matcher that covers every table matcher', () => {
+test('hooks.json routes PreToolUse and PostToolUse to the daemon with a matcher that covers every table matcher', () => {
   for (const event of ['PreToolUse', 'PostToolUse']) {
-    const entries = hooksJson.hooks[event].filter((g) => g.hooks.some((h) => h.command.includes('dispatch.mjs')));
-    assert.equal(entries.length, 1, `${event} has exactly one dispatcher entry`);
+    const entries = hooksJson.hooks[event].filter((g) => g.hooks.some((h) => h.type === 'http'));
+    assert.equal(entries.length, 1, `${event} has exactly one daemon entry`);
     const [entry] = entries;
     assert.equal(entry.hooks.length, 1);
-    assert.equal(entry.hooks[0].command, `node \${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.mjs ${event}`);
+    assert.deepEqual(entry.hooks[0], {
+      type: 'http',
+      url: `http://127.0.0.1:47615/${event}`,
+      headers: { Authorization: 'Bearer $CLAUDE_PLUGINS_HOOKD_TOKEN' },
+      allowedEnvVars: ['CLAUDE_PLUGINS_HOOKD_TOKEN'],
+      timeout: 10,
+    });
     const union = new RegExp(`^(?:${entry.matcher})$`);
     const names = ['Bash', 'Edit', 'Write', 'Read', 'Grep', 'Glob', 'Agent', 'EnterWorktree',
       'mcp__codescout__symbols', 'mcp__codescout__edit_code', 'mcp__codescout__workspace',
@@ -169,6 +175,11 @@ test('hooks.json routes PreToolUse and PostToolUse through the dispatcher with a
       assert.equal(union.test(name), wanted, `${event}: dispatcher matcher and table disagree on ${name}`);
     }
   }
+});
+
+test('SessionStart makes sure the daemon is running', () => {
+  const cmds = hooksJson.hooks.SessionStart.flatMap((g) => g.hooks.map((h) => h.command));
+  assert.ok(cmds.includes('node ${CLAUDE_PLUGIN_ROOT}/hooks/hookd.mjs --ensure'));
 });
 
 test('no table hook is also registered on its own in hooks.json', () => {

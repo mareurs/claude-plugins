@@ -22,6 +22,7 @@ only, exit after BUDDY_HOOKD_IDLE_S (default 30 min) without a request.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -53,6 +54,7 @@ JUDGE_ENV_OVERRIDE = {"pre-tool-use": False, "post-tool-use": True}
 
 _LOCK = threading.Lock()
 _BASE_ENV = dict(os.environ)
+VERSION = ""  # set by serve(): the version of the code this process loaded
 
 
 def _deny(reason: str) -> str:
@@ -141,19 +143,51 @@ def handle(route: str, raw: bytes, plugin_root: Path = PLUGIN_ROOT, base_env: di
     return 200, _merge_stdout(out.getvalue(), claude_event)
 
 
-def _health() -> bool:
+def code_version() -> str:
+    """Identifies the code a daemon loaded once (every scripts/*.py); a daemon that started
+    before a plugin update answers a different version than a new session expects."""
+    h = hashlib.sha1()
+    for path in sorted((PLUGIN_ROOT / "scripts").glob("*.py")):
+        h.update(path.name.encode())
+        h.update(path.read_bytes())
+    return h.hexdigest()[:12]
+
+
+def _call(method: str, path: str):
+    headers = {}
+    token = os.environ.get("CLAUDE_PLUGINS_HOOKD_TOKEN", "")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(f"http://{HOST}:{PORT}{path}", method=method, headers=headers, data=b"" if method == "POST" else None)
+    with urllib.request.urlopen(req, timeout=0.4) as r:
+        return r.status, r.read().decode("utf-8")
+
+
+def _running_version():
+    """The version a running daemon reports, or None when nothing answers."""
     try:
-        with urllib.request.urlopen(f"http://{HOST}:{PORT}/health", timeout=0.4) as r:
-            return r.status == 200
+        status, body = _call("GET", "/health")
+        return json.loads(body).get("version", "") if status == 200 else None
     except Exception:
-        return False
+        return None
 
 
 def ensure() -> None:
-    """Start a daemon detached unless one already answers. Fail-open."""
+    """Make sure a daemon of this code version answers; start one detached if not. Fail-open."""
     try:
-        if _health():
+        want = code_version()
+        have = _running_version()
+        if have == want:
             return
+        if have is not None:  # a daemon of another version: ask it to quit, then wait for the port
+            try:
+                _call("POST", "/quit")
+            except Exception:
+                pass
+            for _ in range(40):
+                if _running_version() is None:
+                    break
+                time.sleep(0.05)
         kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL, "close_fds": True}
         if os.name == "nt":
             kwargs["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
@@ -161,7 +195,7 @@ def ensure() -> None:
             kwargs["start_new_session"] = True
         subprocess.Popen([sys.executable, str(Path(__file__).resolve())], **kwargs)
         for _ in range(60):
-            if _health():
+            if _running_version() == want:
                 return
             time.sleep(0.05)
     except Exception:
@@ -184,13 +218,19 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         self.server.last_request = time.time()  # type: ignore[attr-defined]
-        self._send(200, '{"ok":true}') if self.path == "/health" else self._send(404)
+        if self.path == "/health":
+            return self._send(200, json.dumps({"ok": True, "version": VERSION}))
+        self._send(404)
 
     def do_POST(self):
         self.server.last_request = time.time()  # type: ignore[attr-defined]
         token = os.environ.get("CLAUDE_PLUGINS_HOOKD_TOKEN", "")
         if token and self.headers.get("Authorization") != f"Bearer {token}":
             return self._send(401)
+        if self.path == "/quit":
+            self._send(200)
+            threading.Thread(target=lambda: (time.sleep(0.05), os._exit(0)), daemon=True).start()
+            return
         length = int(self.headers.get("Content-Length") or 0)
         if length > MAX_BODY:
             return self._send(413)
@@ -199,6 +239,8 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 def serve() -> None:
+    global VERSION
+    VERSION = code_version()
     try:
         server = ThreadingHTTPServer((HOST, PORT), _Handler)
     except OSError:

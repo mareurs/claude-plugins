@@ -27,7 +27,7 @@ fi
 # plain word after the script (the dispatcher's event name) is part of the string.
 PORTABLE=$(jq -r '[.hooks[][]?.hooks[]
   | select(.type == "command")
-  | (.args == null and (.command | test("^node \\${CLAUDE_PLUGIN_ROOT}/hooks/[^ ]+\\.mjs( [A-Za-z]+)?$")))]
+  | (.args == null and (.command | test("^node \\${CLAUDE_PLUGIN_ROOT}/hooks/[^ ]+\\.mjs( [A-Za-z-]+)?$")))]
   | all' "$HOOKS_JSON")
 if [[ "$PORTABLE" == "true" ]]; then
   pass "all Node hooks use portable command strings"
@@ -38,14 +38,15 @@ fi
 # Test 1b: each tool-use event has exactly one dispatcher entry, and no table hook
 # is also registered on its own (it would run twice).
 for EVENT in PreToolUse PostToolUse; do
-  N=$(jq -r --arg ev "$EVENT" '[.hooks[$ev][] | .hooks[] | select(.command | test("dispatch\\.mjs " + $ev + "$"))] | length' "$HOOKS_JSON")
+  # The dispatcher runs inside a loopback daemon (hookd.mjs): hooks.json holds one http entry per event.
+  N=$(jq -r --arg ev "$EVENT" '[.hooks[$ev][] | .hooks[] | select(.type == "http" and .url == ("http://127.0.0.1:47615/" + $ev))] | length' "$HOOKS_JSON")
   if [[ "$N" == "1" ]]; then
-    pass "$EVENT -> one dispatcher entry"
+    pass "$EVENT -> one daemon entry"
   else
-    fail "$EVENT -> one dispatcher entry" "got $N"
+    fail "$EVENT -> one daemon entry" "got $N"
   fi
   TWICE=$(jq -r --arg ev "$EVENT" --slurpfile t "$TABLE" \
-    '[.hooks[$ev][] | .hooks[].command] as $cmds
+    '[.hooks[$ev][] | .hooks[].command // empty] as $cmds
      | [$t[0][$ev][].hook as $h | select($cmds | any(contains("/hooks/" + $h)))] | length' "$HOOKS_JSON")
   if [[ "$TWICE" == "0" ]]; then
     pass "$EVENT: no table hook is registered a second time"
@@ -120,7 +121,7 @@ CSV_COUNT=$(echo "$CSV_ENTRY" | jq 'length')
 # field cannot slip past the field checks.
 CSV_EXACT=$(echo "$CSV_ENTRY" | jq -r '.[0] == {"matcher":"mcp__codescout__.*","hook":"cs-verified-relocate.mjs","timeout":5}')
 # And nothing may register it on its own: an async or unbounded run would not apply its rewrite.
-CSV_DIRECT=$(jq -r '[.hooks | to_entries[] | .value[] | .hooks[] | select(.command | test("cs-verified-relocate"))] | length' "$HOOKS_JSON")
+CSV_DIRECT=$(jq -r '[.hooks | to_entries[] | .value[] | .hooks[] | select((.command // "") | test("cs-verified-relocate"))] | length' "$HOOKS_JSON")
 CSV_SCRIPT="$HOOK_DIR/cs-verified-relocate.mjs"
 if [[ "$CSV_COUNT" == "1" && "$CSV_PRE" == "0" && "$CSV_EXACT" == "true" && "$CSV_DIRECT" == "0" ]] \
    && [[ -f "$CSV_SCRIPT" ]] && node --check "$CSV_SCRIPT" 2>/dev/null; then

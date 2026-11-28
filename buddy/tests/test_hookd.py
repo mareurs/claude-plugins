@@ -148,6 +148,24 @@ def test_http_health_route_and_a_deny_round_trip(monkeypatch, server):
     assert status == 200 and json.loads(body)["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
+def test_code_version_is_a_stable_identifier_of_the_scripts():
+    assert len(hookd.code_version()) == 12
+    assert hookd.code_version() == hookd.code_version()
+
+
+def test_http_health_reports_the_version(monkeypatch, server):
+    monkeypatch.setattr(hookd, "VERSION", "abc123def456")
+    with urllib.request.urlopen(server + "/health", timeout=5) as r:
+        assert json.loads(r.read()) == {"ok": True, "version": "abc123def456"}
+
+
+def test_http_quit_needs_the_token(monkeypatch, server):
+    # Only the refusal is exercised: an accepted /quit ends the process.
+    monkeypatch.setenv("CLAUDE_PLUGINS_HOOKD_TOKEN", "s3cret")
+    assert _post(server + "/quit")[0] == 401
+    assert _post(server + "/quit", token="wrong")[0] == 401
+
+
 def test_http_token_is_required_when_set(monkeypatch, server):
     monkeypatch.setenv("CLAUDE_PLUGINS_HOOKD_TOKEN", "s3cret")
     monkeypatch.setitem(hook_entry.DISPATCH, "post-tool-use", lambda e, r, p: 0)
