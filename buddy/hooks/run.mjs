@@ -13,7 +13,7 @@
 // forwarded to Claude Code. Claude Code's PID is passed as BUDDY_HOOK_PPID so
 // the Python side keys the by-ppid index on Claude Code, not on this launcher.
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -21,8 +21,34 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const dispatch = join(HERE, 'hook_dispatch.py');
 const event = process.argv[2] || '';
 
+// A real interpreter beats the Windows Store app-execution-alias stubs that sit first on
+// PATH: under endpoint protection each stub start costs about 1 s, a real python.exe
+// about 0.3 s, and this launcher runs on every tool call. $BUDDY_PYTHON overrides; on
+// Windows the newest python.exe under %ProgramFiles% or %LOCALAPPDATA%/Programs/Python
+// is next. Elsewhere, and when none is found, the PATH names below apply unchanged.
+function directPythons() {
+  if (process.env.BUDDY_PYTHON) return [[process.env.BUDDY_PYTHON, []]];
+  if (process.platform !== 'win32') return [];
+  const roots = [
+    process.env.ProgramFiles,
+    process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, 'Programs', 'Python'),
+  ].filter(Boolean);
+  const found = [];
+  for (const root of roots) {
+    try {
+      for (const d of readdirSync(root)) {
+        const exe = join(root, d, 'python.exe');
+        if (/^Python3[0-9]+$/.test(d) && existsSync(exe)) found.push([d, exe]);
+      }
+    } catch { /* root missing or unreadable: skip it */ }
+  }
+  found.sort((a, b) => Number(b[0].slice(6)) - Number(a[0].slice(6)));
+  return found.slice(0, 1).map(([, exe]) => [exe, []]);
+}
+
 // Interpreter candidates, in preference order.
 const candidates = [
+  ...directPythons(),
   ['python3', []],
   ['python', []],
   ['py', ['-3']],
