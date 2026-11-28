@@ -1,0 +1,1 @@
+{ "name": "mod-probe", "version": "0.1.0", "description": "Measures which events reach a user-tier mod and what a process start costs from inside Claude Code", "author": { "name": "Marius" }, "license": "MIT" }
