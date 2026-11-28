@@ -791,6 +791,11 @@ export function parentOf(pid) {
       const ppid = Number.parseInt(rest[1], 10);
       return Number.isNaN(ppid) ? null : ppid;
     }
+    // Windows has no `ps -o`: the only `ps` a hook can reach is Git for Windows' MSYS one,
+    // which rejects `-o`, so the call always fails and answers null. It is not free: each
+    // attempt starts a process, about 0.15-0.3 s under endpoint protection, and a hook pays it
+    // on every call that asks for the ancestry. Answer null without starting it.
+    if (process.platform === 'win32') return null;
     const out = execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], {
       encoding: 'utf8',
       timeout: 2000,
