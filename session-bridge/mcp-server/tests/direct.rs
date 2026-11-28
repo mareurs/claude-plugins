@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc, unix permissions or process groups
 //! `direct::take`: the addressed notices of one session, delivered once and never filtered.
 
 use session_bridge_mcp::cursor::get_direct;

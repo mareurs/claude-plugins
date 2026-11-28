@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc, unix permissions or process groups
 //! The detached spawn the hook uses for the filter worker, checked on a harmless child
 //! (`/bin/sh -c "sleep 30"`). No filter worker and no `claude` is started here.
 //!

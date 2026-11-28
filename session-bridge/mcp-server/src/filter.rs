@@ -500,7 +500,7 @@ pub async fn run_filter(
         .filter(|s| !s.is_empty())
     {
         Some(c) => std::path::PathBuf::from(c),
-        None => Path::new(&std::env::var("HOME").unwrap_or_default()).join(".claude"),
+        None => Path::new(&std::env::var(crate::paths::HOME_VAR).unwrap_or_default()).join(".claude"),
     };
     if !config_dir.is_absolute() {
         drain_unfiltered(state, profile, pid, "bad config dir");
@@ -592,7 +592,7 @@ pub async fn run_filter_with(
     timeout: Duration,
 ) -> Result<()> {
     // The child runs with the endpoint's credentials: never resolve a relative program.
-    if !bin.starts_with('/') {
+    if !Path::new(bin).is_absolute() {
         clear_worker_pid(state, profile, pid);
         return Err(BridgeError::RelativeBinary(bin.to_string()));
     }
@@ -667,7 +667,7 @@ pub async fn run_codex_filter(
         anyhow::ensure!(!tail.trim().is_empty(), "no transcript speech");
         let scratch = tempfile::Builder::new()
             .prefix("session-bridge-filter-")
-            .tempdir_in("/tmp")?;
+            .tempdir_in(crate::sys::scratch_root())?;
         let mut cmd =
             crate::codex_process::isolated_command(bin, &target.config_dir, scratch.path())?;
         cmd.arg(format!(

@@ -270,9 +270,19 @@ const SIGNAL_CLEANUP: std::time::Duration = std::time::Duration::from_secs(3);
 /// ask's fork cleanup (interrupt, then remove), and that cleanup is awaited, at most
 /// `SIGNAL_CLEANUP`, before the error return makes the process exit non-zero.
 async fn call_until_signal(tool: &str, opencode_caller: &str) -> anyhow::Result<String> {
-    use tokio::signal::unix::{signal, SignalKind};
-    let mut term = signal(SignalKind::terminate())?;
-    let mut int = signal(SignalKind::interrupt())?;
+    #[cfg(unix)]
+    let (mut term, mut int) = {
+        use tokio::signal::unix::{signal, SignalKind};
+        (
+            signal(SignalKind::terminate())?,
+            signal(SignalKind::interrupt())?,
+        )
+    };
+    #[cfg(windows)]
+    let (mut term, mut int) = (
+        tokio::signal::windows::ctrl_break()?,
+        tokio::signal::windows::ctrl_c()?,
+    );
     let mut work = Box::pin(call_output(tool, opencode_caller));
     let outcome = tokio::select! {
         r = &mut work => r,

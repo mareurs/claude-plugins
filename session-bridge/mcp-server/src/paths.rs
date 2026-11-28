@@ -12,8 +12,28 @@ pub fn state_root(env: &dyn Fn(&str) -> Option<String>) -> Option<PathBuf> {
             return Some(PathBuf::from(x).join("session-bridge"));
         }
     }
-    let root = PathBuf::from(env("HOME").unwrap_or_default()).join(".local/state/session-bridge");
+    let root = home_dir(env)?.join(default_state_subdir());
     root.is_absolute().then_some(root)
+}
+
+/// The environment variable that names the user's home directory.
+pub const HOME_VAR: &str = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+
+/// The user's home directory: `HOME` on Unix; on Windows `USERPROFILE`, because `HOME` under
+/// Git Bash is an MSYS path (`/c/Users/me`) that is not absolute for a native program.
+pub fn home_dir(env: &dyn Fn(&str) -> Option<String>) -> Option<PathBuf> {
+    let home = PathBuf::from(env(HOME_VAR).filter(|s| !s.is_empty())?);
+    home.is_absolute().then_some(home)
+}
+
+/// Under the home directory: `.local/state/session-bridge`, or `AppData/Local/session-bridge`
+/// on Windows.
+fn default_state_subdir() -> &'static str {
+    if cfg!(windows) {
+        "AppData/Local/session-bridge"
+    } else {
+        ".local/state/session-bridge"
+    }
 }
 
 /// Basename of the config dir; `.claude` when unset or empty.

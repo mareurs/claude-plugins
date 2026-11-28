@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc, unix permissions or process groups
 use chrono::NaiveDate;
 use session_bridge_mcp::ask::{
     ask, ask_with_bound, clamp_timeout, daily_bound, fork_argv, locate_claude, model_id,

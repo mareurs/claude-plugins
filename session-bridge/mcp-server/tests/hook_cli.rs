@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc, unix permissions or process groups
 //! Process-level tests: a hook never exits non-zero and never prints on an internal error.
 
 use std::io::Write;

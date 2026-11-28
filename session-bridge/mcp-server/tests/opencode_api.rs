@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc and unix permission bits
 use serde_json::{json, Value};
 use session_bridge_mcp::opencode_api::{
     ensure_service, ensure_service_within, locate_opencode, CliApi, OcApi,

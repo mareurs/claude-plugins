@@ -208,7 +208,7 @@ fn profile_dir(var: &str, default: &str) -> Option<std::path::PathBuf> {
     std::env::var_os(var)
         .filter(|v| !v.is_empty())
         .map(std::path::PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(default)))
+        .or_else(|| std::env::var_os(crate::paths::HOME_VAR).map(|h| std::path::PathBuf::from(h).join(default)))
 }
 
 /// The daily ask bound in force: `Some(bound)`, or `None` when it is switched off.
@@ -336,28 +336,21 @@ pub fn clamp_timeout(timeout_s: Option<u64>) -> u64 {
 /// name is searched in the absolute entries of `path` only (a relative or empty entry would
 /// run a binary from the current directory).
 pub fn resolve_program(program: &str, path: Option<&str>) -> Result<PathBuf> {
-    use std::os::unix::fs::PermissionsExt;
-    if program.contains('/') {
-        return if program.starts_with('/') {
+    if crate::sys::has_dir_part(program) {
+        return if Path::new(program).is_absolute() {
             Ok(PathBuf::from(program))
         } else {
             Err(BridgeError::RelativeBinary(program.to_string()))
         };
     }
-    path.unwrap_or("")
-        .split(':')
-        .filter(|d| d.starts_with('/'))
-        .map(|d| Path::new(d).join(program))
-        .find(|p| {
-            std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
-        })
+    crate::sys::find_on_path(program, path.unwrap_or(""))
         .ok_or(BridgeError::ClaudeCliMissing)
 }
 
 /// The `claude` binary: `SESSION_BRIDGE_CLAUDE_BIN` (must be absolute) or `claude` on PATH.
 pub fn locate_claude(env: &dyn Fn(&str) -> Option<String>) -> Result<PathBuf> {
     match env("SESSION_BRIDGE_CLAUDE_BIN").filter(|s| !s.is_empty()) {
-        Some(b) if b.starts_with('/') => Ok(PathBuf::from(b)),
+        Some(b) if Path::new(&b).is_absolute() => Ok(PathBuf::from(b)),
         Some(b) => Err(BridgeError::RelativeBinary(b)),
         None => resolve_program("claude", env("PATH").as_deref()),
     }
@@ -430,7 +423,7 @@ pub async fn ask_with_bound(
 ) -> Result<AskResult> {
     // The child runs in the target's repository with the target's credentials: never let a
     // relative program path resolve against it.
-    if !bin.starts_with('/') {
+    if !Path::new(bin).is_absolute() {
         return Err(BridgeError::RelativeBinary(bin.to_string()));
     }
     let log = state.join(ASK_LOG);

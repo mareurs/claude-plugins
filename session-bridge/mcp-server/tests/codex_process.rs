@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc, unix permissions or process groups
 use session_bridge_mcp::{
     codex::CodexEndpoint,
     codex_process::{ask_codex, parse_answer, run_bounded},

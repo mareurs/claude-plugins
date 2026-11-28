@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc, unix permissions or process groups
 //! MCP `post_notice` resolves its caller among Claude Code and Codex sessions only: it never
 //! runs OpenCode discovery (no `opencode` process, no service start). Own test binary because
 //! it sets process environment.

@@ -27,7 +27,7 @@ const MARKER: &str = "session-bridge-wake";
 pub fn wake_enabled(env: &dyn Fn(&str) -> Option<String>) -> bool {
     let dir = match env("CLAUDE_CONFIG_DIR").filter(|v| !v.is_empty()) {
         Some(d) => PathBuf::from(d),
-        None => match env("HOME").filter(|v| !v.is_empty()) {
+        None => match env(crate::paths::HOME_VAR).filter(|v| !v.is_empty()) {
             Some(h) => PathBuf::from(h).join(".claude"),
             None => return false,
         },

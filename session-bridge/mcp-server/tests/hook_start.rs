@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc and unix permission bits
 use session_bridge_mcp::cursor::{get, set};
 use session_bridge_mcp::endpoints::{process_start_ms, repo_of, Roots};
 use session_bridge_mcp::hook::{emit, render_start_view, session_start, HookInput};

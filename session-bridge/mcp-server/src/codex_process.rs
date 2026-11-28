@@ -2,10 +2,6 @@
 use crate::codex::{is_thread_id, CodexEndpoint};
 use crate::endpoints::Roots;
 use anyhow::{anyhow, Context, Result};
-use nix::{
-    sys::signal::{killpg, Signal},
-    unistd::Pid,
-};
 use serde::Serialize;
 use serde_json::Value;
 use std::{
@@ -24,12 +20,7 @@ pub struct Captured {
     pub stdout: String,
     pub stderr: String,
 }
-struct ProcessGroup(u32);
-impl Drop for ProcessGroup {
-    fn drop(&mut self) {
-        let _ = killpg(Pid::from_raw(self.0 as i32), Signal::SIGKILL);
-    }
-}
+use crate::sys::ProcessGroup;
 async fn limited(mut stream: impl AsyncRead + Unpin, limit: usize) -> Result<Vec<u8>> {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 8192];
@@ -51,10 +42,10 @@ pub async fn run_bounded(cmd: &mut Command, timeout: Duration) -> Result<Capture
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .process_group(0);
+        .kill_on_drop(true);
+    crate::sys::isolate_group(cmd);
     let mut child = cmd.spawn().context("could not start subprocess")?;
-    let _group = ProcessGroup(
+    let _group = ProcessGroup::new(
         child
             .id()
             .ok_or_else(|| anyhow!("child has no process id"))?,
@@ -84,12 +75,7 @@ pub async fn run_bounded(cmd: &mut Command, timeout: Duration) -> Result<Capture
         .map_err(|_| anyhow!("subprocess timed out"))?
 }
 pub fn locate_codex(env: &dyn Fn(&str) -> Option<String>) -> Result<PathBuf> {
-    use std::os::unix::fs::PermissionsExt;
-    let executable = |p: &Path| {
-        p.is_file()
-            && p.metadata()
-                .is_ok_and(|m| m.permissions().mode() & 0o111 != 0)
-    };
+    let executable = |p: &Path| crate::sys::is_executable(p);
     if let Some(bin) = env("SESSION_BRIDGE_CODEX_BIN").filter(|s| !s.is_empty()) {
         let p = PathBuf::from(bin);
         anyhow::ensure!(p.is_absolute(), "SESSION_BRIDGE_CODEX_BIN must be absolute");
@@ -100,8 +86,10 @@ pub fn locate_codex(env: &dyn Fn(&str) -> Option<String>) -> Result<PathBuf> {
         if !dir.is_absolute() {
             continue;
         }
-        let p = dir.join("codex");
-        if executable(&p) {
+        if let Some(p) = crate::sys::program_candidates(&dir, "codex")
+            .into_iter()
+            .find(|p| executable(p))
+        {
             return Ok(p);
         }
     }
@@ -228,7 +216,7 @@ pub async fn ask_codex(
     target.revalidate(roots)?;
     let scratch = tempfile::Builder::new()
         .prefix("session-bridge-codex-")
-        .tempdir_in("/tmp")?;
+        .tempdir_in(crate::sys::scratch_root())?;
     let mut cmd = isolated_command(bin, &target.config_dir, scratch.path())?;
     if let Some(id) = model {
         cmd.args(["--model", id]);

@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc, unix permissions or process groups
 use anyhow::{anyhow, Result};
 use serde_json::{json, Value};
 use session_bridge_mcp::{

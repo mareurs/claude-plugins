@@ -70,7 +70,7 @@ fn own_config_dir() -> PathBuf {
         .filter(|s| !s.is_empty())
     {
         Some(c) => PathBuf::from(c),
-        None => PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".claude"),
+        None => PathBuf::from(std::env::var(crate::paths::HOME_VAR).unwrap_or_default()).join(".claude"),
     }
 }
 /// The state root for a tool call, or the error the tool returns when there is none (no

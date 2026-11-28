@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc and unix permission bits
 use session_bridge_mcp::endpoints::{
     claude_pid_of, discover, pid_alive, registered_session, repo_of, resolve_target, Endpoint,
     Roots,

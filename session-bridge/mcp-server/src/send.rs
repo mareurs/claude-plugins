@@ -6,7 +6,6 @@ use serde_json::Value;
 use std::{
     fs,
     io::{Read, Seek, SeekFrom},
-    os::unix::fs::MetadataExt,
     path::Path,
     sync::atomic::{AtomicU64, Ordering},
     time::{Duration, Instant},
@@ -122,7 +121,8 @@ pub async fn send_codex(
             let mut file = fs::File::open(&target.transcript_path)?;
             let m = file.metadata()?;
             anyhow::ensure!(
-                m.dev() == original.dev() && m.ino() == original.ino() && m.len() >= offset,
+                crate::sys::file_identity(&m) == crate::sys::file_identity(&original)
+                    && m.len() >= offset,
                 "target transcript rotated or truncated"
             );
             file.seek(SeekFrom::Start(offset))?;

@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc, unix permissions or process groups
 use session_bridge_mcp::cursor::get_direct;
 use session_bridge_mcp::direct::take;
 use session_bridge_mcp::endpoints::Roots;

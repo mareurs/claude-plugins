@@ -472,25 +472,13 @@ pub fn spawn_worker(profile: &str, pid: u32) -> Option<u32> {
 /// `XDG_STATE_HOME`). Never waited on: the hook exits at once and the child is reparented.
 /// Returns the child pid, or `None` (noted) when it cannot start.
 pub fn spawn_detached(program: &Path, args: &[&str]) -> Option<u32> {
-    use std::os::unix::process::CommandExt;
     let mut cmd = std::process::Command::new(program);
     cmd.args(args)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
-    // SAFETY: the closure runs in the child between fork and exec, where only
-    // async-signal-safe work is allowed. It makes one setsid(2) syscall and turns an errno
-    // into an io::Error (no allocation, no lock, no shared state touched), so it is sound.
-    // A new session keeps the worker alive when Claude Code ends the hook's process group.
-    unsafe {
-        cmd.pre_exec(|| {
-            nix::unistd::setsid()
-                .map(|_| ())
-                .map_err(std::io::Error::from)
-        });
-    }
-    match cmd.spawn() {
-        Ok(child) => Some(child.id()),
+    match crate::sys::spawn_detached(&mut cmd) {
+        Ok(pid) => Some(pid),
         Err(e) => {
             diag::note(&format!("spawn: {}: {e}", program.display()));
             None

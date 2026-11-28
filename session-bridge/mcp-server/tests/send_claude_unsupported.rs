@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc, unix permissions or process groups
 //! `send_message` never delivers to a Claude Code session: a Claude target is refused with
 //! an explicit error pointing at `ask_session`, and nothing is stored. A notices.db left
 //! behind by a build that stored direct messages (with a `direct_messages` table) still

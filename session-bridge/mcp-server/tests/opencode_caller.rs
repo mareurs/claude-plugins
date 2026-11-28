@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc and unix permission bits
 //! OpenCode callers: `session-bridge call <tool> --opencode-caller <ses_id>` and the caller
 //! validation behind it (exact id, parent-chain walk, live top-level session).
 use anyhow::{anyhow, Result};

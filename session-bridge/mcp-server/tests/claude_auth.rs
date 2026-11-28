@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc, unix permissions or process groups
 //! Exercise actual ask/filter subprocess environments without changing this test process's env.
 use session_bridge_mcp::{ask::ask_with_bound, endpoints::Endpoint};
 use std::{path::Path, process::Command, time::Duration};

@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc, unix permissions or process groups
 //! UserPromptSubmit and PostToolUse: deliver verdicts, look for new notices, start the worker.
 //! `spawn` is a recorder in every test: no test starts a real process.
 

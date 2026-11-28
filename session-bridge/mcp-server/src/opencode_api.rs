@@ -63,12 +63,7 @@ fn first_line(s: &str) -> String {
 }
 
 pub fn locate_opencode(env: &dyn Fn(&str) -> Option<String>) -> Result<PathBuf> {
-    use std::os::unix::fs::PermissionsExt;
-    let executable = |p: &Path| {
-        p.is_file()
-            && p.metadata()
-                .is_ok_and(|m| m.permissions().mode() & 0o111 != 0)
-    };
+    let executable = |p: &Path| crate::sys::is_executable(p);
     if let Some(bin) = env("SESSION_BRIDGE_OPENCODE_BIN").filter(|s| !s.is_empty()) {
         let p = PathBuf::from(bin);
         anyhow::ensure!(
@@ -82,8 +77,10 @@ pub fn locate_opencode(env: &dyn Fn(&str) -> Option<String>) -> Result<PathBuf> 
         if !dir.is_absolute() {
             continue;
         }
-        let p = dir.join("opencode");
-        if executable(&p) {
+        if let Some(p) = crate::sys::program_candidates(&dir, "opencode")
+            .into_iter()
+            .find(|p| executable(p))
+        {
             return Ok(p);
         }
     }

@@ -1,3 +1,4 @@
+#![cfg(unix)] // Unix-only: fakes /proc and unix permission bits
 //! `ask_session` into OpenCode: fork the target, switch the fork to the read-only
 //! `session-bridge-reader` agent, prompt the fork, wait, read its answer, remove it.
 use anyhow::{anyhow, Result};

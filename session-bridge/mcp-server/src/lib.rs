@@ -26,3 +26,4 @@ pub mod opencode_hook;
 pub mod opencode_send;
 pub mod send;
 pub mod sessions;
+pub mod sys;
