@@ -11,12 +11,17 @@ import { join, isAbsolute, dirname, delimiter, resolve as resolvePath } from 'no
 import { homedir, tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { workerData } from 'node:worker_threads';
 import { detect } from './detect.mjs';
 
-// Read the hook event JSON from stdin. Returns null on empty/parse error.
+// Read the hook event JSON from stdin, or from the dispatcher that runs this hook in a
+// worker thread (dispatch.mjs hands the already-read event over as workerData).
+// Returns null on empty/parse error.
 export function readInput() {
   try {
-    const raw = readFileSync(0, 'utf8'); // fd 0 = stdin
+    const raw = typeof workerData?.hookInput === 'string'
+      ? workerData.hookInput
+      : readFileSync(0, 'utf8'); // fd 0 = stdin
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;

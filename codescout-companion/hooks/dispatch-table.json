@@ -1,0 +1,21 @@
+{
+  "PreToolUse": [
+    { "matcher": "mcp__codescout__(edit_code|edit_file|create_file)", "hook": "worktree-write-guard.mjs" },
+    { "matcher": "Edit|Write|mcp__codescout__(edit_code|edit_file|create_file)", "hook": "constitution-guard.mjs" },
+    { "matcher": "Edit|Write|mcp__codescout__(edit_code|edit_file|create_file)", "hook": "pre-edit-dirty-check.mjs" },
+    { "matcher": "Grep|Glob|Read|Bash|Edit|Write", "hook": "pre-tool-guard.mjs" },
+    { "matcher": "Bash", "hook": "git-worktree-guard.mjs" },
+    { "matcher": "Bash", "hook": "door-shell-guard.mjs" },
+    { "matcher": "Agent", "hook": "pre-task-hint.mjs" },
+    { "matcher": "Agent", "hook": "explore-inject.mjs" },
+    { "matcher": "mcp__codescout__edit_code", "hook": "pre-edit-hint.mjs" },
+    { "matcher": "mcp__codescout__.*", "hook": "principal-stamp.mjs" }
+  ],
+  "PostToolUse": [
+    { "matcher": "Bash", "hook": "suspicious-zero-hint.mjs" },
+    { "matcher": "EnterWorktree", "hook": "worktree-activate.mjs" },
+    { "matcher": "mcp__.*__workspace", "hook": "cs-activate-project.mjs" },
+    { "matcher": "mcp__.*__(symbols|run_command|read_file|create_file|grep|semantic_search|edit_code|edit_file|tree|references|call_graph|symbol_at|workspace|doc|memory|index|onboarding|librarian)", "hook": "cs-liveness.mjs" },
+    { "matcher": "mcp__codescout__.*", "hook": "cs-verified-relocate.mjs", "timeout": 5 }
+  ]
+}

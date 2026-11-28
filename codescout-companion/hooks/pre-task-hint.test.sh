@@ -13,6 +13,8 @@
 set -uo pipefail
 
 HOOKS_JSON="$(cd "$(dirname "$0")" && pwd)/hooks.json"
+# PreToolUse hooks are registered in dispatch-table.json; hooks.json holds the one dispatcher entry.
+DISPATCH_TABLE="$(cd "$(dirname "$0")" && pwd)/dispatch-table.json"
 PASS=0
 FAIL=0
 
@@ -26,14 +28,11 @@ check() {  # <label> <got> <expected>
 
 # The PreToolUse matcher that routes to pre-task-hint.sh must be the live
 # dispatch tool name.
-matcher=$(jq -r '
-  .hooks.PreToolUse[]
-  | select(any(.hooks[]?; ((.command // "") + " " + ((.args // []) | join(" "))) | test("pre-task-hint\\.mjs")))
-  | .matcher' "$HOOKS_JSON")
+matcher=$(jq -r '.PreToolUse[] | select(.hook == "pre-task-hint.mjs") | .matcher' "$DISPATCH_TABLE")
 check "pre-task-hint wired to Agent" "$matcher" "Agent"
 
 # Guard against regression to the obsolete tool name anywhere in PreToolUse.
-task_matchers=$(jq -r '[.hooks.PreToolUse[] | select(.matcher=="Task")] | length' "$HOOKS_JSON")
+task_matchers=$(jq -r '[(.PreToolUse[] | select(.matcher | test("(^|[|])Task([|]|$)"))) ] | length' "$DISPATCH_TABLE")
 check "no obsolete Task matcher in PreToolUse" "$task_matchers" "0"
 
 echo "---"

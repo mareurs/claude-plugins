@@ -121,15 +121,24 @@ Create `.claude/codescout-companion.json` (or `codescout-routing.json`) in your 
 
 ## Hooks
 
-**This table is a selection, not an inventory — 9 of the 22 registrations in
-`hooks/hooks.json`.** Derive the real figure rather than trusting this sentence:
+**This table is a selection, not an inventory.** Derive the real figure rather than
+trusting this sentence. The `PreToolUse` and `PostToolUse` hooks run through one
+dispatcher per event (`hooks/dispatch.mjs`, a single node process that runs each
+matching hook in a worker thread and merges the outputs). `hooks/dispatch-table.json`
+lists them with their matchers, and `hooks/hooks.json` holds the dispatcher entries
+and every other event's hooks:
 
 ```bash
 jq '[.hooks[][].hooks[]] | length' codescout-companion/hooks/hooks.json
+jq '[.[][]] | length' codescout-companion/hooks/dispatch-table.json
 ```
 
-`hooks.json` is the only authority on what is wired. A hook absent from the rows
-below is not thereby inactive.
+Together, `hooks.json` and `dispatch-table.json` are the authority on what is wired.
+A hook absent from the rows below is not thereby inactive. To add a `PreToolUse` or
+`PostToolUse` hook, add a row to `dispatch-table.json` and widen the dispatcher's
+`matcher` in `hooks.json` to cover it; `hooks/dispatch.test.mjs` fails when the two
+disagree. A table hook is read from the dispatcher's worker, so it reads its event
+through `readInput()` from `lib.mjs`.
 
 | Event | Hook | Purpose |
 |---|---|---|

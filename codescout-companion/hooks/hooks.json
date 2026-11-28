@@ -66,103 +66,22 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "mcp__codescout__(edit_code|edit_file|create_file)",
+        "matcher": "Edit|Write|Grep|Glob|Read|Bash|Agent|mcp__codescout__.*",
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/worktree-write-guard.mjs"
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write|mcp__codescout__(edit_code|edit_file|create_file)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/constitution-guard.mjs"
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write|mcp__codescout__(edit_code|edit_file|create_file)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-dirty-check.mjs"
-          }
-        ]
-      },
-      {
-        "matcher": "Grep|Glob|Read|Bash|Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-guard.mjs"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/git-worktree-guard.mjs"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/door-shell-guard.mjs"
-          }
-        ]
-      },
-      {
-        "matcher": "Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-task-hint.mjs"
-          }
-        ]
-      },
-      {
-        "matcher": "Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/explore-inject.mjs"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__codescout__edit_code",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-edit-hint.mjs"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__codescout__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/principal-stamp.mjs"
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.mjs PreToolUse"
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|EnterWorktree|mcp__codescout__.*|mcp__.*__(workspace|symbols|run_command|read_file|create_file|grep|semantic_search|edit_code|edit_file|tree|references|call_graph|symbol_at|doc|memory|index|onboarding|librarian)",
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/suspicious-zero-hint.mjs"
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.mjs PostToolUse"
           }
         ]
       },
@@ -174,43 +93,6 @@
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/wake-on-job-end.mjs",
             "asyncRewake": true,
             "timeout": 7200
-          }
-        ]
-      },
-      {
-        "matcher": "EnterWorktree",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/worktree-activate.mjs"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__.*__workspace",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/cs-activate-project.mjs"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__.*__(symbols|run_command|read_file|create_file|grep|semantic_search|edit_code|edit_file|tree|references|call_graph|symbol_at|workspace|doc|memory|index|onboarding|librarian)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/cs-liveness.mjs"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__codescout__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/cs-verified-relocate.mjs",
-            "timeout": 5
           }
         ]
       }
